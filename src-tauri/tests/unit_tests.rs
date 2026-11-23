@@ -321,3 +321,25 @@ async fn test_meeting_assistant_structured_extraction() {
     assert!(!meeting.action_items.is_empty());
     assert_eq!(meeting.transcript, transcript);
 }
+
+#[test]
+fn test_headless_python_detection_and_silent_command() {
+    use amiyo_flow_lib::stt::{create_silent_command, find_python};
+
+    // Verify create_silent_command builds cleanly
+    let _cmd = create_silent_command("test_exe");
+
+    // If python is discovered on Windows, verify it selects the headless pythonw.exe
+    if let Some(py) = find_python() {
+        let file_name = py.file_name().unwrap_or_default().to_string_lossy();
+        if cfg!(windows) {
+            // When pythonw.exe exists alongside python.exe, it MUST be selected to avoid console blinks
+            if py.with_file_name("pythonw.exe").exists() {
+                assert_eq!(
+                    file_name, "pythonw.exe",
+                    "Must select pythonw.exe for headless zero-blink execution"
+                );
+            }
+        }
+    }
+}

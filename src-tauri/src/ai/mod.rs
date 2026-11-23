@@ -325,8 +325,8 @@ async fn run_local_llama_inference(
         style, text
     );
 
-    let output = Command::new(cli_path)
-        .arg("-m")
+    let mut cmd = Command::new(cli_path);
+    cmd.arg("-m")
         .arg(model_path)
         .arg("-p")
         .arg(&prompt)
@@ -334,7 +334,15 @@ async fn run_local_llama_inference(
         .arg("256")
         .arg("--temp")
         .arg("0.1")
-        .arg("--no-display-prompt")
+        .arg("--no-display-prompt");
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+
+    let output = cmd
         .output()
         .map_err(|e| format!("Failed to execute local llama.cpp: {}", e))?;
 

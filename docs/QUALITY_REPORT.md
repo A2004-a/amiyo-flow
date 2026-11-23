@@ -107,6 +107,13 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 
 ## 4. Semantic Version Changelog
 
+### [1.0.13] — 2026-11-24
+- **Headless Pythonw & Subprocess Console Blink Elimination (BUG-035)**:
+  - **Headless Executable Preference**: Updated `find_python()` in `src-tauri/src/stt/mod.rs` to automatically detect and prefer `pythonw.exe` over `python.exe` on Windows. Because `pythonw.exe` is built with `IMAGE_SUBSYSTEM_WINDOWS_GUI`, Windows and Windows Terminal never allocate or flash a console window.
+  - **Universal CREATE_NO_WINDOW (`0x08000000`) Enforcer**: Introduced `create_silent_command()` helper that attaches `CREATE_NO_WINDOW` across all subprocess invocations, including candidate probing, daemon worker spawning, one-shot fallback transcription, local whisper CLI detection, model download compilation, and local llama CLI execution.
+  - **Python Path Caching**: Added `CACHED_PYTHON` static mutex to cache the detected Python interpreter in memory, preventing repeated disk traversals and process spawning on every dictation or engine warmup.
+  - **Worker Process Lifecycle (`Drop` implementation)**: Implemented `Drop for SttWorker` to cleanly terminate child processes (`self._child.kill()`) when dropped or re-instantiated, eliminating orphaned background processes.
+
 ### [1.0.12] — 2026-11-23
 - **DeepSeek-R1 & Claude Reasoning Tag Stripper (BUG-034)**:
   - Added native `strip_reasoning_tags()` in `ai/providers/mod.rs` to intercept and remove internal `<think>...</think>` and `<thinking>...</thinking>` scratchpads emitted by reasoning models (DeepSeek-R1, Claude, Groq R1-distill) before returning text.

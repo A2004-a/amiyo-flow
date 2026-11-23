@@ -14,7 +14,25 @@ struct SttWorker {
     stdout: BufReader<ChildStdout>,
 }
 
+impl Drop for SttWorker {
+    fn drop(&mut self) {
+        let _ = self._child.kill();
+    }
+}
+
 static WARM_WORKER: Mutex<Option<SttWorker>> = Mutex::new(None);
+static CACHED_PYTHON: Mutex<Option<Option<PathBuf>>> = Mutex::new(None);
+
+/// Creates a Command that suppresses console window creation on Windows
+pub fn create_silent_command<P: AsRef<std::ffi::OsStr>>(program: P) -> Command {
+    let mut cmd = Command::new(program);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+    cmd
+}
 
 /// Warms up the local speech engine in the background during recording
 pub fn warmup_engine() {
@@ -136,10 +154,8 @@ pub async fn download_speech_model(model_id: &str) -> Result<String, String> {
             "from faster_whisper import WhisperModel; WhisperModel('{}', device='cpu', compute_type='int8')",
             clean
         );
-        let _ = Command::new(&python_path)
-            .arg("-c")
-            .arg(&py_cmd)
-            .output();
+        let mut cmd = create_silent_command(&python_path);
+        let _ = cmd.arg("-c").arg(&py_cmd).output();
     }
 
     let url = format!(
@@ -228,49 +244,66 @@ pub async fn transcribe_audio(
     Ok(decode_local_acoustic_features(&wav_bytes, language, dictionary_prompt))
 }
 
-/// Finds a local Python installation that has faster-whisper available
-fn find_python() -> Option<PathBuf> {
-    let mut candidates = Vec::new();
+/// Finds a local Python installation that has faster-whisper available.
+/// Prefers pythonw.exe on Windows to prevent console flashing/blinking.
+pub fn find_python() -> Option<PathBuf> {
+    {
+        let guard = CACHED_PYTHON.lock();
+        if let Some(cached) = guard.as_ref() {
+            return cached.clone();
+        }
+    }
+
+    let mut raw_candidates = Vec::new();
     if let Ok(profile) = std::env::var("USERPROFILE") {
         let p = PathBuf::from(&profile);
-        candidates.push(p.join("AppData").join("Local").join("Programs").join("Python").join("Python315").join("python.exe"));
-        candidates.push(p.join("AppData").join("Local").join("Programs").join("Python").join("Python314").join("python.exe"));
-        candidates.push(p.join("AppData").join("Local").join("Programs").join("Python").join("Python313").join("python.exe"));
-        candidates.push(p.join("AppData").join("Local").join("Programs").join("Python").join("Python312").join("python.exe"));
-        candidates.push(p.join("AppData").join("Local").join("Programs").join("Python").join("Python311").join("python.exe"));
+        for py_ver in &["Python315", "Python314", "Python313", "Python312", "Python311"] {
+            let base = p.join("AppData").join("Local").join("Programs").join("Python").join(py_ver);
+            raw_candidates.push(base.join("pythonw.exe"));
+            raw_candidates.push(base.join("python.exe"));
+        }
     }
-    candidates.push(PathBuf::from("C:\\Python314\\python.exe"));
-    candidates.push(PathBuf::from("C:\\Python315\\python.exe"));
-    candidates.push(PathBuf::from("C:\\Python313\\python.exe"));
-    candidates.push(PathBuf::from("C:\\Python312\\python.exe"));
-    candidates.push(PathBuf::from("python.exe"));
-    candidates.push(PathBuf::from("python"));
-    candidates.push(PathBuf::from("python3"));
-    candidates.push(PathBuf::from("py"));
+    for py_ver in &["Python314", "Python315", "Python313", "Python312"] {
+        let base = PathBuf::from(format!("C:\\{}", py_ver));
+        raw_candidates.push(base.join("pythonw.exe"));
+        raw_candidates.push(base.join("python.exe"));
+    }
+    raw_candidates.push(PathBuf::from("pythonw.exe"));
+    raw_candidates.push(PathBuf::from("python.exe"));
+    raw_candidates.push(PathBuf::from("python3"));
+    raw_candidates.push(PathBuf::from("python"));
+    raw_candidates.push(PathBuf::from("py"));
 
-    for candidate in candidates {
-        if candidate.exists() {
-            if let Ok(output) = Command::new(&candidate)
-                .arg("-c")
-                .arg("import faster_whisper")
-                .output()
-            {
-                if output.status.success() {
-                    return Some(candidate);
-                }
+    let mut result: Option<PathBuf> = None;
+
+    for candidate in raw_candidates {
+        // If candidate is a python.exe and pythonw.exe exists next to it, prefer pythonw.exe
+        let effective_candidate = if candidate.file_name().map(|n| n == "python.exe").unwrap_or(false) {
+            let sibling_w = candidate.with_file_name("pythonw.exe");
+            if sibling_w.exists() {
+                sibling_w
+            } else {
+                candidate
             }
-        } else if let Ok(output) = Command::new(&candidate)
-            .arg("-c")
-            .arg("import faster_whisper")
-            .output()
-        {
-            if output.status.success() {
-                return Some(candidate);
+        } else {
+            candidate
+        };
+
+        if effective_candidate.exists() || !effective_candidate.is_absolute() {
+            let mut cmd = create_silent_command(&effective_candidate);
+            cmd.arg("-c").arg("import faster_whisper");
+            if let Ok(output) = cmd.output() {
+                if output.status.success() {
+                    result = Some(effective_candidate);
+                    break;
+                }
             }
         }
     }
 
-    None
+    let mut guard = CACHED_PYTHON.lock();
+    *guard = Some(result.clone());
+    result
 }
 
 /// Writes or returns the path to the on-device Python transcription runner script
@@ -452,17 +485,11 @@ for line in sys.stdin:
 /// Spawns a persistent faster-whisper daemon process
 fn spawn_stt_worker(python_path: &Path) -> Result<SttWorker, String> {
     let daemon_script = get_or_create_daemon_script()?;
-    let mut cmd = Command::new(python_path);
+    let mut cmd = create_silent_command(python_path);
     cmd.arg(&daemon_script)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null()); // Prevents pipe buffer deadlock on Windows
-
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x08000000);
-    }
 
     let mut child = cmd.spawn().map_err(|e| format!("Failed to spawn STT worker: {}", e))?;
     let stdin = child.stdin.take().ok_or("Failed to open worker stdin")?;
@@ -534,7 +561,7 @@ async fn run_faster_whisper(
 
     // Attempt 2: High-reliability one-shot fallback
     let script_path = get_or_create_transcription_script()?;
-    let mut cmd = Command::new(python_path);
+    let mut cmd = create_silent_command(python_path);
     cmd.arg(&script_path)
         .arg(model_name)
         .arg(&temp_audio_file);
@@ -543,12 +570,6 @@ async fn run_faster_whisper(
         if l != "auto" && !l.is_empty() {
             cmd.arg(l);
         }
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x08000000);
     }
 
     let output = cmd
@@ -592,7 +613,9 @@ fn find_local_whisper_cli() -> Option<PathBuf> {
 
     // Also check PATH
     for name in &candidate_names {
-        if let Ok(output) = Command::new(name).arg("--help").output() {
+        let mut cmd = create_silent_command(name);
+        cmd.arg("--help");
+        if let Ok(output) = cmd.output() {
             if output.status.success() {
                 return Some(PathBuf::from(name));
             }
@@ -616,7 +639,7 @@ async fn run_local_whisper_cli(
     fs::write(&temp_audio_file, wav_bytes)
         .map_err(|e| format!("Failed to write temporary local audio file: {}", e))?;
 
-    let mut cmd = Command::new(cli_path);
+    let mut cmd = create_silent_command(cli_path);
     cmd.arg("-m")
         .arg(model_path)
         .arg("-f")
