@@ -89,7 +89,7 @@ export const TitleBar: React.FC = () => {
           AMIYO <span className="text-cyan-400">FLOW</span>
         </span>
         <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800/90 text-cyan-400 border border-cyan-500/20 font-mono pointer-events-none">
-          v1.0.0
+          v1.0.8
         </span>
 
         {/* Global Live Dictation Status */}
