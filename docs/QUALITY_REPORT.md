@@ -8,8 +8,8 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 
 - **Test Date**: 2026-11-23
 - **Host Environment**: Windows 11 x64, Intel/AMD architecture, 8GB–16GB RAM
-- **Native Rust Tests (`cargo test`)**: **31 / 31 PASSED** (15 in `lib.rs`, 16 in `unit_tests.rs`)
-- **Frontend Vitest Tests (`npm test`)**: **13 / 13 PASSED** (`src/test/dictation.test.ts`)
+- **Native Rust Tests (`cargo test`)**: **32 / 32 PASSED** (16 in `lib.rs`, 16 in `unit_tests.rs`)
+- **Frontend Vitest Tests (`npm test`)**: **14 / 14 PASSED** (`src/test/dictation.test.ts`)
 - **Frontend Production Build (`npm run build`)**: **PASSED** (1,609 modules bundled with 0 errors)
 - **Installer Build (`npx tauri build`)**: **PASSED** (`AMIYO FLOW_1.0.0_x64-setup.exe`, 4.28 MiB)
 - **Quality Gate**: **100% GREEN (ALL PASSING)**
@@ -106,6 +106,26 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 ---
 
 ## 4. Semantic Version Changelog
+
+### [1.0.11] — 2026-11-23
+- **Multiline Spoken Formatting & Paragraph Preservation (BUG-031)**:
+  - Fixed regex space normalizer which previously destroyed newlines generated from spoken "new line" / "newline" commands by replacing `\n` with a space (`" "`).
+  - Separated horizontal whitespace compaction (`[ \t]+`) from vertical paragraph layout, allowing natural multi-paragraph dictation and line breaks.
+  - Enhanced capitalization to format and punctuate each paragraph/line individually.
+- **Chat App Auto-Submit Prevention & Chromium Keystroke Batching (BUG-032)**:
+  - Dispatches `Shift+Return` for `\n` in `send_unicode_text`, preventing chat applications (Claude, ChatGPT, Slack, Discord, Microsoft Teams) from prematurely submitting prompts when newlines are spoken.
+  - Skipped redundant `\r` (CR) characters to avoid double-spaced lines in Windows text editors.
+  - Batched SendInput dispatches in 64-event chunks with a 2ms yield to prevent input queue congestion in Chromium/Electron.
+- **Adaptive VAD Pitch Inclusivity & Speech Onset Protection (BUG-033)**:
+  - Allowed elevated audio energy (`energy > threshold * 1.8`) to register as speech even when Zero-Crossing Rate (ZCR) is low, preventing low-pitch male voices and sustained vowels ("Ah", "Oh", "Hello") from being misclassified as silence.
+  - Clamped calibration energy (`energy.min(0.015)`) so early vocal starts immediately after pressing the hotkey do not inflate the ambient noise floor.
+- **Whisper Single-Word Utterance Recovery**:
+  - Implemented automatic fallback to non-VAD transcription in faster-whisper when `vad_filter=True` yields empty text, guaranteeing that short single words ("Yes", "No", "Thanks", "Amiyo") are never dropped by Silero VAD.
+- **Floating Pill HUD Feedback & Position Memory**:
+  - Maintained pill visibility during text typing to display the active "Typing..." state and transition to "Inserted!" with a 1.2s auto-hide timer, eliminating sudden disappearance.
+  - Preserved custom drag coordinates across recordings so the pill never snaps back to the bottom-center unexpectedly.
+- **Strict Hotkey Formatting Synchronization**:
+  - Refined `formatHotkeyDisplay` in `tauri.ts` to cleanly format `Control+Shift+Space`, `Alt+Space`, and `F8` without collapsing distinct modifier combinations into `Ctrl+Space`.
 
 ### [1.0.10] — 2026-11-23
 - **Comprehensive Meeting Notes & Productivity Workspace**:

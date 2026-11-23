@@ -314,7 +314,18 @@ def transcribe():
             condition_on_previous_text=False,
             temperature=0.0
         )
-        text = " ".join(s.text.strip() for s in segments if s.text)
+        text = " ".join(s.text.strip() for s in segments if s.text).strip()
+        if not text:
+            # Fallback without VAD filter to catch quiet or short single-word utterances
+            segments, _ = model.transcribe(
+                wav_path,
+                language=lang,
+                beam_size=1,
+                vad_filter=False,
+                condition_on_previous_text=False,
+                temperature=0.0
+            )
+            text = " ".join(s.text.strip() for s in segments if s.text).strip()
         print(text.strip())
     except Exception as e:
         sys.stderr.write(str(e))
@@ -401,14 +412,25 @@ for line in sys.stdin:
                 lang = None
             model = get_model(model_name)
             segments, _ = model.transcribe(
-            wav_path,
-            language=lang,
-            beam_size=1,
-            vad_filter=True,
-            condition_on_previous_text=False,
-            temperature=0.0
-        )
+                wav_path,
+                language=lang,
+                beam_size=1,
+                vad_filter=True,
+                condition_on_previous_text=False,
+                temperature=0.0
+            )
             text = " ".join(s.text.strip() for s in segments if s.text).strip()
+            if not text:
+                # Fallback without VAD filter to catch quiet or short single-word utterances
+                segments, _ = model.transcribe(
+                    wav_path,
+                    language=lang,
+                    beam_size=1,
+                    vad_filter=False,
+                    condition_on_previous_text=False,
+                    temperature=0.0
+                )
+                text = " ".join(s.text.strip() for s in segments if s.text).strip()
             sys.stdout.write(json.dumps({"status": "ok", "text": text}) + "\n")
             sys.stdout.flush()
         else:

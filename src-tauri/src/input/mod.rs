@@ -27,7 +27,7 @@ pub mod win_impl {
     };
     use windows::Win32::UI::Input::KeyboardAndMouse::{
         SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP,
-        KEYEVENTF_UNICODE, VIRTUAL_KEY, VK_CONTROL, VK_RETURN,
+        KEYEVENTF_UNICODE, VIRTUAL_KEY, VK_CONTROL, VK_RETURN, VK_SHIFT,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
         BringWindowToTop, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId, IsWindow,
@@ -374,7 +374,23 @@ pub mod win_impl {
         unsafe {
             let mut inputs = Vec::new();
             for c in text.chars() {
+                if c == '\r' {
+                    continue;
+                }
                 if c == '\n' {
+                    // Send Shift+Return to prevent instant form/prompt submission in chat apps (Claude, ChatGPT, Slack, Discord)
+                    inputs.push(INPUT {
+                        r#type: INPUT_KEYBOARD,
+                        Anonymous: INPUT_0 {
+                            ki: KEYBDINPUT {
+                                wVk: VK_SHIFT,
+                                wScan: 0,
+                                dwFlags: windows::Win32::UI::Input::KeyboardAndMouse::KEYBD_EVENT_FLAGS(0),
+                                time: 0,
+                                dwExtraInfo: 0,
+                            },
+                        },
+                    });
                     inputs.push(INPUT {
                         r#type: INPUT_KEYBOARD,
                         Anonymous: INPUT_0 {
@@ -392,6 +408,18 @@ pub mod win_impl {
                         Anonymous: INPUT_0 {
                             ki: KEYBDINPUT {
                                 wVk: VK_RETURN,
+                                wScan: 0,
+                                dwFlags: KEYEVENTF_KEYUP,
+                                time: 0,
+                                dwExtraInfo: 0,
+                            },
+                        },
+                    });
+                    inputs.push(INPUT {
+                        r#type: INPUT_KEYBOARD,
+                        Anonymous: INPUT_0 {
+                            ki: KEYBDINPUT {
+                                wVk: VK_SHIFT,
                                 wScan: 0,
                                 dwFlags: KEYEVENTF_KEYUP,
                                 time: 0,
@@ -433,7 +461,13 @@ pub mod win_impl {
             }
 
             if !inputs.is_empty() {
-                SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
+                // Dispatch inputs in 64-event chunks with tiny yields to protect Chromium/Electron message queues
+                for chunk in inputs.chunks(64) {
+                    SendInput(chunk, std::mem::size_of::<INPUT>() as i32);
+                    if inputs.len() > 64 {
+                        sleep(Duration::from_millis(2));
+                    }
+                }
             }
         }
     }

@@ -71,14 +71,18 @@ impl VoiceActivityDetector {
 
         // Ambient noise floor calibration during initial 10 frames (~300ms)
         if self.calibrated_frames < 10 {
-            self.noise_energy_floor = (self.noise_energy_floor * self.calibrated_frames as f32 + energy)
+            let clamped_energy = energy.min(0.015);
+            self.noise_energy_floor = (self.noise_energy_floor * self.calibrated_frames as f32 + clamped_energy)
                 / ((self.calibrated_frames + 1) as f32);
             self.calibrated_frames += 1;
-            return (false, false);
+            if energy > 0.02 {
+                self.has_detected_speech = true;
+            }
+            return (self.has_detected_speech, false);
         }
 
         let threshold = (self.noise_energy_floor * self.config.energy_threshold_ratio).max(0.001);
-        let is_speech = energy > threshold && zcr > self.config.zcr_speech_threshold;
+        let is_speech = energy > threshold && (zcr > self.config.zcr_speech_threshold || energy > threshold * 1.8);
 
         let frame_duration_ms = ((samples.len() as f64 / self.config.sample_rate as f64) * 1000.0) as u64;
 

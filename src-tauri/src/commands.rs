@@ -122,17 +122,20 @@ pub async fn start_recording(app_handle: AppHandle, state: State<'_, AppState>) 
             width: pill_w,
             height: pill_h,
         }));
-        if let Ok(Some(monitor)) = pill_window.primary_monitor() {
-            let screen_size = monitor.size();
-            let scale_factor = monitor.scale_factor();
-            let screen_w = screen_size.width as f64 / scale_factor;
-            let screen_h = screen_size.height as f64 / scale_factor;
-            let pos_x = (screen_w - pill_w) / 2.0;
-            let pos_y = (screen_h - pill_h - 70.0).max(10.0);
-            let _ = pill_window.set_position(tauri::Position::Logical(tauri::LogicalPosition {
-                x: pos_x,
-                y: pos_y,
-            }));
+        let is_visible = pill_window.is_visible().unwrap_or(false);
+        if !is_visible {
+            if let Ok(Some(monitor)) = pill_window.primary_monitor() {
+                let screen_size = monitor.size();
+                let scale_factor = monitor.scale_factor();
+                let screen_w = screen_size.width as f64 / scale_factor;
+                let screen_h = screen_size.height as f64 / scale_factor;
+                let pos_x = (screen_w - pill_w) / 2.0;
+                let pos_y = (screen_h - pill_h - 70.0).max(10.0);
+                let _ = pill_window.set_position(tauri::Position::Logical(tauri::LogicalPosition {
+                    x: pos_x,
+                    y: pos_y,
+                }));
+            }
         }
         let _ = pill_window.show();
     }
@@ -377,11 +380,6 @@ pub async fn stop_recording_and_insert(
 
     let word_count = cleaned_text.split_whitespace().count();
 
-    // First hide the pill window so Windows returns focus directly to the target application
-    if let Some(pill) = app_handle.get_webview_window("pill") {
-        let _ = pill.hide();
-    }
-
     let mut insertion_error = None;
     if auto_insert && !cleaned_text.is_empty() {
         let _ = app_handle.emit("amiyo-inserting-text", &cleaned_text);
@@ -420,7 +418,7 @@ pub async fn stop_recording_and_insert(
 
     let pill_handle = app_handle.clone();
     tokio::spawn(async move {
-        tokio::time::sleep(tokio::time::Duration::from_millis(800)).await;
+        tokio::time::sleep(tokio::time::Duration::from_millis(1200)).await;
         if let Some(pill) = pill_handle.get_webview_window("pill") {
             let _ = pill.hide();
         }

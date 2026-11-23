@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { useDictationStore } from '../stores/useDictationStore';
 import { useWorkspaceStore } from '../stores/useWorkspaceStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
-import { api } from '../lib/tauri';
+import { api, formatHotkeyDisplay } from '../lib/tauri';
 
 describe('AMIYO FLOW Frontend Store & Pipeline Tests', () => {
   beforeEach(() => {
@@ -149,5 +149,13 @@ describe('AMIYO FLOW Frontend Store & Pipeline Tests', () => {
     expect(store.audioLevel).toBe(0);
     expect(store.timerInterval).toBeNull();
     expect(store.unlistenAudio).toBeNull();
+  });
+
+  it('correctly formats hotkey display labels without collapsing distinct modifiers', () => {
+    expect(formatHotkeyDisplay('Control+Space')).toBe('Ctrl+Space');
+    expect(formatHotkeyDisplay('CommandOrControl+Shift+Space')).toBe('Ctrl+Space');
+    expect(formatHotkeyDisplay('Control+Shift+Space')).toBe('Ctrl+Shift+Space');
+    expect(formatHotkeyDisplay('Alt+Space')).toBe('Alt+Space');
+    expect(formatHotkeyDisplay('F8')).toBe('F8');
   });
 });

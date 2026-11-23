@@ -408,20 +408,35 @@ pub fn heuristic_cleanup(input: &str) -> String {
         text = space_punct.replace_all(&text, "$1").to_string();
     }
 
-    // 6. Normalize spaces and whitespace
-    let space_re = Regex::new(r"\s+").unwrap();
-    text = space_re.replace_all(&text, " ").trim().to_string();
+    // 6. Normalize spaces and whitespace while preserving intentional newlines
+    let hspace_re = Regex::new(r"[ \t]+").unwrap();
+    text = hspace_re.replace_all(&text, " ").to_string();
 
-    // 5. Capitalize first letter and ensure ending punctuation
+    let nl_space_re = Regex::new(r" *(\r?\n) *").unwrap();
+    text = nl_space_re.replace_all(&text, "\n").to_string();
+
+    let multi_nl = Regex::new(r"\n{3,}").unwrap();
+    text = multi_nl.replace_all(&text, "\n\n").trim().to_string();
+
+    // 7. Capitalize first letter and ensure ending punctuation per paragraph
     if !text.is_empty() {
-        let mut chars = text.chars();
-        let first = chars.next().unwrap().to_uppercase().to_string();
-        let rest: String = chars.collect();
-        text = format!("{}{}", first, rest);
-
-        if !text.ends_with('.') && !text.ends_with('?') && !text.ends_with('!') && !text.ends_with(':') {
-            text.push('.');
+        let mut lines = Vec::new();
+        for line in text.split('\n') {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                lines.push(String::new());
+                continue;
+            }
+            let mut chars = trimmed.chars();
+            let first = chars.next().unwrap().to_uppercase().to_string();
+            let rest: String = chars.collect();
+            let mut formatted_line = format!("{}{}", first, rest);
+            if !formatted_line.ends_with('.') && !formatted_line.ends_with('?') && !formatted_line.ends_with('!') && !formatted_line.ends_with(':') && !formatted_line.ends_with(';') {
+                formatted_line.push('.');
+            }
+            lines.push(formatted_line);
         }
+        text = lines.join("\n");
     }
 
     text
@@ -603,13 +618,13 @@ pub async fn generate_meeting_summary(raw_transcript: &str) -> Result<crate::db:
         }
     }
 
-    // Format action items with clean numbering: "1. ...", "2. ..."
+    // Format action items with clean checklist numbering: "[ ] 1. ...", "[ ] 2. ..."
     let formatted_action_items: Vec<String> = action_items
         .into_iter()
         .enumerate()
         .map(|(i, item)| {
-            let trimmed = item.trim_start_matches(|c: char| c.is_ascii_digit() || c == '.' || c == ' ');
-            format!("{}. {}", i + 1, trimmed)
+            let trimmed = item.trim_start_matches(|c: char| c.is_ascii_digit() || c == '.' || c == ' ' || c == '[' || c == ']');
+            format!("[ ] {}. {}", i + 1, trimmed)
         })
         .collect();
 
@@ -716,6 +731,13 @@ mod tests {
         let raw = "hello world comma please send an email to amiyo at gmail dot com period";
         let cleaned = heuristic_cleanup(raw);
         assert_eq!(cleaned, "Hello world, please send an email to amiyo@gmail.com.");
+    }
+
+    #[test]
+    fn test_multiline_newline_preservation() {
+        let raw = "first paragraph period new line second paragraph period";
+        let cleaned = heuristic_cleanup(raw);
+        assert_eq!(cleaned, "First paragraph.\nSecond paragraph.");
     }
 
     #[tokio::test]

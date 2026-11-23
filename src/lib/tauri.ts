@@ -620,13 +620,11 @@ export const formatHotkeyDisplay = (key?: string): string => {
   if (
     !key ||
     key === 'CommandOrControl+Shift+Space' ||
-    key === 'Control+Space' ||
-    key === 'Ctrl+Shift+Space' ||
     key.includes('CommandOrControl+Shift+Space')
   ) {
     return 'Ctrl+Space';
   }
   return key
-    .replace('CommandOrControl', 'Ctrl')
-    .replace('Control', 'Ctrl');
+    .replace(/CommandOrControl/g, 'Ctrl')
+    .replace(/Control/g, 'Ctrl');
 };
