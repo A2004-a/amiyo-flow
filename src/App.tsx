@@ -17,6 +17,7 @@ import { Analytics } from './pages/Analytics';
 import { Settings } from './pages/Settings';
 import { useWorkspaceStore } from './stores/useWorkspaceStore';
 import { useSettingsStore } from './stores/useSettingsStore';
+import { useDictationStore } from './stores/useDictationStore';
 import { isTauri, onNavigate } from './lib/tauri';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
@@ -46,6 +47,7 @@ export const App: React.FC = () => {
     // Initialize stores
     loadSettings();
     loadAll();
+    const unlistenDictation = useDictationStore.getState().initListeners();
 
     // Listen for tray navigation
     const unlistenNav = onNavigate((page) => {
@@ -54,6 +56,7 @@ export const App: React.FC = () => {
 
     return () => {
       unlistenNav();
+      unlistenDictation();
     };
   }, [loadSettings, loadAll, setActivePage]);
 

@@ -138,12 +138,24 @@ pub fn run() {
                 .get_setting("hotkey")
                 .unwrap_or_else(|| "Control+Space".to_string());
 
+            let last_shortcut_time = std::sync::Arc::new(parking_lot::Mutex::new(
+                std::time::Instant::now() - std::time::Duration::from_secs(5)
+            ));
+            let last_shortcut_clone = last_shortcut_time.clone();
+
             let handle = app.handle().clone();
             let _ = app.handle().plugin(
                 tauri_plugin_global_shortcut::Builder::new()
                     .with_handler(move |app_handle, _shortcut, event| {
                         use tauri_plugin_global_shortcut::ShortcutState;
                         if event.state() == ShortcutState::Pressed {
+                            let mut last = last_shortcut_clone.lock();
+                            if last.elapsed() < std::time::Duration::from_millis(350) {
+                                return;
+                            }
+                            *last = std::time::Instant::now();
+                            drop(last);
+
                             let state = app_handle.state::<AppState>();
                             let is_rec = state.audio.is_recording();
                             let h = app_handle.clone();

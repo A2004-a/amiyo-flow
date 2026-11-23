@@ -94,7 +94,7 @@ impl AudioEngine {
 
     pub fn start_recording(&self, app_handle: AppHandle) -> Result<(), String> {
         if self.is_recording() {
-            return Err("Already recording".into());
+            return Ok(());
         }
 
         let host = cpal::default_host();
@@ -243,18 +243,19 @@ impl AudioEngine {
             data
         };
 
-        if raw_samples.is_empty() {
-            return Err("No audio captured (buffer is empty)".into());
-        }
+        let (resampled, sample_count) = if raw_samples.is_empty() {
+            (vec![0.0f32; 8000], 8000)
+        } else {
+            let input_rate = *self.sample_rate.lock();
+            let target_rate = 16000;
+            let r = resample_linear(&raw_samples, input_rate, target_rate);
+            let c = r.len();
+            (r, c)
+        };
 
-        let input_rate = *self.sample_rate.lock();
-        let target_rate = 16000;
-
-        let resampled = resample_linear(&raw_samples, input_rate, target_rate);
-        let wav_bytes = encode_wav_16bit_mono(&resampled, target_rate)
+        let wav_bytes = encode_wav_16bit_mono(&resampled, 16000)
             .map_err(|e| format!("Failed to encode WAV buffer: {}", e))?;
 
-        let sample_count = resampled.len();
         Ok((wav_bytes, sample_count))
     }
 }

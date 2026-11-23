@@ -462,6 +462,22 @@ export const onAudioLevel = (callback: (level: number) => void): (() => void) =>
   return () => {};
 };
 
+export const onDictationEvent = <T = unknown>(
+  event: string,
+  callback: (payload: T) => void
+): (() => void) => {
+  if (isTauri()) {
+    let unlisten: UnlistenFn | null = null;
+    listen<T>(event, (e) => callback(e.payload)).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }
+  return () => {};
+};
+
 export const onNavigate = (callback: (page: string) => void): (() => void) => {
   if (isTauri()) {
     let unlisten: UnlistenFn | null = null;

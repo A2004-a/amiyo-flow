@@ -186,7 +186,15 @@ pub mod win_impl {
 
     pub fn set_clipboard_text(text: &str) -> bool {
         unsafe {
-            if OpenClipboard(HWND(0 as _)).is_err() {
+            let mut opened = false;
+            for _ in 0..10 {
+                if OpenClipboard(HWND(0 as _)).is_ok() {
+                    opened = true;
+                    break;
+                }
+                sleep(Duration::from_millis(10));
+            }
+            if !opened {
                 return false;
             }
 
@@ -355,18 +363,24 @@ pub mod win_impl {
 
         if target_hwnd != 0 {
             activate_window(target_hwnd);
-            sleep(Duration::from_millis(35));
+            sleep(Duration::from_millis(45));
         }
 
         if use_clipboard {
             let old_clipboard = get_clipboard_text();
-            set_clipboard_text(text);
-            sleep(Duration::from_millis(25));
-            simulate_ctrl_v();
-            sleep(Duration::from_millis(restore_delay_ms.max(50)));
+            let set_ok = set_clipboard_text(text);
+            if set_ok {
+                sleep(Duration::from_millis(30));
+                simulate_ctrl_v();
+                // Allow Chromium/Electron/Claude/Antigravity sufficient time to process paste IPC
+                sleep(Duration::from_millis(restore_delay_ms.max(250)));
 
-            if let Some(ref prev) = old_clipboard {
-                set_clipboard_text(prev);
+                if let Some(ref prev) = old_clipboard {
+                    set_clipboard_text(prev);
+                }
+            } else {
+                // Seamlessly fall back to direct SendInput Unicode injection
+                send_unicode_text(text);
             }
         } else {
             send_unicode_text(text);

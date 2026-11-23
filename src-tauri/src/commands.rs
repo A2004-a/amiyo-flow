@@ -77,20 +77,43 @@ pub async fn start_recording(app_handle: AppHandle, state: State<'_, AppState>) 
         process_name: "unknown.exe".to_string(),
     });
 
-    *state.target_hwnd.lock() = fg_info.hwnd;
-    *state.target_app_name.lock() = fg_info.process_name.clone();
-    *state.target_app_title.lock() = fg_info.title.clone();
+    let is_amiyo = fg_info.process_name.to_lowercase().contains("amiyo-flow") 
+        || fg_info.title.to_lowercase().contains("amiyo flow")
+        || fg_info.title.to_lowercase().contains("pill");
+
+    let existing_hwnd = *state.target_hwnd.lock();
+    if !is_amiyo || existing_hwnd == 0 {
+        *state.target_hwnd.lock() = fg_info.hwnd;
+        *state.target_app_name.lock() = fg_info.process_name.clone();
+        *state.target_app_title.lock() = fg_info.title.clone();
+    }
     *state.recording_start.lock() = Some(Instant::now());
 
-    state.audio.start_recording(app_handle.clone())?;
+    if let Err(e) = state.audio.start_recording(app_handle.clone()) {
+        let _ = app_handle.emit("amiyo-dictation-failed", &e);
+        let pill_h = app_handle.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
+            if let Some(pill_window) = pill_h.get_webview_window("pill") {
+                let _ = pill_window.hide();
+            }
+        });
+        return Err(e);
+    }
 
     if let Some(pill_window) = app_handle.get_webview_window("pill") {
         let _ = pill_window.show();
     }
 
-    let _ = app_handle.emit("amiyo-recording-started", &fg_info);
+    let active_info = ForegroundWindowInfo {
+        hwnd: *state.target_hwnd.lock(),
+        process_name: state.target_app_name.lock().clone(),
+        title: state.target_app_title.lock().clone(),
+    };
 
-    Ok(fg_info)
+    let _ = app_handle.emit("amiyo-recording-started", &active_info);
+
+    Ok(active_info)
 }
 
 #[tauri::command]
@@ -137,16 +160,47 @@ pub async fn stop_recording_and_insert(
         Ok(res) => res,
         Err(e) => {
             state.is_processing.store(false, Ordering::SeqCst);
-            if let Some(pill_window) = app_handle.get_webview_window("pill") {
-                let _ = pill_window.hide();
+            if e == "Not currently recording" {
+                if let Some(pill_window) = app_handle.get_webview_window("pill") {
+                    let _ = pill_window.hide();
+                }
+                return Ok(DictationResult {
+                    success: true,
+                    raw_text: String::new(),
+                    cleaned_text: String::new(),
+                    duration_ms: 0,
+                    word_count: 0,
+                    target_app: state.target_app_name.lock().clone(),
+                    error: None,
+                });
             }
+            let _ = app_handle.emit("amiyo-dictation-failed", &e);
+            let pill_h = app_handle.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
+                if let Some(pill_window) = pill_h.get_webview_window("pill") {
+                    let _ = pill_window.hide();
+                }
+            });
             return Err(e);
         }
     };
 
-    let target_hwnd = *state.target_hwnd.lock();
-    let target_app = state.target_app_name.lock().clone();
-    let target_title = state.target_app_title.lock().clone();
+    let mut target_hwnd = *state.target_hwnd.lock();
+    let mut target_app = state.target_app_name.lock().clone();
+    let mut target_title = state.target_app_title.lock().clone();
+
+    // If target was amiyo-flow or 0, check if user is focused on an external window
+    let is_amiyo = target_app.to_lowercase().contains("amiyo-flow") || target_hwnd == 0;
+    if is_amiyo {
+        if let Some(fg) = input::get_foreground_window() {
+            if !fg.process_name.to_lowercase().contains("amiyo-flow") {
+                target_hwnd = fg.hwnd;
+                target_app = fg.process_name;
+                target_title = fg.title;
+            }
+        }
+    }
 
     let settings = state.db.get_all_settings().unwrap_or_default();
     let local_stt_model = settings.get("local_stt_model").cloned().unwrap_or_else(|| "base.en".to_string());

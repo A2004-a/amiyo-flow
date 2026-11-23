@@ -24,6 +24,7 @@ export const PillWidget: React.FC = () => {
     pauseRecording,
     resumeRecording,
     cancelRecording,
+    reset,
   } = useDictationStore();
 
   const formatTime = (ms: number) => {
@@ -58,9 +59,13 @@ export const PillWidget: React.FC = () => {
           </div>
         )}
         {state === 'failed' && (
-          <div className="w-4 h-4 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center">
+          <button
+            onClick={reset}
+            className="w-4 h-4 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center cursor-pointer hover:bg-rose-500/40 transition-colors"
+            title={errorMessage ? `${errorMessage} (Click to dismiss)` : 'Click to dismiss'}
+          >
             <AlertCircle className="w-3 h-3" />
-          </div>
+          </button>
         )}
         {state === 'idle' && (
           <div className="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center">
@@ -154,6 +159,26 @@ export const PillWidget: React.FC = () => {
               <Square className="w-3.5 h-3.5 fill-current" />
             </button>
           </>
+        )}
+
+        {state === 'failed' && (
+          <button
+            onClick={reset}
+            className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-rose-400 hover:text-rose-300 flex items-center justify-center transition-all cursor-pointer"
+            title="Dismiss Error"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+
+        {state === 'completed' && (
+          <button
+            onClick={reset}
+            className="w-7 h-7 rounded-lg bg-emerald-950/40 text-emerald-400 flex items-center justify-center transition-all cursor-pointer"
+            title="Done"
+          >
+            <Check className="w-3.5 h-3.5" />
+          </button>
         )}
       </div>
     </div>
