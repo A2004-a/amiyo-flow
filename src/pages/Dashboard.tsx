@@ -18,6 +18,8 @@ import {
   FileText,
   Timer,
   Check,
+  Move,
+  XCircle,
 } from 'lucide-react';
 import { useWorkspaceStore } from '../stores/useWorkspaceStore';
 import { useDictationStore } from '../stores/useDictationStore';
@@ -175,7 +177,23 @@ export const Dashboard: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => api.resetPillPosition()}
+              className="p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-cyan-300 border border-slate-800 transition-all cursor-pointer flex items-center gap-1.5 text-xs font-medium"
+              title="Reset Floating Pill position to bottom-center of screen"
+            >
+              <Move className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Move to Center</span>
+            </button>
+            <button
+              onClick={() => api.hidePillWindow()}
+              className="p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-rose-400 border border-slate-800 transition-all cursor-pointer flex items-center gap-1.5 text-xs font-medium"
+              title="Remove / Hide Floating Pill Widget"
+            >
+              <XCircle className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Remove Widget</span>
+            </button>
             {state === 'idle' || state === 'completed' || state === 'failed' ? (
               <button
                 onClick={startRecording}

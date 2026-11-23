@@ -459,6 +459,18 @@ export const api = {
   windowClose: async (): Promise<void> => {
     if (isTauri()) return invoke('window_close');
   },
+
+  hidePillWindow: async (): Promise<void> => {
+    if (isTauri()) return invoke('hide_pill_window');
+  },
+
+  showPillWindow: async (): Promise<void> => {
+    if (isTauri()) return invoke('show_pill_window');
+  },
+
+  resetPillPosition: async (): Promise<void> => {
+    if (isTauri()) return invoke('reset_pill_position');
+  },
 };
 
 export const onAudioLevel = (callback: (level: number) => void): (() => void) => {

@@ -270,7 +270,10 @@ pub fn run() {
             commands::get_ai_router_config,
             commands::save_ai_router_config,
             commands::get_network_audit_events,
-            commands::clear_network_audit_events
+            commands::clear_network_audit_events,
+            commands::hide_pill_window,
+            commands::show_pill_window,
+            commands::reset_pill_position
         ])
         .run(tauri::generate_context!())
         .expect("error while running AMIYO FLOW application");

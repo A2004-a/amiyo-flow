@@ -11,6 +11,8 @@ import {
   Sparkles,
   RefreshCw,
   Sliders,
+  Move,
+  XCircle,
 } from 'lucide-react';
 import { useDictationStore } from '../stores/useDictationStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
@@ -86,23 +88,42 @@ export const LiveDictation: React.FC = () => {
           </p>
         </div>
 
-        {/* Style Preset Selector */}
-        <div className="flex items-center gap-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800">
-          <Sliders className="w-3.5 h-3.5 text-slate-400 ml-1.5" />
-          <div className="flex gap-1 overflow-x-auto">
-            {styles.map((s) => (
-              <button
-                key={s}
-                onClick={() => updateSetting('style', s)}
-                className={`px-2.5 py-1 text-[11px] font-medium rounded-lg transition-all ${
-                  settings.style === s
-                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {s}
-              </button>
-            ))}
+        {/* Style Preset Selector and Widget Controls */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => api.resetPillPosition()}
+            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-cyan-300 border border-slate-800 transition-all cursor-pointer flex items-center gap-1.5 text-xs font-medium"
+            title="Move pill widget to bottom-center of screen"
+          >
+            <Move className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Center Pill</span>
+          </button>
+          <button
+            onClick={() => api.hidePillWindow()}
+            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-rose-400 border border-slate-800 transition-all cursor-pointer flex items-center gap-1.5 text-xs font-medium"
+            title="Remove / Hide floating pill widget"
+          >
+            <XCircle className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Hide Pill</span>
+          </button>
+
+          <div className="flex items-center gap-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800">
+            <Sliders className="w-3.5 h-3.5 text-slate-400 ml-1.5" />
+            <div className="flex gap-1 overflow-x-auto">
+              {styles.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => updateSetting('style', s)}
+                  className={`px-2.5 py-1 text-[11px] font-medium rounded-lg transition-all ${
+                    settings.style === s
+                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>

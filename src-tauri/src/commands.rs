@@ -644,3 +644,41 @@ pub fn get_network_audit_events(limit: Option<usize>, state: State<'_, AppState>
 pub fn clear_network_audit_events(state: State<'_, AppState>) {
     state.auditor.clear_events();
 }
+
+#[tauri::command]
+pub fn hide_pill_window(app_handle: AppHandle, state: State<'_, AppState>) {
+    state.audio.cancel();
+    *state.recording_start.lock() = None;
+    state.is_processing.store(false, Ordering::SeqCst);
+    if let Some(pill) = app_handle.get_webview_window("pill") {
+        let _ = pill.hide();
+    }
+    let _ = app_handle.emit("amiyo-recording-cancelled", ());
+}
+
+#[tauri::command]
+pub fn show_pill_window(app_handle: AppHandle) {
+    if let Some(pill) = app_handle.get_webview_window("pill") {
+        let _ = pill.show();
+    }
+}
+
+#[tauri::command]
+pub fn reset_pill_position(app_handle: AppHandle) {
+    if let Some(pill_window) = app_handle.get_webview_window("pill") {
+        if let Ok(Some(monitor)) = pill_window.primary_monitor() {
+            let screen_size = monitor.size();
+            let scale_factor = monitor.scale_factor();
+            let pill_w = 420.0;
+            let pill_h = 76.0;
+            let screen_w = screen_size.width as f64 / scale_factor;
+            let screen_h = screen_size.height as f64 / scale_factor;
+            let pos_x = (screen_w - pill_w) / 2.0;
+            let pos_y = (screen_h - pill_h - 70.0).max(10.0);
+            let _ = pill_window.set_position(tauri::Position::Logical(tauri::LogicalPosition {
+                x: pos_x,
+                y: pos_y,
+            }));
+        }
+    }
+}
