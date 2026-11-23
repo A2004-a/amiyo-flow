@@ -14,16 +14,16 @@ interface SettingsStore {
 
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
   settings: {
-    hotkey: 'Control+Space',
+    hotkey: 'CommandOrControl+Shift+Space',
     hold_to_talk: 'false',
     style: 'Professional',
     language: 'auto',
-    stt_provider: 'groq',
-    ai_provider: 'groq',
-    groq_api_key: '',
-    openai_api_key: '',
-    anthropic_api_key: '',
-    gemini_api_key: '',
+    local_stt_model: 'base.en',
+    local_llm_model: 'heuristic-rule-engine',
+    custom_stt_path: '',
+    custom_llm_path: '',
+    vad_enabled: 'true',
+    silence_cutoff_ms: '1800',
     auto_insert: 'true',
     use_clipboard: 'true',
     restore_clipboard_delay_ms: '35',

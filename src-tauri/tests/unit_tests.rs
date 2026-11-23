@@ -155,3 +155,54 @@ fn test_in_memory_database_crud() {
     assert_eq!(analytics.total_words, 2);
     assert!(analytics.estimated_minutes_saved >= 0.0);
 }
+
+#[test]
+fn test_voice_activity_detection() {
+    use amiyo_flow_lib::audio::vad::{VadConfig, VoiceActivityDetector};
+    let mut vad = VoiceActivityDetector::new(VadConfig {
+        silence_cutoff_ms: 100,
+        ..Default::default()
+    });
+
+    // 10 calibration frames of silence
+    let silence = vec![0i16; 480];
+    for _ in 0..10 {
+        let (is_speech, should_stop) = vad.process_frame(&silence);
+        assert!(!is_speech);
+        assert!(!should_stop);
+    }
+
+    // High energy alternating wave
+    let mut speech = Vec::with_capacity(480);
+    for i in 0..480 {
+        speech.push(if i % 4 < 2 { 18000i16 } else { -18000i16 });
+    }
+    let (is_speech, _) = vad.process_frame(&speech);
+    assert!(is_speech, "High energy wave should trigger speech classification");
+
+    // Continuous silence leading to auto-stop cutoff
+    let mut stopped = false;
+    for _ in 0..10 {
+        let (_, auto_stop) = vad.process_frame(&silence);
+        if auto_stop {
+            stopped = true;
+            break;
+        }
+    }
+    assert!(stopped, "Auto stop cutoff should fire after speech ceases");
+}
+
+#[test]
+fn test_local_model_enumeration() {
+    use amiyo_flow_lib::ai::list_local_llm_models;
+    use amiyo_flow_lib::stt::list_local_speech_models;
+
+    let speech_models = list_local_speech_models();
+    assert!(!speech_models.is_empty(), "Should enumerate local speech models");
+    assert!(speech_models.iter().any(|m| m.id == "tiny.en"));
+    assert!(speech_models.iter().any(|m| m.id == "base.en"));
+
+    let llm_models = list_local_llm_models();
+    assert!(!llm_models.is_empty(), "Should enumerate local LLM models");
+    assert!(llm_models.iter().any(|m| m.id == "heuristic-rule-engine"));
+}

@@ -9,7 +9,7 @@ import { Dictionary } from './pages/Dictionary';
 import { Snippets } from './pages/Snippets';
 import { WritingStyles } from './pages/WritingStyles';
 import { MeetingAssistant } from './pages/MeetingAssistant';
-import { AIProviders } from './pages/AIProviders';
+import { LocalModels } from './pages/LocalModels';
 import { Analytics } from './pages/Analytics';
 import { Settings } from './pages/Settings';
 import { useWorkspaceStore } from './stores/useWorkspaceStore';
@@ -83,7 +83,7 @@ export const App: React.FC = () => {
           {activePage === 'snippets' && <Snippets />}
           {activePage === 'writing-styles' && <WritingStyles />}
           {activePage === 'meeting-assistant' && <MeetingAssistant />}
-          {activePage === 'ai-providers' && <AIProviders />}
+          {activePage === 'local-models' && <LocalModels />}
           {activePage === 'analytics' && <Analytics />}
           {activePage === 'settings' && <Settings />}
         </main>

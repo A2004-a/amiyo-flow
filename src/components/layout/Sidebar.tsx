@@ -39,7 +39,7 @@ export const Sidebar: React.FC = () => {
     { id: 'snippets', label: 'Snippets', icon: FileCode },
     { id: 'writing-styles', label: 'Writing Styles', icon: PenTool },
     { id: 'meeting-assistant', label: 'Meetings', icon: Users },
-    { id: 'ai-providers', label: 'AI Providers', icon: Cpu },
+    { id: 'local-models', label: 'Local AI Models', icon: Cpu },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
   ];
@@ -124,7 +124,7 @@ export const Sidebar: React.FC = () => {
         <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
           <span>Engine:</span>
           <span className="font-mono text-cyan-400 uppercase text-[10px]">
-            {settings.stt_provider}
+            {settings.local_stt_model || 'whisper'}
           </span>
         </div>
       </div>

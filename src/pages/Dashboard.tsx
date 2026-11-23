@@ -37,7 +37,7 @@ export const Dashboard: React.FC = () => {
                 Universal AI Dictation
               </span>
               <span className="flex items-center gap-1 text-[11px] text-emerald-400">
-                <ShieldCheck className="w-3.5 h-3.5" /> Zero Telemetry
+                <ShieldCheck className="w-3.5 h-3.5" /> 100% On-Device • Zero Telemetry
               </span>
             </div>
             <h1 className="text-2xl font-bold text-white tracking-tight">

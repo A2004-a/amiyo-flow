@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { useDictationStore } from '../stores/useDictationStore';
 import { useWorkspaceStore } from '../stores/useWorkspaceStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
+import { api } from '../lib/tauri';
 
 describe('AMIYO FLOW Frontend Store & Pipeline Tests', () => {
   beforeEach(() => {
@@ -25,7 +26,7 @@ describe('AMIYO FLOW Frontend Store & Pipeline Tests', () => {
 
   it('loads and stores settings properly', async () => {
     await useSettingsStore.getState().loadSettings();
-    expect(useSettingsStore.getState().settings.hotkey).toBe('Control+Space');
+    expect(useSettingsStore.getState().settings.hotkey).toBe('CommandOrControl+Shift+Space');
     expect(useSettingsStore.getState().settings.style).toBe('Professional');
 
     await useSettingsStore.getState().updateSetting('style', 'Developer');
@@ -73,5 +74,15 @@ describe('AMIYO FLOW Frontend Store & Pipeline Tests', () => {
     expect(meetings[0].title).toBeDefined();
     expect(meetings[0].decisions.length).toBeGreaterThan(0);
     expect(meetings[0].action_items.length).toBeGreaterThan(0);
+  });
+
+  it('retrieves local models and offline system status', async () => {
+    const speechModels = await api.listLocalSpeechModels();
+    expect(speechModels.length).toBeGreaterThan(0);
+    expect(speechModels.some((m) => m.id === 'base.en')).toBe(true);
+
+    const status = await api.getOfflineSystemStatus();
+    expect(status.is_offline_ready).toBe(true);
+    expect(status.vad_enabled).toBe(true);
   });
 });

@@ -65,17 +65,47 @@ export interface AnalyticsSummary {
   average_wpm: number;
 }
 
+export interface LocalSpeechModelInfo {
+  id: string;
+  name: string;
+  size_mb: number;
+  ram_required_mb: number;
+  description: string;
+  is_downloaded: boolean;
+  file_path: string;
+}
+
+export interface LocalLlmModelInfo {
+  id: string;
+  name: string;
+  size_mb: number;
+  ram_required_mb: number;
+  description: string;
+  is_downloaded: boolean;
+  file_path: string;
+}
+
+export interface OfflineSystemStatus {
+  is_offline_ready: boolean;
+  active_stt_engine: string;
+  active_llm_engine: string;
+  vad_enabled: boolean;
+  memory_allocated_mb: number;
+  cpu_threads: number;
+  metal_or_cuda_available: boolean;
+}
+
 export interface AppSettings {
   hotkey: string;
   hold_to_talk: string;
   style: string;
   language: string;
-  stt_provider: string;
-  ai_provider: string;
-  groq_api_key: string;
-  openai_api_key: string;
-  anthropic_api_key: string;
-  gemini_api_key: string;
+  local_stt_model: string;
+  local_llm_model: string;
+  custom_stt_path: string;
+  custom_llm_path: string;
+  vad_enabled: string;
+  silence_cutoff_ms: string;
   auto_insert: string;
   use_clipboard: string;
   restore_clipboard_delay_ms: string;
@@ -92,6 +122,6 @@ export type PageId =
   | 'snippets'
   | 'writing-styles'
   | 'meeting-assistant'
-  | 'ai-providers'
+  | 'local-models'
   | 'analytics'
   | 'settings';

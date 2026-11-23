@@ -9,6 +9,8 @@ use std::sync::Arc;
 use std::thread;
 use tauri::{AppHandle, Emitter};
 
+pub mod vad;
+
 #[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
 pub struct AudioDeviceInfo {
     pub name: String,

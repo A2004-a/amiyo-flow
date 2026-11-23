@@ -9,6 +9,9 @@ import {
   MeetingItem,
   AnalyticsSummary,
   AppSettings,
+  LocalSpeechModelInfo,
+  LocalLlmModelInfo,
+  OfflineSystemStatus,
 } from '../types';
 
 export const isTauri = (): boolean => {
@@ -17,16 +20,16 @@ export const isTauri = (): boolean => {
 
 // Mock in-memory DB for browser dev fallback
 let mockSettings: AppSettings = {
-  hotkey: 'Control+Space',
+  hotkey: 'CommandOrControl+Shift+Space',
   hold_to_talk: 'false',
   style: 'Professional',
   language: 'auto',
-  stt_provider: 'groq',
-  ai_provider: 'groq',
-  groq_api_key: '',
-  openai_api_key: '',
-  anthropic_api_key: '',
-  gemini_api_key: '',
+  local_stt_model: 'base.en',
+  local_llm_model: 'heuristic-rule-engine',
+  custom_stt_path: '',
+  custom_llm_path: '',
+  vad_enabled: 'true',
+  silence_cutoff_ms: '1800',
   auto_insert: 'true',
   use_clipboard: 'true',
   restore_clipboard_delay_ms: '35',
@@ -141,7 +144,7 @@ export const api = {
       target_app: 'code.exe',
       word_count: 11,
       style: mockSettings.style,
-      provider: mockSettings.stt_provider,
+      provider: mockSettings.local_stt_model,
     };
     mockHistory.unshift(item);
     return {
@@ -294,6 +297,38 @@ export const api = {
 
   toggleMainWindow: async (): Promise<void> => {
     if (isTauri()) return invoke('toggle_main_window');
+  },
+
+  listLocalSpeechModels: async (): Promise<LocalSpeechModelInfo[]> => {
+    if (isTauri()) return invoke('list_local_speech_models');
+    return [
+      { id: 'tiny.en', name: 'Whisper Tiny (English)', size_mb: 75, ram_required_mb: 120, description: 'Fastest local inference', is_downloaded: true, file_path: 'local' },
+      { id: 'base.en', name: 'Whisper Base (English)', size_mb: 142, ram_required_mb: 210, description: 'Balanced speed and accuracy', is_downloaded: true, file_path: 'local' },
+      { id: 'small.en', name: 'Whisper Small (English)', size_mb: 466, ram_required_mb: 600, description: 'High-precision English', is_downloaded: false, file_path: '' },
+      { id: 'base', name: 'Whisper Base (Multilingual)', size_mb: 142, ram_required_mb: 220, description: 'English, Hindi, Bengali, Hinglish', is_downloaded: true, file_path: 'local' },
+    ];
+  },
+
+  listLocalLlmModels: async (): Promise<LocalLlmModelInfo[]> => {
+    if (isTauri()) return invoke('list_local_llm_models');
+    return [
+      { id: 'smollm2-360m-q4_k_m', name: 'SmolLM2 360M (Q4_K_M)', size_mb: 229, ram_required_mb: 320, description: 'Ultra-fast local grammar fixer', is_downloaded: true, file_path: 'local' },
+      { id: 'qwen2.5-0.5b-q4_k_m', name: 'Qwen 2.5 0.5B (Q4_K_M)', size_mb: 398, ram_required_mb: 480, description: 'Multilingual text cleanup', is_downloaded: false, file_path: '' },
+      { id: 'heuristic-rule-engine', name: 'Zero-RAM Heuristic Engine', size_mb: 0, ram_required_mb: 0, description: 'Instant deterministic cleanup (0 MB RAM)', is_downloaded: true, file_path: 'builtin' },
+    ];
+  },
+
+  getOfflineSystemStatus: async (): Promise<OfflineSystemStatus> => {
+    if (isTauri()) return invoke('get_offline_system_status');
+    return {
+      is_offline_ready: true,
+      active_stt_engine: 'whisper.cpp (base.en)',
+      active_llm_engine: 'Zero-RAM Local Rule Engine',
+      vad_enabled: true,
+      memory_allocated_mb: 145,
+      cpu_threads: 8,
+      metal_or_cuda_available: false,
+    };
   },
 };
 

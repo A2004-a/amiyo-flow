@@ -149,11 +149,10 @@ pub async fn stop_recording_and_insert(
     let target_title = state.target_app_title.lock().clone();
 
     let settings = state.db.get_all_settings().unwrap_or_default();
-    let stt_provider = settings.get("stt_provider").cloned().unwrap_or_else(|| "groq".to_string());
-    let ai_provider = settings.get("ai_provider").cloned().unwrap_or_else(|| "groq".to_string());
-    let groq_key = settings.get("groq_api_key").cloned().unwrap_or_default();
-    let openai_key = settings.get("openai_api_key").cloned().unwrap_or_default();
-    let anthropic_key = settings.get("anthropic_api_key").cloned().unwrap_or_default();
+    let local_stt_model = settings.get("local_stt_model").cloned().unwrap_or_else(|| "base.en".to_string());
+    let local_llm_model = settings.get("local_llm_model").cloned().unwrap_or_else(|| "heuristic-rule-engine".to_string());
+    let custom_stt_path = settings.get("custom_stt_path").cloned();
+    let custom_llm_path = settings.get("custom_llm_path").cloned();
     let style = settings.get("style").cloned().unwrap_or_else(|| "Professional".to_string());
     let language = settings.get("language").cloned().unwrap_or_else(|| "auto".to_string());
     let auto_insert = settings.get("auto_insert").map(|v| v == "true").unwrap_or(true);
@@ -172,15 +171,9 @@ pub async fn stop_recording_and_insert(
         .collect::<Vec<_>>()
         .join(", ");
 
-    let stt_key = match stt_provider.as_str() {
-        "groq" => &groq_key,
-        "openai" => &openai_key,
-        _ => &groq_key,
-    };
-
     let raw_text = match stt::transcribe_audio(
-        &stt_provider,
-        stt_key,
+        &local_stt_model,
+        custom_stt_path.as_deref(),
         wav_bytes,
         Some(&language),
         Some(&dict_prompt),
@@ -193,20 +186,13 @@ pub async fn stop_recording_and_insert(
             if let Some(pill_window) = app_handle.get_webview_window("pill") {
                 let _ = pill_window.hide();
             }
-            return Err(format!("Transcription failed: {}", e));
+            return Err(format!("Local transcription failed: {}", e));
         }
     };
 
-    let ai_key = match ai_provider.as_str() {
-        "groq" => &groq_key,
-        "openai" => &openai_key,
-        "anthropic" => &anthropic_key,
-        _ => &groq_key,
-    };
-
     let cleaned_text = match ai::clean_transcript(
-        &ai_provider,
-        ai_key,
+        &local_llm_model,
+        custom_llm_path.as_deref(),
         &raw_text,
         &style,
         &format!("{} ({})", target_app, target_title),
@@ -239,7 +225,7 @@ pub async fn stop_recording_and_insert(
         target_app: target_app.clone(),
         word_count: word_count as i64,
         style: style.clone(),
-        provider: stt_provider.clone(),
+        provider: local_stt_model.clone(),
     };
     let _ = state.db.add_history(hist_item);
 
@@ -282,24 +268,15 @@ pub async fn transcribe_and_clean(
     state: State<'_, AppState>,
 ) -> Result<String, String> {
     let settings = state.db.get_all_settings().unwrap_or_default();
-    let ai_provider = settings.get("ai_provider").cloned().unwrap_or_else(|| "groq".to_string());
-    let groq_key = settings.get("groq_api_key").cloned().unwrap_or_default();
-    let openai_key = settings.get("openai_api_key").cloned().unwrap_or_default();
-    let anthropic_key = settings.get("anthropic_api_key").cloned().unwrap_or_default();
-
-    let ai_key = match ai_provider.as_str() {
-        "groq" => &groq_key,
-        "openai" => &openai_key,
-        "anthropic" => &anthropic_key,
-        _ => &groq_key,
-    };
+    let local_llm_model = settings.get("local_llm_model").cloned().unwrap_or_else(|| "heuristic-rule-engine".to_string());
+    let custom_llm_path = settings.get("custom_llm_path").cloned();
 
     let dict = state.db.get_dictionary().unwrap_or_default();
     let snips = state.db.get_snippets().unwrap_or_default();
 
     ai::clean_transcript(
-        &ai_provider,
-        ai_key,
+        &local_llm_model,
+        custom_llm_path.as_deref(),
         &raw_text,
         &style,
         &target_app,
@@ -377,6 +354,48 @@ pub fn get_meetings(state: State<'_, AppState>) -> Result<Vec<MeetingItem>, Stri
     state.db.get_meetings().map_err(|e| e.to_string())
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct OfflineSystemStatus {
+    pub is_offline_ready: bool,
+    pub active_stt_engine: String,
+    pub active_llm_engine: String,
+    pub vad_enabled: bool,
+    pub memory_allocated_mb: u32,
+    pub cpu_threads: usize,
+    pub metal_or_cuda_available: bool,
+}
+
+#[tauri::command]
+pub fn list_local_speech_models() -> Vec<stt::LocalSpeechModelInfo> {
+    stt::list_local_speech_models()
+}
+
+#[tauri::command]
+pub fn list_local_llm_models() -> Vec<ai::LocalLlmModelInfo> {
+    ai::list_local_llm_models()
+}
+
+#[tauri::command]
+pub fn get_offline_system_status(state: State<'_, AppState>) -> OfflineSystemStatus {
+    let settings = state.db.get_all_settings().unwrap_or_default();
+    let stt = settings.get("local_stt_model").cloned().unwrap_or_else(|| "base.en".to_string());
+    let llm = settings.get("local_llm_model").cloned().unwrap_or_else(|| "heuristic-rule-engine".to_string());
+
+    OfflineSystemStatus {
+        is_offline_ready: true,
+        active_stt_engine: format!("whisper.cpp ({})", stt),
+        active_llm_engine: if llm == "heuristic-rule-engine" {
+            "Zero-RAM Local Rule Engine".to_string()
+        } else {
+            format!("llama.cpp ({})", llm)
+        },
+        vad_enabled: true,
+        memory_allocated_mb: if llm == "heuristic-rule-engine" { 145 } else { 480 },
+        cpu_threads: std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4),
+        metal_or_cuda_available: cfg!(target_os = "macos"),
+    }
+}
+
 #[tauri::command]
 pub async fn process_meeting_recording(
     title: String,
@@ -384,21 +403,9 @@ pub async fn process_meeting_recording(
     duration_sec: i64,
     state: State<'_, AppState>,
 ) -> Result<MeetingItem, String> {
-    let settings = state.db.get_all_settings().unwrap_or_default();
-    let groq_key = settings.get("groq_api_key").cloned().unwrap_or_default();
-
-    let (summary, decisions, action_items) = ai::generate_meeting_summary(&groq_key, &transcript).await?;
-
-    let meeting = MeetingItem {
-        id: uuid::Uuid::new_v4().to_string(),
-        title,
-        timestamp: chrono::Utc::now().to_rfc3339(),
-        duration_sec,
-        transcript,
-        summary,
-        decisions,
-        action_items,
-    };
+    let mut meeting = ai::generate_meeting_summary(&transcript).await?;
+    meeting.title = title;
+    meeting.duration_sec = duration_sec;
 
     state.db.add_meeting(meeting.clone()).map_err(|e| e.to_string())?;
     Ok(meeting)

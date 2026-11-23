@@ -204,7 +204,10 @@ pub fn run() {
             commands::process_meeting_recording,
             commands::delete_meeting,
             commands::toggle_pill_window,
-            commands::toggle_main_window
+            commands::toggle_main_window,
+            commands::list_local_speech_models,
+            commands::list_local_llm_models,
+            commands::get_offline_system_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running AMIYO FLOW application");
