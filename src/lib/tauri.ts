@@ -334,6 +334,11 @@ export const api = {
     mockMeetings = mockMeetings.filter((m) => m.id !== id);
   },
 
+  updateMeeting: async (meeting: MeetingItem): Promise<void> => {
+    if (isTauri()) return invoke('update_meeting', { meeting });
+    mockMeetings = mockMeetings.map((m) => (m.id === meeting.id ? meeting : m));
+  },
+
   togglePillWindow: async (): Promise<void> => {
     if (isTauri()) return invoke('toggle_pill_window');
   },

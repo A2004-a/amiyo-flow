@@ -267,6 +267,7 @@ pub fn run() {
             commands::get_analytics,
             commands::get_meetings,
             commands::process_meeting_recording,
+            commands::update_meeting,
             commands::delete_meeting,
             commands::toggle_pill_window,
             commands::toggle_main_window,

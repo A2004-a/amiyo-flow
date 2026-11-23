@@ -606,6 +606,11 @@ pub fn delete_meeting(id: String, state: State<'_, AppState>) -> Result<(), Stri
 }
 
 #[tauri::command]
+pub fn update_meeting(meeting: MeetingItem, state: State<'_, AppState>) -> Result<(), String> {
+    state.db.update_meeting(meeting).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn toggle_pill_window(app_handle: AppHandle) {
     if let Some(pill) = app_handle.get_webview_window("pill") {
         if pill.is_visible().unwrap_or(false) {

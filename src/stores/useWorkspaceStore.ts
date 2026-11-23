@@ -37,6 +37,7 @@ interface WorkspaceStore {
   deleteSnippet: (id: string) => Promise<void>;
 
   loadMeetings: () => Promise<void>;
+  updateMeeting: (meeting: MeetingItem) => Promise<void>;
   deleteMeeting: (id: string) => Promise<void>;
   loadAnalytics: () => Promise<void>;
 }
@@ -121,6 +122,13 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   loadMeetings: async () => {
     const list = await api.getMeetings();
     set({ meetings: list });
+  },
+
+  updateMeeting: async (meeting) => {
+    await api.updateMeeting(meeting);
+    set({
+      meetings: get().meetings.map((m) => (m.id === meeting.id ? meeting : m)),
+    });
   },
 
   deleteMeeting: async (id) => {

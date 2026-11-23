@@ -449,6 +449,23 @@ impl Database {
         Ok(())
     }
 
+    pub fn update_meeting(&self, item: MeetingItem) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let decisions_json = serde_json::to_string(&item.decisions).unwrap_or_else(|_| "[]".to_string());
+        let action_items_json = serde_json::to_string(&item.action_items).unwrap_or_else(|_| "[]".to_string());
+        conn.execute(
+            r#"UPDATE meetings SET title = ?1, summary = ?2, decisions_json = ?3, action_items_json = ?4 WHERE id = ?5"#,
+            params![
+                item.title,
+                item.summary,
+                decisions_json,
+                action_items_json,
+                item.id
+            ],
+        )?;
+        Ok(())
+    }
+
     pub fn delete_meeting(&self, id: &str) -> Result<(), rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
         conn.execute("DELETE FROM meetings WHERE id = ?1", params![id])?;

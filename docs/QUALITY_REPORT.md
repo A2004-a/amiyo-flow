@@ -8,7 +8,7 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 
 - **Test Date**: 2026-11-23
 - **Host Environment**: Windows 11 x64, Intel/AMD architecture, 8GB–16GB RAM
-- **Native Rust Tests (`cargo test`)**: **30 / 30 PASSED** (14 in `lib.rs`, 16 in `unit_tests.rs`)
+- **Native Rust Tests (`cargo test`)**: **31 / 31 PASSED** (15 in `lib.rs`, 16 in `unit_tests.rs`)
 - **Frontend Vitest Tests (`npm test`)**: **13 / 13 PASSED** (`src/test/dictation.test.ts`)
 - **Frontend Production Build (`npm run build`)**: **PASSED** (1,609 modules bundled with 0 errors)
 - **Installer Build (`npx tauri build`)**: **PASSED** (`AMIYO FLOW_1.0.0_x64-setup.exe`, 4.28 MiB)
@@ -106,6 +106,16 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 ---
 
 ## 4. Semantic Version Changelog
+
+### [1.0.10] — 2026-11-23
+- **Comprehensive Meeting Notes & Productivity Workspace**:
+  - **In-Meeting Live Note-Taking**: Added live scratchpad with `+ [MM:SS] Timestamp` button during active recording; human notes automatically merge into the synthesized executive summary upon meeting completion.
+  - **Interactive Action Items Checklist**: Complete task lifecycle management with toggleable `[x]`/`[ ]` checkboxes, strikethrough typography, dynamic addition/deletion of action items, and real-time task progress tracking (`X of Y tasks completed (Z%)`).
+  - **Consensus Key Decisions Manager**: Added interactive addition and removal of key consensus decisions directly within the meeting workspace.
+  - **Real-Time Archive Search & Categorization**: Implemented multi-field search across titles, summaries, transcripts, decisions, and action items, complemented by categorized filter pills (`All`, `General Sync`, `Sprint Planning`, `Client Call`, `1-on-1`, `Architecture`, `Design Review`) and multiple sort orders (`Newest`, `Oldest`, `Longest`).
+  - **Multi-Format Export Suite**: Export meeting minutes in one click to Markdown (`.md`), Printable Executive Memo (`.html` with print CSS and automatic print dialog trigger), Raw JSON (`.json`), or formatted copy to clipboard for Slack/Teams.
+  - **Inline Executive Editing**: Added instant inline title rename and full markdown notes editor with live edit/save/cancel controls.
+  - **Backend SQLite Persistence (`update_meeting`)**: Added ACID `update_meeting` SQL query and Tauri IPC command to ensure changes to title, summary, decisions, and action items persist permanently across application reboots.
 
 ### [1.0.9] — 2026-11-23
 - **Elimination of Clipboard Overwrite Race Conditions (BUG-030)**:
