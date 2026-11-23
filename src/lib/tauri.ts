@@ -433,6 +433,19 @@ export const api = {
     if (isTauri()) return invoke('clear_network_audit_events');
     mockNetworkAuditEvents = [];
   },
+
+  windowMinimize: async (): Promise<void> => {
+    if (isTauri()) return invoke('window_minimize');
+  },
+
+  windowToggleMaximize: async (): Promise<boolean> => {
+    if (isTauri()) return invoke('window_toggle_maximize');
+    return false;
+  },
+
+  windowClose: async (): Promise<void> => {
+    if (isTauri()) return invoke('window_close');
+  },
 };
 
 export const onAudioLevel = (callback: (level: number) => void): (() => void) => {

@@ -448,6 +448,36 @@ pub fn toggle_main_window(app_handle: AppHandle) {
 }
 
 #[tauri::command]
+pub fn window_minimize(app_handle: AppHandle) {
+    if let Some(main) = app_handle.get_webview_window("main") {
+        let _ = main.minimize();
+    }
+}
+
+#[tauri::command]
+pub fn window_toggle_maximize(app_handle: AppHandle) -> bool {
+    if let Some(main) = app_handle.get_webview_window("main") {
+        if let Ok(is_max) = main.is_maximized() {
+            if is_max {
+                let _ = main.unmaximize();
+                return false;
+            } else {
+                let _ = main.maximize();
+                return true;
+            }
+        }
+    }
+    false
+}
+
+#[tauri::command]
+pub fn window_close(app_handle: AppHandle) {
+    if let Some(main) = app_handle.get_webview_window("main") {
+        let _ = main.hide();
+    }
+}
+
+#[tauri::command]
 pub async fn check_ollama_status(endpoint: Option<String>) -> ai::ollama::OllamaStatus {
     let ep = endpoint.unwrap_or_else(|| "http://localhost:11434".to_string());
     ai::ollama::OllamaClient::check_status(&ep).await

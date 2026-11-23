@@ -22,7 +22,8 @@ pub mod win_impl {
     use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE};
     use windows::Win32::System::ProcessStatus::GetModuleBaseNameW;
     use windows::Win32::System::Threading::{
-        AttachThreadInput, GetCurrentThreadId, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+        AttachThreadInput, GetCurrentThreadId, OpenProcess, QueryFullProcessImageNameW,
+        PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION,
     };
     use windows::Win32::UI::Input::KeyboardAndMouse::{
         SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP,
@@ -61,21 +62,44 @@ pub mod win_impl {
                 if let Ok(process_handle) =
                     OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, process_id)
                 {
-                    let mut proc_buf = [0u16; 260];
-                    let p_len = GetModuleBaseNameW(process_handle, None, &mut proc_buf);
-                    let _ = windows::Win32::Foundation::CloseHandle(process_handle);
-                    if p_len > 0 {
-                        OsString::from_wide(&proc_buf[..p_len as usize])
+                    let mut proc_buf = [0u16; 512];
+                    let mut size = proc_buf.len() as u32;
+                    let success = QueryFullProcessImageNameW(
+                        process_handle,
+                        PROCESS_NAME_FORMAT(0),
+                        windows::core::PWSTR(proc_buf.as_mut_ptr()),
+                        &mut size,
+                    );
+
+                    let p_name = if success.is_ok() && size > 0 {
+                        let full_path = OsString::from_wide(&proc_buf[..size as usize])
                             .to_string_lossy()
-                            .into_owned()
+                            .into_owned();
+                        std::path::Path::new(&full_path)
+                            .file_name()
+                            .and_then(|f| f.to_str())
+                            .map(|s| s.to_string())
                     } else {
-                        "unknown.exe".to_string()
-                    }
+                        let mut base_buf = [0u16; 260];
+                        let b_len = GetModuleBaseNameW(process_handle, None, &mut base_buf);
+                        if b_len > 0 {
+                            Some(
+                                OsString::from_wide(&base_buf[..b_len as usize])
+                                    .to_string_lossy()
+                                    .into_owned(),
+                            )
+                        } else {
+                            None
+                        }
+                    };
+
+                    let _ = windows::Win32::Foundation::CloseHandle(process_handle);
+                    p_name.unwrap_or_else(|| "app.exe".to_string())
                 } else {
-                    "unknown.exe".to_string()
+                    "app.exe".to_string()
                 }
             } else {
-                "unknown.exe".to_string()
+                "app.exe".to_string()
             };
 
             Some(ForegroundWindowInfo {

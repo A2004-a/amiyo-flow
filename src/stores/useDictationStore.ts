@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { api, onAudioLevel } from '../lib/tauri';
 import { ForegroundWindowInfo, RecordingState } from '../types';
+import { useWorkspaceStore } from './useWorkspaceStore';
 
 interface DictationStore {
   state: RecordingState;
@@ -81,6 +82,12 @@ export const useDictationStore = create<DictationStore>((set, get) => ({
           cleanedText: res.cleaned_text,
           durationMs: res.duration_ms,
         });
+        try {
+          useWorkspaceStore.getState().loadHistory();
+          useWorkspaceStore.getState().loadAnalytics();
+        } catch {
+          // ignore
+        }
       } else {
         set({
           state: 'failed',

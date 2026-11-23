@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { Minus, Square, Copy, X, Mic, Sparkles } from 'lucide-react';
-import { isTauri } from '../../lib/tauri';
+import { isTauri, api } from '../../lib/tauri';
 import { useDictationStore } from '../../stores/useDictationStore';
 
 export const TitleBar: React.FC = () => {
@@ -10,34 +10,51 @@ export const TitleBar: React.FC = () => {
 
   useEffect(() => {
     if (!isTauri()) return;
-    const win = getCurrentWebviewWindow();
-    win.isMaximized().then(setIsMaximized);
+    try {
+      const win = getCurrentWebviewWindow();
+      win.isMaximized().then(setIsMaximized).catch(() => {});
+    } catch {
+      // fallback
+    }
   }, []);
 
   const handleMinimize = async () => {
-    if (isTauri()) {
-      const win = getCurrentWebviewWindow();
-      await win.minimize();
+    try {
+      await api.windowMinimize();
+    } catch {
+      if (isTauri()) {
+        const win = getCurrentWebviewWindow();
+        await win.minimize();
+      }
     }
   };
 
   const handleMaximize = async () => {
-    if (isTauri()) {
-      const win = getCurrentWebviewWindow();
-      if (isMaximized) {
-        await win.unmaximize();
-        setIsMaximized(false);
-      } else {
-        await win.maximize();
-        setIsMaximized(true);
+    try {
+      const toggled = await api.windowToggleMaximize();
+      setIsMaximized(toggled);
+    } catch {
+      if (isTauri()) {
+        const win = getCurrentWebviewWindow();
+        if (isMaximized) {
+          await win.unmaximize();
+          setIsMaximized(false);
+        } else {
+          await win.maximize();
+          setIsMaximized(true);
+        }
       }
     }
   };
 
   const handleClose = async () => {
-    if (isTauri()) {
-      const win = getCurrentWebviewWindow();
-      await win.close();
+    try {
+      await api.windowClose();
+    } catch {
+      if (isTauri()) {
+        const win = getCurrentWebviewWindow();
+        await win.close();
+      }
     }
   };
 
