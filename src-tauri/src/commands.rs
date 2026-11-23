@@ -688,16 +688,29 @@ pub fn has_cloud_api_key(provider_id: String) -> bool {
 #[tauri::command]
 pub async fn test_cloud_provider(
     provider_id: String,
+    model: Option<String>,
     custom_endpoint: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
     let api_key = match crate::security::CredentialManager::get_key(&provider_id)? {
         Some(k) if !k.trim().is_empty() => k,
-        _ => return Err("No API key configured for this provider in OS secure keychain".to_string()),
+        _ => {
+            if provider_id == "custom" {
+                "none".to_string()
+            } else {
+                return Err("No API key configured for this provider in OS secure keychain".to_string());
+            }
+        }
     };
 
     let start = Instant::now();
-    let res = ai::providers::CloudAIClient::test_connection(&provider_id, &api_key, custom_endpoint.as_deref()).await;
+    let res = ai::providers::CloudAIClient::test_connection(
+        &provider_id,
+        &api_key,
+        model.as_deref(),
+        custom_endpoint.as_deref(),
+    )
+    .await;
     let latency = start.elapsed().as_millis() as u64;
 
     match &res {

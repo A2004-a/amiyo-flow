@@ -10,10 +10,12 @@ use std::time::Duration;
 pub struct CloudProviderMeta {
     pub id: String,
     pub name: String,
+    pub description: String,
     pub default_model: String,
     pub supported_models: Vec<String>,
+    pub docs_url: String,
     pub endpoint: String,
-    pub is_custom: bool,
+    pub requires_custom_endpoint: bool,
     pub requires_key: bool,
 }
 
@@ -22,96 +24,189 @@ pub fn list_supported_cloud_providers() -> Vec<CloudProviderMeta> {
         CloudProviderMeta {
             id: "openai".to_string(),
             name: "OpenAI".to_string(),
+            description: "Frontier multimodal, fast reasoning & official Whisper".to_string(),
             default_model: "gpt-4o-mini".to_string(),
-            supported_models: vec!["gpt-4o-mini".to_string(), "gpt-4o".to_string(), "gpt-3.5-turbo".to_string()],
+            supported_models: vec![
+                "gpt-4o".to_string(),
+                "gpt-4o-mini".to_string(),
+                "o1".to_string(),
+                "o1-mini".to_string(),
+                "o3-mini".to_string(),
+                "gpt-4-turbo".to_string(),
+                "gpt-4".to_string(),
+                "gpt-3.5-turbo".to_string(),
+                "whisper-1".to_string(),
+            ],
+            docs_url: "https://platform.openai.com/docs/models".to_string(),
             endpoint: "https://api.openai.com/v1/chat/completions".to_string(),
-            is_custom: false,
+            requires_custom_endpoint: false,
             requires_key: true,
         },
         CloudProviderMeta {
             id: "deepseek".to_string(),
             name: "DeepSeek".to_string(),
+            description: "DeepSeek-V3 671B MoE and DeepSeek-R1 frontier reasoning".to_string(),
             default_model: "deepseek-chat".to_string(),
-            supported_models: vec!["deepseek-chat".to_string(), "deepseek-reasoner".to_string()],
+            supported_models: vec![
+                "deepseek-chat".to_string(),
+                "deepseek-reasoner".to_string(),
+            ],
+            docs_url: "https://platform.deepseek.com/docs".to_string(),
             endpoint: "https://api.deepseek.com/chat/completions".to_string(),
-            is_custom: false,
+            requires_custom_endpoint: false,
             requires_key: true,
         },
         CloudProviderMeta {
             id: "anthropic".to_string(),
             name: "Anthropic Claude".to_string(),
+            description: "State-of-the-art intelligent formatting, coding & analysis".to_string(),
             default_model: "claude-3-5-haiku-20241022".to_string(),
-            supported_models: vec!["claude-3-5-haiku-20241022".to_string(), "claude-3-5-sonnet-20241022".to_string()],
+            supported_models: vec![
+                "claude-3-5-sonnet-20241022".to_string(),
+                "claude-3-5-haiku-20241022".to_string(),
+                "claude-3-opus-20240229".to_string(),
+                "claude-3-sonnet-20240229".to_string(),
+                "claude-3-haiku-20240307".to_string(),
+            ],
+            docs_url: "https://docs.anthropic.com/en/docs/about-claude/models".to_string(),
             endpoint: "https://api.anthropic.com/v1/messages".to_string(),
-            is_custom: false,
+            requires_custom_endpoint: false,
             requires_key: true,
         },
         CloudProviderMeta {
             id: "gemini".to_string(),
             name: "Google Gemini".to_string(),
-            default_model: "gemini-1.5-flash".to_string(),
-            supported_models: vec!["gemini-1.5-flash".to_string(), "gemini-1.5-pro".to_string(), "gemini-2.0-flash".to_string()],
+            description: "Next-generation fast multimodal with up to 2M context".to_string(),
+            default_model: "gemini-2.0-flash".to_string(),
+            supported_models: vec![
+                "gemini-2.0-flash".to_string(),
+                "gemini-2.0-flash-lite".to_string(),
+                "gemini-1.5-flash".to_string(),
+                "gemini-1.5-flash-8b".to_string(),
+                "gemini-1.5-pro".to_string(),
+                "gemini-1.0-pro".to_string(),
+            ],
+            docs_url: "https://ai.google.dev/gemini-api/docs/models/gemini".to_string(),
             endpoint: "https://generativelanguage.googleapis.com/v1beta/models".to_string(),
-            is_custom: false,
+            requires_custom_endpoint: false,
             requires_key: true,
         },
         CloudProviderMeta {
             id: "groq".to_string(),
             name: "Groq Cloud".to_string(),
+            description: "Ultra-low latency LPU inference with 250+ tokens/sec".to_string(),
             default_model: "llama-3.3-70b-versatile".to_string(),
-            supported_models: vec!["llama-3.3-70b-versatile".to_string(), "llama-3.1-8b-instant".to_string(), "mixtral-8x7b-32768".to_string()],
+            supported_models: vec![
+                "llama-3.3-70b-versatile".to_string(),
+                "llama-3.1-8b-instant".to_string(),
+                "llama-3.2-1b-preview".to_string(),
+                "llama-3.2-3b-preview".to_string(),
+                "deepseek-r1-distill-llama-70b".to_string(),
+                "mixtral-8x7b-32768".to_string(),
+                "gemma2-9b-it".to_string(),
+                "whisper-large-v3-turbo".to_string(),
+                "whisper-large-v3".to_string(),
+            ],
+            docs_url: "https://console.groq.com/docs/models".to_string(),
             endpoint: "https://api.groq.com/openai/v1/chat/completions".to_string(),
-            is_custom: false,
+            requires_custom_endpoint: false,
             requires_key: true,
         },
         CloudProviderMeta {
             id: "openrouter".to_string(),
             name: "OpenRouter".to_string(),
+            description: "Unified routing across 200+ frontier & open-source models".to_string(),
             default_model: "meta-llama/llama-3.3-70b-instruct".to_string(),
             supported_models: vec![
                 "meta-llama/llama-3.3-70b-instruct".to_string(),
+                "anthropic/claude-3.5-sonnet".to_string(),
                 "anthropic/claude-3.5-haiku".to_string(),
+                "deepseek/deepseek-r1".to_string(),
                 "deepseek/deepseek-chat".to_string(),
+                "openai/gpt-4o".to_string(),
+                "openai/gpt-4o-mini".to_string(),
+                "google/gemini-2.0-flash-001".to_string(),
+                "mistralai/mistral-large-2411".to_string(),
+                "qwen/qwen-2.5-72b-instruct".to_string(),
             ],
+            docs_url: "https://openrouter.ai/models".to_string(),
             endpoint: "https://openrouter.ai/api/v1/chat/completions".to_string(),
-            is_custom: false,
+            requires_custom_endpoint: false,
             requires_key: true,
         },
         CloudProviderMeta {
             id: "mistral".to_string(),
             name: "Mistral AI".to_string(),
+            description: "Enterprise multilingual, code reasoning, and vision".to_string(),
             default_model: "mistral-small-latest".to_string(),
-            supported_models: vec!["mistral-small-latest".to_string(), "mistral-large-latest".to_string()],
+            supported_models: vec![
+                "mistral-large-latest".to_string(),
+                "mistral-small-latest".to_string(),
+                "codestral-latest".to_string(),
+                "ministral-8b-latest".to_string(),
+                "ministral-3b-latest".to_string(),
+                "pixtral-large-latest".to_string(),
+                "open-mistral-nemo".to_string(),
+            ],
+            docs_url: "https://docs.mistral.ai/getting-started/models/".to_string(),
             endpoint: "https://api.mistral.ai/v1/chat/completions".to_string(),
-            is_custom: false,
+            requires_custom_endpoint: false,
             requires_key: true,
         },
         CloudProviderMeta {
             id: "together".to_string(),
             name: "Together AI".to_string(),
-            default_model: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo".to_string(),
-            supported_models: vec!["meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo".to_string(), "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo".to_string()],
+            description: "Fast open-source model inference & fine-tuned hosting".to_string(),
+            default_model: "meta-llama/Llama-3.3-70B-Instruct-Turbo".to_string(),
+            supported_models: vec![
+                "meta-llama/Llama-3.3-70B-Instruct-Turbo".to_string(),
+                "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo".to_string(),
+                "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo".to_string(),
+                "deepseek-ai/DeepSeek-R1".to_string(),
+                "deepseek-ai/DeepSeek-V3".to_string(),
+                "Qwen/Qwen2.5-72B-Instruct-Turbo".to_string(),
+                "mistralai/Mixtral-8x7B-Instruct-v0.1".to_string(),
+            ],
+            docs_url: "https://docs.together.ai/docs/inference-models".to_string(),
             endpoint: "https://api.together.xyz/v1/chat/completions".to_string(),
-            is_custom: false,
+            requires_custom_endpoint: false,
             requires_key: true,
         },
         CloudProviderMeta {
             id: "fireworks".to_string(),
             name: "Fireworks AI".to_string(),
-            default_model: "accounts/fireworks/models/llama-v3p1-8b-instruct".to_string(),
-            supported_models: vec!["accounts/fireworks/models/llama-v3p1-8b-instruct".to_string(), "accounts/fireworks/models/llama-v3p3-70b-instruct".to_string()],
+            description: "Sub-second generative inference for enterprise LLMs".to_string(),
+            default_model: "accounts/fireworks/models/llama-v3p3-70b-instruct".to_string(),
+            supported_models: vec![
+                "accounts/fireworks/models/llama-v3p3-70b-instruct".to_string(),
+                "accounts/fireworks/models/llama-v3p1-8b-instruct".to_string(),
+                "accounts/fireworks/models/llama-v3p1-70b-instruct".to_string(),
+                "accounts/fireworks/models/deepseek-r1".to_string(),
+                "accounts/fireworks/models/deepseek-v3".to_string(),
+                "accounts/fireworks/models/qwen2p5-72b-instruct".to_string(),
+            ],
+            docs_url: "https://docs.fireworks.ai/models".to_string(),
             endpoint: "https://api.fireworks.ai/inference/v1/chat/completions".to_string(),
-            is_custom: false,
+            requires_custom_endpoint: false,
             requires_key: true,
         },
         CloudProviderMeta {
             id: "custom".to_string(),
             name: "Custom OpenAI-Compatible API".to_string(),
+            description: "Local or private gateway (vLLM, LM Studio, Ollama, LocalAI)".to_string(),
             default_model: "default".to_string(),
-            supported_models: vec!["default".to_string()],
-            endpoint: "https://api.example.com/v1/chat/completions".to_string(),
-            is_custom: true,
-            requires_key: true,
+            supported_models: vec![
+                "default".to_string(),
+                "llama3".to_string(),
+                "mistral".to_string(),
+                "qwen2.5".to_string(),
+                "deepseek-r1".to_string(),
+                "custom".to_string(),
+            ],
+            docs_url: "https://github.com/vllm-project/vllm".to_string(),
+            endpoint: "http://localhost:1234/v1/chat/completions".to_string(),
+            requires_custom_endpoint: true,
+            requires_key: false,
         },
     ]
 }
@@ -121,15 +216,6 @@ pub fn list_supported_cloud_providers() -> Vec<CloudProviderMeta> {
 struct ChatCompletionMessage {
     role: String,
     content: String,
-}
-
-#[derive(Serialize)]
-struct ChatCompletionRequest {
-    model: String,
-    messages: Vec<ChatCompletionMessage>,
-    temperature: f32,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    max_tokens: Option<u32>,
 }
 
 #[derive(Deserialize)]
@@ -341,17 +427,33 @@ impl CloudAIClient {
                     model.to_string()
                 };
 
-                let req = ChatCompletionRequest {
-                    model: resolved_model,
-                    messages,
-                    temperature,
-                    max_tokens: Some(1024),
+                let is_o_series = resolved_model.starts_with("o1") || resolved_model.starts_with("o3");
+                let req_json = if is_o_series {
+                    let mut mapped = Vec::new();
+                    for m in messages {
+                        mapped.push(ChatCompletionMessage {
+                            role: if m.role == "system" { "user".to_string() } else { m.role },
+                            content: m.content,
+                        });
+                    }
+                    serde_json::json!({
+                        "model": resolved_model,
+                        "messages": mapped,
+                        "max_completion_tokens": 1024
+                    })
+                } else {
+                    serde_json::json!({
+                        "model": resolved_model,
+                        "messages": messages,
+                        "temperature": temperature,
+                        "max_tokens": 1024
+                    })
                 };
 
                 let mut req_builder = client
                     .post(&endpoint)
                     .header("Authorization", format!("Bearer {}", clean_key))
-                    .json(&req);
+                    .json(&req_json);
 
                 if provider_id == "openrouter" {
                     req_builder = req_builder
@@ -406,22 +508,32 @@ impl CloudAIClient {
         }
     }
 
-    /// Tests connection and authentication with the given provider using a lightweight ping
+    /// Tests connection and authentication with the given provider and selected model
     pub async fn test_connection(
         provider_id: &str,
         api_key: &str,
+        model: Option<&str>,
         custom_endpoint: Option<&str>,
     ) -> Result<String, String> {
-        Self::complete(
+        let test_model = model.unwrap_or("");
+        let start = std::time::Instant::now();
+        let _ = Self::complete(
             provider_id,
             api_key,
-            "",
+            test_model,
             "Respond with 'OK'",
             Some("You are an automated connectivity verification agent. Return ONLY 'OK'."),
             custom_endpoint,
             0.0,
         )
-        .await
+        .await?;
+        let latency = start.elapsed().as_millis();
+        let resolved_model = if test_model.is_empty() {
+            Self::default_model(provider_id)
+        } else {
+            test_model.to_string()
+        };
+        Ok(format!("Connected to {} ({}) in {}ms", provider_id.to_uppercase(), resolved_model, latency))
     }
 
     /// Transcribes audio using cloud Whisper API (e.g. Groq Whisper Large V3 or OpenAI Whisper-1)

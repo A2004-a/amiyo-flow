@@ -131,6 +131,7 @@ export interface CloudProviderMeta {
   supported_models: string[];
   docs_url: string;
   requires_custom_endpoint: boolean;
+  requires_key?: boolean;
 }
 
 export interface OllamaStatus {

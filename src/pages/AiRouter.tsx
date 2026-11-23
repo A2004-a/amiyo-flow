@@ -400,14 +400,52 @@ export const AiRouter: React.FC = () => {
                     </optgroup>
                   </select>
 
-                  {/* Model Selector / Input */}
-                  <input
-                    type="text"
-                    value={rule.model}
-                    onChange={(e) => handleRuleChange(taskKey, 'model', e.target.value)}
-                    placeholder="model name..."
-                    className="w-36 text-xs px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500 font-mono"
-                  />
+                  {/* Model Selector / Dropdown */}
+                  {(() => {
+                    const matchedProvider = cloudProviders.find((cp) => cp.id === rule.provider_id);
+                    if (matchedProvider && matchedProvider.supported_models.length > 0) {
+                      return (
+                        <select
+                          value={rule.model}
+                          onChange={(e) => handleRuleChange(taskKey, 'model', e.target.value)}
+                          className="w-48 text-xs px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500 font-mono"
+                        >
+                          {matchedProvider.supported_models.map((m) => (
+                            <option key={m} value={m}>
+                              {m}
+                            </option>
+                          ))}
+                          {!matchedProvider.supported_models.includes(rule.model) && (
+                            <option value={rule.model}>{rule.model}</option>
+                          )}
+                        </select>
+                      );
+                    }
+                    if (rule.provider_id === 'ollama' && ollamaModels.length > 0) {
+                      return (
+                        <select
+                          value={rule.model}
+                          onChange={(e) => handleRuleChange(taskKey, 'model', e.target.value)}
+                          className="w-48 text-xs px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500 font-mono"
+                        >
+                          {ollamaModels.map((m) => (
+                            <option key={m.name} value={m.name}>
+                              {m.name}
+                            </option>
+                          ))}
+                        </select>
+                      );
+                    }
+                    return (
+                      <input
+                        type="text"
+                        value={rule.model}
+                        onChange={(e) => handleRuleChange(taskKey, 'model', e.target.value)}
+                        placeholder="model name..."
+                        className="w-40 text-xs px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500 font-mono"
+                      />
+                    );
+                  })()}
                 </div>
               </div>
             );

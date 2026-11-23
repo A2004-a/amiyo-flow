@@ -104,6 +104,21 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 
 ## 4. Semantic Version Changelog
 
+### [1.0.4] — 2026-11-23
+- **Comprehensive Cloud AI Model Catalog Expansion**:
+  - Expanded model catalogs across all 10 Cloud AI Providers (OpenAI, DeepSeek, Anthropic, Google Gemini, Groq, OpenRouter, Mistral AI, Together AI, Fireworks AI, and Custom/Ollama endpoints).
+  - Modern model support added: OpenAI (`o1`, `o1-mini`, `o3-mini`, `gpt-4o`, `gpt-4o-mini`, `whisper-1`), DeepSeek (`deepseek-chat` V3, `deepseek-reasoner` R1), Anthropic (`claude-3-5-sonnet-20241022`, `claude-3-5-haiku-20241022`, `claude-3-opus`), Google Gemini (`gemini-2.0-flash`, `gemini-2.0-flash-lite`, `gemini-1.5-pro`), Groq (`llama-3.3-70b-versatile`, `deepseek-r1-distill-llama-70b`, `whisper-large-v3-turbo`), OpenRouter, Mistral, Together, Fireworks.
+  - Implemented specialized parameter handling for OpenAI reasoning models (`o1`/`o3` series): switches `max_tokens` to `max_completion_tokens` and maps unsupported system messages to user context.
+- **Interactive Active Model Selector & Custom Model Input**:
+  - Enhanced `CloudProviders.tsx` with interactive clickable model chips featuring glowing cyan active states and checkmark badges.
+  - Added dedicated Model Selector dropdown per provider and custom Model ID text input for fine-tuned or enterprise deployments.
+  - Active model preferences persisted per provider in browser local storage and loaded automatically on startup.
+- **Model-Specific Live Connectivity Testing**:
+  - Upgraded `test_cloud_provider` IPC command and native `CloudAIClient::test_connection` to accept optional target `model` parameter.
+  - Live connection test verifies credentials against the active selected model and reports exact roundtrip latency in milliseconds.
+- **Task-Specific Dynamic Routing in AI Router**:
+  - Updated `AiRouter.tsx` so each task rule dropdown dynamically enumerates the full model catalog for the selected provider.
+
 ### [1.0.3] — 2026-11-23
 - **Audio Stream Initialization Rendezvous & 32-Bit Studio Interface Support (BUG-027)**:
   - Added native `SampleFormat::I32` (32-bit PCM) and `SampleFormat::U16` decoding in `AudioEngine` alongside `F32` and `I16`, supporting studio USB audio interfaces (Focusrite, Shure, Rode, Realtek HD).

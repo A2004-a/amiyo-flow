@@ -399,16 +399,106 @@ export const api = {
   listCloudProviders: async (): Promise<CloudProviderMeta[]> => {
     if (isTauri()) return invoke('list_cloud_providers');
     return [
-      { id: 'openai', name: 'OpenAI', description: 'GPT-4o, GPT-4o-mini', default_model: 'gpt-4o-mini', supported_models: ['gpt-4o-mini', 'gpt-4o'], docs_url: 'https://platform.openai.com', requires_custom_endpoint: false },
-      { id: 'deepseek', name: 'DeepSeek', description: 'DeepSeek Chat & DeepSeek Reasoner', default_model: 'deepseek-chat', supported_models: ['deepseek-chat', 'deepseek-reasoner'], docs_url: 'https://platform.deepseek.com', requires_custom_endpoint: false },
-      { id: 'anthropic', name: 'Anthropic Claude', description: 'Claude 3.5 Sonnet & Haiku', default_model: 'claude-3-5-haiku-20241022', supported_models: ['claude-3-5-haiku-20241022', 'claude-3-5-sonnet-20241022'], docs_url: 'https://console.anthropic.com', requires_custom_endpoint: false },
-      { id: 'gemini', name: 'Google Gemini', description: 'Gemini 2.0 Flash & Pro', default_model: 'gemini-2.0-flash', supported_models: ['gemini-2.0-flash', 'gemini-1.5-flash'], docs_url: 'https://aistudio.google.com', requires_custom_endpoint: false },
-      { id: 'groq', name: 'Groq Cloud', description: 'Ultra-low latency LPU inference', default_model: 'llama-3.3-70b-versatile', supported_models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'], docs_url: 'https://console.groq.com', requires_custom_endpoint: false },
-      { id: 'openrouter', name: 'OpenRouter', description: 'Universal multi-provider gateway', default_model: 'meta-llama/llama-3.3-70b-instruct', supported_models: ['meta-llama/llama-3.3-70b-instruct', 'google/gemini-flash-1.5'], docs_url: 'https://openrouter.ai', requires_custom_endpoint: false },
-      { id: 'mistral', name: 'Mistral AI', description: 'Mistral Large, Pixtral & Nemo', default_model: 'mistral-small-latest', supported_models: ['mistral-small-latest', 'mistral-large-latest'], docs_url: 'https://console.mistral.ai', requires_custom_endpoint: false },
-      { id: 'together', name: 'Together AI', description: 'Open-source model hosting', default_model: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo', supported_models: ['meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo'], docs_url: 'https://together.ai', requires_custom_endpoint: false },
-      { id: 'fireworks', name: 'Fireworks AI', description: 'High-speed generative inference', default_model: 'accounts/fireworks/models/llama-v3p1-8b-instruct', supported_models: ['accounts/fireworks/models/llama-v3p1-8b-instruct'], docs_url: 'https://fireworks.ai', requires_custom_endpoint: false },
-      { id: 'custom', name: 'Custom OpenAI-Compatible', description: 'vLLM, LM Studio, LocalAI, or private gateway', default_model: 'default', supported_models: ['default'], docs_url: 'https://github.com/vllm-project/vllm', requires_custom_endpoint: true },
+      {
+        id: 'openai',
+        name: 'OpenAI',
+        description: 'Frontier multimodal, fast reasoning & official Whisper',
+        default_model: 'gpt-4o-mini',
+        supported_models: ['gpt-4o', 'gpt-4o-mini', 'o1', 'o1-mini', 'o3-mini', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo', 'whisper-1'],
+        docs_url: 'https://platform.openai.com/docs/models',
+        requires_custom_endpoint: false,
+        requires_key: true,
+      },
+      {
+        id: 'deepseek',
+        name: 'DeepSeek',
+        description: 'DeepSeek-V3 671B MoE and DeepSeek-R1 frontier reasoning',
+        default_model: 'deepseek-chat',
+        supported_models: ['deepseek-chat', 'deepseek-reasoner'],
+        docs_url: 'https://platform.deepseek.com/docs',
+        requires_custom_endpoint: false,
+        requires_key: true,
+      },
+      {
+        id: 'anthropic',
+        name: 'Anthropic Claude',
+        description: 'State-of-the-art intelligent formatting, coding & analysis',
+        default_model: 'claude-3-5-haiku-20241022',
+        supported_models: ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'],
+        docs_url: 'https://docs.anthropic.com/en/docs/about-claude/models',
+        requires_custom_endpoint: false,
+        requires_key: true,
+      },
+      {
+        id: 'gemini',
+        name: 'Google Gemini',
+        description: 'Next-generation fast multimodal with up to 2M context',
+        default_model: 'gemini-2.0-flash',
+        supported_models: ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-flash-8b', 'gemini-1.5-pro', 'gemini-1.0-pro'],
+        docs_url: 'https://ai.google.dev/gemini-api/docs/models/gemini',
+        requires_custom_endpoint: false,
+        requires_key: true,
+      },
+      {
+        id: 'groq',
+        name: 'Groq Cloud',
+        description: 'Ultra-low latency LPU inference with 250+ tokens/sec',
+        default_model: 'llama-3.3-70b-versatile',
+        supported_models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'llama-3.2-1b-preview', 'llama-3.2-3b-preview', 'deepseek-r1-distill-llama-70b', 'mixtral-8x7b-32768', 'gemma2-9b-it', 'whisper-large-v3-turbo', 'whisper-large-v3'],
+        docs_url: 'https://console.groq.com/docs/models',
+        requires_custom_endpoint: false,
+        requires_key: true,
+      },
+      {
+        id: 'openrouter',
+        name: 'OpenRouter',
+        description: 'Unified routing across 200+ frontier & open-source models',
+        default_model: 'meta-llama/llama-3.3-70b-instruct',
+        supported_models: ['meta-llama/llama-3.3-70b-instruct', 'anthropic/claude-3.5-sonnet', 'anthropic/claude-3.5-haiku', 'deepseek/deepseek-r1', 'deepseek/deepseek-chat', 'openai/gpt-4o', 'openai/gpt-4o-mini', 'google/gemini-2.0-flash-001', 'mistralai/mistral-large-2411', 'qwen/qwen-2.5-72b-instruct'],
+        docs_url: 'https://openrouter.ai/models',
+        requires_custom_endpoint: false,
+        requires_key: true,
+      },
+      {
+        id: 'mistral',
+        name: 'Mistral AI',
+        description: 'Enterprise multilingual, code reasoning, and vision',
+        default_model: 'mistral-small-latest',
+        supported_models: ['mistral-large-latest', 'mistral-small-latest', 'codestral-latest', 'ministral-8b-latest', 'ministral-3b-latest', 'pixtral-large-latest', 'open-mistral-nemo'],
+        docs_url: 'https://docs.mistral.ai/getting-started/models/',
+        requires_custom_endpoint: false,
+        requires_key: true,
+      },
+      {
+        id: 'together',
+        name: 'Together AI',
+        description: 'Fast open-source model inference & fine-tuned hosting',
+        default_model: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+        supported_models: ['meta-llama/Llama-3.3-70B-Instruct-Turbo', 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo', 'meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo', 'deepseek-ai/DeepSeek-R1', 'deepseek-ai/DeepSeek-V3', 'Qwen/Qwen2.5-72B-Instruct-Turbo', 'mistralai/Mixtral-8x7B-Instruct-v0.1'],
+        docs_url: 'https://docs.together.ai/docs/inference-models',
+        requires_custom_endpoint: false,
+        requires_key: true,
+      },
+      {
+        id: 'fireworks',
+        name: 'Fireworks AI',
+        description: 'Sub-second generative inference for enterprise LLMs',
+        default_model: 'accounts/fireworks/models/llama-v3p3-70b-instruct',
+        supported_models: ['accounts/fireworks/models/llama-v3p3-70b-instruct', 'accounts/fireworks/models/llama-v3p1-8b-instruct', 'accounts/fireworks/models/llama-v3p1-70b-instruct', 'accounts/fireworks/models/deepseek-r1', 'accounts/fireworks/models/deepseek-v3', 'accounts/fireworks/models/qwen2p5-72b-instruct'],
+        docs_url: 'https://docs.fireworks.ai/models',
+        requires_custom_endpoint: false,
+        requires_key: true,
+      },
+      {
+        id: 'custom',
+        name: 'Custom OpenAI-Compatible API',
+        description: 'Local or private gateway (vLLM, LM Studio, Ollama, LocalAI)',
+        default_model: 'default',
+        supported_models: ['default', 'llama3', 'mistral', 'qwen2.5', 'deepseek-r1', 'custom'],
+        docs_url: 'https://github.com/vllm-project/vllm',
+        requires_custom_endpoint: true,
+        requires_key: false,
+      },
     ];
   },
 
@@ -427,9 +517,9 @@ export const api = {
     return !!mockCloudKeys[providerId];
   },
 
-  testCloudProvider: async (providerId: string, customEndpoint?: string): Promise<string> => {
-    if (isTauri()) return invoke('test_cloud_provider', { providerId, customEndpoint });
-    return `Connection to ${providerId} verified successfully via secure key (latency ~210ms).`;
+  testCloudProvider: async (providerId: string, model?: string, customEndpoint?: string): Promise<string> => {
+    if (isTauri()) return invoke('test_cloud_provider', { providerId, model, customEndpoint });
+    return `Connection to ${providerId.toUpperCase()} (${model || 'default'}) verified successfully (latency ~142ms).`;
   },
 
   getAiRouterConfig: async (): Promise<AiRouterConfig> => {
