@@ -9,6 +9,9 @@ import {
   Zap,
   Volume2,
   FolderOpen,
+  Download,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import { api } from '../lib/tauri';
 import { useSettingsStore } from '../stores/useSettingsStore';
@@ -20,10 +23,28 @@ export const LocalModels: React.FC = () => {
   const [llmModels, setLlmModels] = useState<LocalLlmModelInfo[]>([]);
   const [sysStatus, setSysStatus] = useState<OfflineSystemStatus | null>(null);
   const [savedBanner, setSavedBanner] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   useEffect(() => {
     loadModels();
   }, []);
+
+  const handleDownloadModel = async (e: React.MouseEvent, modelId: string) => {
+    e.stopPropagation();
+    setDownloadingId(modelId);
+    setDownloadError(null);
+    try {
+      await api.downloadSpeechModel(modelId);
+      await loadModels();
+      await updateSetting('local_stt_model', modelId);
+      triggerSaved();
+    } catch (err: any) {
+      setDownloadError(err?.message || String(err));
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   const loadModels = async () => {
     try {
@@ -71,12 +92,20 @@ export const LocalModels: React.FC = () => {
           </p>
         </div>
 
-        {savedBanner && (
-          <div className="flex items-center gap-2 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3.5 py-1.5 rounded-lg text-xs font-medium animate-in fade-in duration-200">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            Model Settings Saved
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {savedBanner && (
+            <div className="flex items-center gap-2 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3.5 py-1.5 rounded-lg text-xs font-medium animate-in fade-in duration-200">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              Model Settings Saved
+            </div>
+          )}
+          {downloadError && (
+            <div className="flex items-center gap-2 bg-rose-500/20 text-rose-300 border border-rose-500/30 px-3.5 py-1.5 rounded-lg text-xs font-medium animate-in fade-in duration-200">
+              <AlertCircle className="w-4 h-4 text-rose-400" />
+              {downloadError}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 100% Offline Resilience Banner */}
@@ -163,14 +192,44 @@ export const LocalModels: React.FC = () => {
                 </div>
 
                 <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between text-[11px] text-zinc-400">
-                  <span className="flex items-center gap-1.5">
-                    <HardDrive className="w-3.5 h-3.5 text-zinc-500" />
-                    Disk: {m.size_mb} MB
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <Zap className="w-3.5 h-3.5 text-emerald-400" />
-                    RAM: ~{m.ram_required_mb} MB
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1.5">
+                      <HardDrive className="w-3.5 h-3.5 text-zinc-500" />
+                      Disk: {m.size_mb} MB
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5 text-emerald-400" />
+                      RAM: ~{m.ram_required_mb} MB
+                    </span>
+                  </div>
+
+                  <div>
+                    {m.is_downloaded ? (
+                      <span className="text-[10px] text-emerald-400 font-medium flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        Ready
+                      </span>
+                    ) : (
+                      <button
+                        onClick={(e) => handleDownloadModel(e, m.id)}
+                        disabled={downloadingId === m.id}
+                        className="px-2 py-0.5 rounded bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-[10px] font-semibold transition-all flex items-center gap-1 cursor-pointer"
+                        title="Download model directly from Hugging Face"
+                      >
+                        {downloadingId === m.id ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin text-cyan-300" />
+                            <span>Downloading...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Download className="w-3 h-3" />
+                            <span>Download</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             );

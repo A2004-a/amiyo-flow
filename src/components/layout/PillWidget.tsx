@@ -9,6 +9,7 @@ import {
   AlertCircle,
   Sparkles,
   GripVertical,
+  RotateCcw,
 } from 'lucide-react';
 import { useDictationStore } from '../../stores/useDictationStore';
 import { AudioVisualizer } from '../visualizer/AudioVisualizer';
@@ -31,6 +32,11 @@ export const PillWidget: React.FC = () => {
   } = useDictationStore();
 
   const handleStartDragging = (e: React.MouseEvent) => {
+    // If clicked while failed, reset error
+    if (state === 'failed') {
+      reset();
+      return;
+    }
     // Only drag with left mouse button and not on interactive buttons
     if (e.button !== 0) return;
     if (isTauri()) {
@@ -80,19 +86,23 @@ export const PillWidget: React.FC = () => {
   return (
     <div
       onMouseDown={handleStartDragging}
-      className="w-full h-full flex items-center justify-between px-2.5 py-1.5 bg-[#0B0F17]/95 backdrop-blur-2xl border border-cyan-500/30 rounded-2xl shadow-2xl select-none cursor-grab active:cursor-grabbing text-white relative group"
+      className={`w-full h-full flex items-center justify-between px-3 py-1.5 backdrop-blur-2xl border rounded-2xl shadow-2xl select-none text-white relative transition-all ${
+        state === 'failed'
+          ? 'bg-slate-950/95 border-rose-500/50 cursor-pointer'
+          : 'bg-[#0B0F17]/95 border-cyan-500/30 cursor-grab active:cursor-grabbing'
+      }`}
     >
       {/* Move Feature: Drag Grip Handle */}
       <div
         onMouseDown={handleStartDragging}
-        className="flex items-center justify-center p-1 text-slate-500 hover:text-cyan-400 cursor-grab active:cursor-grabbing rounded hover:bg-slate-800/60 transition-colors mr-0.5"
+        className="flex items-center justify-center p-1 text-slate-500 hover:text-cyan-400 cursor-grab active:cursor-grabbing rounded hover:bg-slate-800/60 transition-colors mr-1 flex-shrink-0"
         title="Move Feature: Click and drag to move pill anywhere on screen"
       >
         <GripVertical className="w-3.5 h-3.5" />
       </div>
 
       {/* Left: Indicator & Target App */}
-      <div onMouseDown={handleStartDragging} className="flex items-center gap-2 min-w-0 flex-shrink-0 cursor-grab active:cursor-grabbing">
+      <div onMouseDown={handleStartDragging} className="flex items-center gap-2 min-w-0 flex-shrink-0">
         {state === 'recording' && (
           <div className="relative flex items-center justify-center">
             <span className="w-3 h-3 rounded-full bg-rose-500 animate-ping absolute" />
@@ -114,10 +124,10 @@ export const PillWidget: React.FC = () => {
           <button
             onMouseDown={(e) => e.stopPropagation()}
             onClick={reset}
-            className="w-4 h-4 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center cursor-pointer hover:bg-rose-500/40 transition-colors"
+            className="w-5 h-5 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center cursor-pointer hover:bg-rose-500/40 transition-colors"
             title={errorMessage ? `${errorMessage} (Click to dismiss)` : 'Click to dismiss'}
           >
-            <AlertCircle className="w-3 h-3" />
+            <AlertCircle className="w-3.5 h-3.5" />
           </button>
         )}
         {state === 'idle' && (
@@ -126,35 +136,45 @@ export const PillWidget: React.FC = () => {
           </div>
         )}
 
-        <div className="truncate max-w-[100px]">
+        <div className="truncate max-w-[110px]">
           <div className="text-[11px] font-semibold text-slate-200 truncate flex items-center gap-1">
             {state === 'recording' && (targetApp?.process_name && targetApp.process_name !== 'unknown.exe' ? targetApp.process_name : 'Active App')}
             {state === 'paused' && 'Paused'}
             {state === 'processing' && 'Refining...'}
             {state === 'inserting' && 'Inserting...'}
             {state === 'completed' && 'Inserted!'}
-            {state === 'failed' && (errorMessage ? 'Error' : 'Failed')}
+            {state === 'failed' && (errorMessage ? 'Error' : 'Ready')}
             {state === 'idle' && 'AMIYO FLOW'}
           </div>
           <div className="text-[9px] text-slate-400 font-mono">
             {state === 'recording' || state === 'paused'
               ? formatTime(durationMs)
-              : state === 'idle'
-              ? 'Ready'
-              : ''}
+              : state === 'failed'
+              ? 'Click to Reset'
+              : 'Ready'}
           </div>
         </div>
       </div>
 
-      {/* Center: Realtime Audio Visualizer (also draggable) */}
-      <div onMouseDown={handleStartDragging} className="flex-1 flex justify-center px-2 cursor-grab active:cursor-grabbing min-w-0">
-        <AudioVisualizer
-          level={audioLevel}
-          isRecording={state === 'recording'}
-          isPaused={state === 'paused'}
-          barCount={14}
-          height={24}
-        />
+      {/* Center: Realtime Audio Visualizer or Status Hint */}
+      <div onMouseDown={handleStartDragging} className="flex-1 flex justify-center px-2 min-w-0">
+        {state === 'failed' ? (
+          <span
+            onClick={reset}
+            className="text-[10px] text-rose-400/90 font-medium truncate cursor-pointer hover:underline"
+            title={errorMessage || 'Click to clear'}
+          >
+            {errorMessage ? (errorMessage.length > 25 ? `${errorMessage.slice(0, 25)}...` : errorMessage) : 'Click to reset'}
+          </span>
+        ) : (
+          <AudioVisualizer
+            level={audioLevel}
+            isRecording={state === 'recording'}
+            isPaused={state === 'paused'}
+            barCount={14}
+            height={24}
+          />
+        )}
       </div>
 
       {/* Right: Controls & Remove Feature */}
@@ -210,10 +230,11 @@ export const PillWidget: React.FC = () => {
         {state === 'failed' && (
           <button
             onClick={reset}
-            className="px-2 py-1 rounded-md bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-[10px] font-semibold transition-all cursor-pointer"
+            className="px-2.5 py-1 rounded-md bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1"
             title="Reset Error State"
           >
-            Reset
+            <RotateCcw className="w-3 h-3" />
+            <span>Reset</span>
           </button>
         )}
 

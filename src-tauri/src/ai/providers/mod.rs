@@ -423,4 +423,82 @@ impl CloudAIClient {
         )
         .await
     }
+
+    /// Transcribes audio using cloud Whisper API (e.g. Groq Whisper Large V3 or OpenAI Whisper-1)
+    pub async fn transcribe_audio(
+        provider_id: &str,
+        api_key: &str,
+        wav_bytes: Vec<u8>,
+        language: Option<&str>,
+        prompt: Option<&str>,
+    ) -> Result<String, String> {
+        let clean_key = api_key.trim();
+        if clean_key.is_empty() {
+            return Err("Missing API key for cloud audio transcription".to_string());
+        }
+
+        let (url, model) = match provider_id.to_lowercase().as_str() {
+            "groq" => (
+                "https://api.groq.com/openai/v1/audio/transcriptions",
+                "whisper-large-v3-turbo",
+            ),
+            "openai" => (
+                "https://api.openai.com/v1/audio/transcriptions",
+                "whisper-1",
+            ),
+            _ => (
+                "https://api.groq.com/openai/v1/audio/transcriptions",
+                "whisper-large-v3-turbo",
+            ),
+        };
+
+        let client = Self::build_client(30)?;
+
+        let part = reqwest::multipart::Part::bytes(wav_bytes)
+            .file_name("dictation.wav")
+            .mime_str("audio/wav")
+            .map_err(|e| format!("Mime error: {}", e))?;
+
+        let mut form = reqwest::multipart::Form::new()
+            .part("file", part)
+            .text("model", model.to_string())
+            .text("response_format", "json".to_string());
+
+        if let Some(lang) = language {
+            if lang != "auto" && !lang.is_empty() {
+                form = form.text("language", lang.to_string());
+            }
+        }
+        if let Some(p) = prompt {
+            if !p.is_empty() {
+                form = form.text("prompt", p.to_string());
+            }
+        }
+
+        let res = client
+            .post(url)
+            .bearer_auth(clean_key)
+            .multipart(form)
+            .send()
+            .await
+            .map_err(|e| format!("Audio transcription request failed: {}", e))?;
+
+        if !res.status().is_success() {
+            let status = res.status();
+            let err_body = res.text().await.unwrap_or_default();
+            return Err(format!("Cloud transcription failed ({}): {}", status, err_body));
+        }
+
+        #[derive(Deserialize)]
+        struct TranscriptionResp {
+            text: Option<String>,
+        }
+
+        let body: TranscriptionResp = res
+            .json()
+            .await
+            .map_err(|e| format!("Failed to parse transcription response: {}", e))?;
+
+        Ok(body.text.unwrap_or_default().trim().to_string())
+    }
 }

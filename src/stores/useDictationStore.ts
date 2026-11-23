@@ -62,7 +62,7 @@ export const useDictationStore = create<DictationStore>((set, get) => ({
 
     // Query initial backend state on mount to prevent any desync
     api.getRecordingState().then((backendState) => {
-      if (backendState && backendState.is_recording) {
+      if (backendState && backendState.is_recording && backendState.duration_ms < 600_000) {
         const { timerInterval, unlistenAudio } = get();
         if (timerInterval) clearInterval(timerInterval);
         if (unlistenAudio) unlistenAudio();
@@ -224,6 +224,11 @@ export const useDictationStore = create<DictationStore>((set, get) => ({
   },
 
   startRecording: async () => {
+    // If currently failed, reset error state first
+    if (get().state === 'failed') {
+      get().reset();
+    }
+
     const { timerInterval, unlistenAudio } = get();
     if (timerInterval) clearInterval(timerInterval);
     if (unlistenAudio) unlistenAudio();

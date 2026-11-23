@@ -14,7 +14,7 @@ pub mod win_impl {
     use std::os::windows::ffi::OsStringExt;
     use std::thread::sleep;
     use std::time::Duration;
-    use windows::Win32::Foundation::{HANDLE, HWND};
+    use windows::Win32::Foundation::{HANDLE, HWND, LPARAM, WPARAM};
     use windows::Win32::System::DataExchange::{
         CloseClipboard, EmptyClipboard, GetClipboardData, IsClipboardFormatAvailable,
         OpenClipboard, SetClipboardData,
@@ -31,7 +31,7 @@ pub mod win_impl {
     };
     use windows::Win32::UI::WindowsAndMessaging::{
         BringWindowToTop, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId, IsWindow,
-        SetForegroundWindow,
+        SendMessageW, SetForegroundWindow, WM_CANCELMODE,
     };
 
     const CF_UNICODETEXT: u32 = 13;
@@ -119,7 +119,14 @@ pub mod win_impl {
 
             let foreground_hwnd = GetForegroundWindow();
             if foreground_hwnd == hwnd {
+                let _ = SendMessageW(hwnd, WM_CANCELMODE, WPARAM(0), LPARAM(0));
                 return true;
+            }
+
+            // Cancel any active system/context menu that could trap keystrokes (e.g. from Alt+Space)
+            let _ = SendMessageW(hwnd, WM_CANCELMODE, WPARAM(0), LPARAM(0));
+            if foreground_hwnd.0 != (0 as _) {
+                let _ = SendMessageW(foreground_hwnd, WM_CANCELMODE, WPARAM(0), LPARAM(0));
             }
 
             let mut foreground_pid = 0u32;

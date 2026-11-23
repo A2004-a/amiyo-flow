@@ -196,11 +196,15 @@ pub fn run() {
             }
 
             if let Some(pill_win) = app.get_webview_window("pill") {
+                let pill_w = 440.0;
+                let pill_h = 78.0;
+                let _ = pill_win.set_size(tauri::Size::Logical(tauri::LogicalSize {
+                    width: pill_w,
+                    height: pill_h,
+                }));
                 if let Ok(Some(monitor)) = pill_win.primary_monitor() {
                     let screen_size = monitor.size();
                     let scale_factor = monitor.scale_factor();
-                    let pill_w = 380.0;
-                    let pill_h = 76.0;
                     let screen_w = screen_size.width as f64 / scale_factor;
                     let screen_h = screen_size.height as f64 / scale_factor;
                     let pos_x = (screen_w - pill_w) / 2.0;
@@ -278,7 +282,8 @@ pub fn run() {
             commands::clear_network_audit_events,
             commands::hide_pill_window,
             commands::show_pill_window,
-            commands::reset_pill_position
+            commands::reset_pill_position,
+            commands::download_speech_model
         ])
         .run(tauri::generate_context!())
         .expect("error while running AMIYO FLOW application");

@@ -97,10 +97,24 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 | BUG-023 | Medium | HUD Pill | Floating pill widget lacked window drag handle and close button | Coordinates were static and window could not be moved or dismissed | Added `GripVertical` drag handle (`startDragging()`), persistent `✕` close button, and <kbd>Escape</kbd> listener | FIXED |
 | BUG-024 | High | Audio Capture | Runaway dictation timer ticking indefinitely on failure (`134:37.4`) | Catch blocks did not clear `timerInterval`; backend error did not emit event | Added explicit `clearInterval(timerInterval)` in error handlers; emitted `amiyo-dictation-failed` | FIXED |
 | BUG-025 | Low | Local AI | Developer writing style replacement order collision | Atomic `curly brace` token was replaced before `close curly brace` | Reordered replacements so composite tokens (`close curly brace`, `open curly brace`) resolve before atomic tokens | FIXED |
+| BUG-026 | Critical | Speech Pipeline & HUD | Floating Pill stuck on `(!) Error`, runaway timer (`134:37.4`), and failed voice typing in Claude / VS Code | 1) `start_recording` returned `Already recording` error when prior state remained active, locking frontend in `failed` state; 2) <kbd>Alt+Space</kbd> opened Windows system menu trapping keystrokes in menu loop; 3) DPI scaling squeezed pill width causing buttons to be cut off | Added auto-cancellation of prior recordings on start; auto-recovery from stale recordings (>10m); dispatched `WM_CANCELMODE` to dismiss system menu; enforced `440x78` logical sizing with click-to-reset error handling; added Hugging Face on-demand model downloader | FIXED |
 
 ---
 
 ## 4. Semantic Version Changelog
+
+### [1.0.2] — 2026-11-23
+- **Floating Pill Error State & Deadlock Resolution (BUG-026)**:
+  - Eliminated "Already recording" error lockouts by automatically cancelling previous stale audio capture threads upon `start_recording`.
+  - Added auto-recovery in `get_recording_state` to clear zombie recordings exceeding 10 minutes.
+  - Added click-to-reset error handling, prominent Reset button with icon, auto-reset timer (2500ms), and persistent <kbd>Escape</kbd> dismissal on the Floating Pill.
+- **Universal Voice Typing in Claude, Antigravity, and VS Code**:
+  - Implemented Win32 `WM_CANCELMODE` dispatch in `activate_window` to dismiss any active window system menu opened by the <kbd>Alt+Space</kbd> shortcut before injecting text.
+  - Maintained `release_all_modifiers()` to ensure Alt, Control, Shift, and Win are unlatched before typing.
+  - Enforced explicit logical sizing `440.0 x 78.0` on the floating pill across all DPI scaling factors (100%, 125%, 150%) so controls are never truncated.
+- **On-Demand Speech Model Downloader**:
+  - Added native `download_speech_model` IPC command to download official quantized Whisper GGML models directly from Hugging Face (`ggerganov/whisper.cpp`).
+  - Added 1-click Download buttons with live spinners in `LocalModels.tsx`.
 
 ### [1.0.1] — 2026-11-23
 - **Titlebar Window Controls (`-`, `[ ]`, `✕`)**: Hardened frameless window control buttons with dual-fallback invocation (`getCurrentWebviewWindow` + backend IPC commands), `data-tauri-drag-region="false"`, pointer event stop-propagation, and dynamic `onResized` maximize state synchronization.

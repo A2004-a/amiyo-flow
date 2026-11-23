@@ -48,16 +48,24 @@ pub fn get_foreground_window() -> Option<ForegroundWindowInfo> {
 
 #[tauri::command]
 pub fn get_recording_state(state: State<'_, AppState>) -> RecordingStateResponse {
-    let is_rec = state.audio.is_recording();
+    let mut is_rec = state.audio.is_recording();
     let is_pau = state.audio.is_paused();
     let is_proc = state.is_processing.load(Ordering::SeqCst);
     let app_name = state.target_app_name.lock().clone();
     let app_title = state.target_app_title.lock().clone();
-    let duration = state
+    let mut duration = state
         .recording_start
         .lock()
         .map(|s| s.elapsed().as_millis() as u64)
         .unwrap_or(0);
+
+    // Auto-recover from stale/zombie recordings (> 10 minutes without completion)
+    if is_rec && duration > 600_000 {
+        state.audio.cancel();
+        *state.recording_start.lock() = None;
+        is_rec = false;
+        duration = 0;
+    }
 
     RecordingStateResponse {
         is_recording: is_rec,
@@ -71,6 +79,12 @@ pub fn get_recording_state(state: State<'_, AppState>) -> RecordingStateResponse
 
 #[tauri::command]
 pub async fn start_recording(app_handle: AppHandle, state: State<'_, AppState>) -> Result<ForegroundWindowInfo, String> {
+    // If previous recording is still marked active, clear it first
+    if state.audio.is_recording() {
+        state.audio.cancel();
+        *state.recording_start.lock() = None;
+    }
+
     let fg_info = input::get_foreground_window().unwrap_or(ForegroundWindowInfo {
         hwnd: 0,
         title: "Active Application".to_string(),
@@ -102,11 +116,15 @@ pub async fn start_recording(app_handle: AppHandle, state: State<'_, AppState>) 
     }
 
     if let Some(pill_window) = app_handle.get_webview_window("pill") {
+        let pill_w = 440.0;
+        let pill_h = 78.0;
+        let _ = pill_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+            width: pill_w,
+            height: pill_h,
+        }));
         if let Ok(Some(monitor)) = pill_window.primary_monitor() {
             let screen_size = monitor.size();
             let scale_factor = monitor.scale_factor();
-            let pill_w = 380.0;
-            let pill_h = 76.0;
             let screen_w = screen_size.width as f64 / scale_factor;
             let screen_h = screen_size.height as f64 / scale_factor;
             let pos_x = (screen_w - pill_w) / 2.0;
@@ -239,34 +257,88 @@ pub async fn stop_recording_and_insert(
         .collect::<Vec<_>>()
         .join(", ");
 
-    let raw_text = match stt::transcribe_audio(
-        &local_stt_model,
-        custom_stt_path.as_deref(),
-        wav_bytes,
-        Some(&language),
-        Some(&dict_prompt),
-    )
-    .await
-    {
-        Ok(t) => t,
-        Err(e) => {
-            state.is_processing.store(false, Ordering::SeqCst);
-            let _ = app_handle.emit("amiyo-dictation-failed", &e);
-            let pill_h = app_handle.clone();
-            tokio::spawn(async move {
-                tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
-                if let Some(pill_window) = pill_h.get_webview_window("pill") {
-                    let _ = pill_window.hide();
-                }
-            });
-            return Err(format!("Local transcription failed: {}", e));
-        }
-    };
-
     let router_config = if let Some(json_str) = state.db.get_setting("ai_router_config") {
         serde_json::from_str::<ai::router::AiRouterConfig>(&json_str).unwrap_or_default()
     } else {
         ai::router::AiRouterConfig::default()
+    };
+
+    // Check if Cloud/Hybrid mode is enabled and a cloud speech provider is configured
+    let mut cloud_transcription: Option<String> = None;
+    if router_config.mode != ai::router::AiOperatingMode::Local {
+        let provider_id = if crate::security::CredentialManager::has_key("groq") {
+            "groq"
+        } else if crate::security::CredentialManager::has_key("openai") {
+            "openai"
+        } else {
+            ""
+        };
+
+        if !provider_id.is_empty() {
+            if let Ok(Some(key)) = crate::security::CredentialManager::get_key(provider_id) {
+                if !key.trim().is_empty() {
+                    let start = Instant::now();
+                    match ai::providers::CloudAIClient::transcribe_audio(
+                        provider_id,
+                        &key,
+                        wav_bytes.clone(),
+                        Some(&language),
+                        Some(&dict_prompt),
+                    ).await {
+                        Ok(t) if !t.is_empty() => {
+                            state.auditor.record_event(
+                                &format!("Cloud Whisper ({})", provider_id),
+                                false,
+                                "Speech Recognition",
+                                "Success",
+                                start.elapsed().as_millis() as u64,
+                                t.split_whitespace().count(),
+                            );
+                            cloud_transcription = Some(t);
+                        }
+                        Err(e) => {
+                            state.auditor.record_event(
+                                &format!("Cloud Whisper ({})", provider_id),
+                                false,
+                                "Speech Recognition",
+                                &format!("Fallback to local: {}", e),
+                                start.elapsed().as_millis() as u64,
+                                0,
+                            );
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+
+    let raw_text = if let Some(ct) = cloud_transcription {
+        ct
+    } else {
+        match stt::transcribe_audio(
+            &local_stt_model,
+            custom_stt_path.as_deref(),
+            wav_bytes,
+            Some(&language),
+            Some(&dict_prompt),
+        )
+        .await
+        {
+            Ok(t) => t,
+            Err(e) => {
+                state.is_processing.store(false, Ordering::SeqCst);
+                let _ = app_handle.emit("amiyo-dictation-failed", &e);
+                let pill_h = app_handle.clone();
+                tokio::spawn(async move {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
+                    if let Some(pill_window) = pill_h.get_webview_window("pill") {
+                        let _ = pill_window.hide();
+                    }
+                });
+                return Err(format!("Local transcription failed: {}", e));
+            }
+        }
     };
 
     let cleaned_text = match ai::clean_transcript_routed(
@@ -683,11 +755,15 @@ pub fn show_pill_window(app_handle: AppHandle) {
 #[tauri::command]
 pub fn reset_pill_position(app_handle: AppHandle) {
     if let Some(pill_window) = app_handle.get_webview_window("pill") {
+        let pill_w = 440.0;
+        let pill_h = 78.0;
+        let _ = pill_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+            width: pill_w,
+            height: pill_h,
+        }));
         if let Ok(Some(monitor)) = pill_window.primary_monitor() {
             let screen_size = monitor.size();
             let scale_factor = monitor.scale_factor();
-            let pill_w = 420.0;
-            let pill_h = 76.0;
             let screen_w = screen_size.width as f64 / scale_factor;
             let screen_h = screen_size.height as f64 / scale_factor;
             let pos_x = (screen_w - pill_w) / 2.0;
@@ -698,4 +774,9 @@ pub fn reset_pill_position(app_handle: AppHandle) {
             }));
         }
     }
+}
+
+#[tauri::command]
+pub async fn download_speech_model(model_id: String) -> Result<String, String> {
+    stt::download_speech_model(&model_id).await
 }

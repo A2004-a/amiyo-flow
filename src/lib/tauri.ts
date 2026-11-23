@@ -352,6 +352,11 @@ export const api = {
     ];
   },
 
+  downloadSpeechModel: async (modelId: string): Promise<string> => {
+    if (isTauri()) return invoke('download_speech_model', { modelId });
+    return `local/ggml-${modelId}.bin`;
+  },
+
   listLocalLlmModels: async (): Promise<LocalLlmModelInfo[]> => {
     if (isTauri()) return invoke('list_local_llm_models');
     return [
