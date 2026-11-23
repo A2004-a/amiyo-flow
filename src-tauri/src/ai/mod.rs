@@ -498,19 +498,31 @@ pub fn apply_style_formatting(text: &str, style: &str, _target_app: &str) -> Str
         }
         "developer" => {
             let mut dev = text.to_string();
-            dev = dev.replace(" close curly brace", " }");
-            dev = dev.replace(" open curly brace", " {");
-            dev = dev.replace(" curly brace", " {");
-            dev = dev.replace(" close bracket", " ]");
-            dev = dev.replace(" open bracket", " [");
-            dev = dev.replace(" bracket", " [");
-            dev = dev.replace(" close paren", " )");
-            dev = dev.replace(" open paren", " (");
-            dev = dev.replace(" paren", " (");
-            dev = dev.replace(" arrow function", " =>");
-            dev = dev.replace(" colon", ":");
-            dev = dev.replace(" semicolon", ";");
-            dev = dev.replace(" backtick", "`");
+            let replacements = [
+                (r"(?i)\bclose\s+curly\s+brace\b", "}"),
+                (r"(?i)\bopen\s+curly\s+brace\b", "{"),
+                (r"(?i)\bcurly\s+brace\b", "{"),
+                (r"(?i)\bclose\s+square\s+bracket\b", "]"),
+                (r"(?i)\bopen\s+square\s+bracket\b", "["),
+                (r"(?i)\bclose\s+bracket\b", "]"),
+                (r"(?i)\bopen\s+bracket\b", "["),
+                (r"(?i)\bclose\s+paren(?:thesis)?\b", ")"),
+                (r"(?i)\bopen\s+paren(?:thesis)?\b", "("),
+                (r"(?i)\barrow\s+function\b", " =>"),
+                (r"(?i)\btriple\s+equals?\b", " ==="),
+                (r"(?i)\bdouble\s+equals?\b", " =="),
+                (r"(?i)\bnot\s+equals?\b", " !="),
+                (r"(?i)\bgreater\s+than\s+or\s+equal(?:\s+to)?\b", " >="),
+                (r"(?i)\bless\s+than\s+or\s+equal(?:\s+to)?\b", " <="),
+                (r"(?i)\bcolon\b", ":"),
+                (r"(?i)\bsemicolon\b", ";"),
+                (r"(?i)\bbacktick\b", "`"),
+            ];
+            for (pat, repl) in replacements {
+                if let Ok(re) = Regex::new(pat) {
+                    dev = re.replace_all(&dev, repl).to_string();
+                }
+            }
             dev
         }
         "ai prompt" => {

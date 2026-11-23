@@ -58,6 +58,7 @@ export const LiveDictation: React.FC = () => {
   const [activeWindow, setActiveWindow] = useState<ForegroundWindowInfo | null>(targetApp);
 
   const countdownTimerRef = useRef<number | null>(null);
+  const lastAppendedRef = useRef<string>('');
 
   // Load available audio input microphones on mount
   useEffect(() => {
@@ -74,10 +75,10 @@ export const LiveDictation: React.FC = () => {
 
   // Sync cleaned text into scratchpad
   useEffect(() => {
-    if (cleanedText) {
+    if (cleanedText && cleanedText !== lastAppendedRef.current) {
+      lastAppendedRef.current = cleanedText;
       setScratchpadText((prev) => {
         if (!prev.trim()) return cleanedText;
-        if (prev.includes(cleanedText)) return prev;
         return `${prev}\n\n${cleanedText}`;
       });
     }

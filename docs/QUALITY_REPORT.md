@@ -8,7 +8,7 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 
 - **Test Date**: 2026-11-23
 - **Host Environment**: Windows 11 x64, Intel/AMD architecture, 8GB–16GB RAM
-- **Native Rust Tests (`cargo test`)**: **32 / 32 PASSED** (16 in `lib.rs`, 16 in `unit_tests.rs`)
+- **Native Rust Tests (`cargo test`)**: **33 / 33 PASSED** (17 in `lib.rs`, 16 in `unit_tests.rs`)
 - **Frontend Vitest Tests (`npm test`)**: **14 / 14 PASSED** (`src/test/dictation.test.ts`)
 - **Frontend Production Build (`npm run build`)**: **PASSED** (1,609 modules bundled with 0 errors)
 - **Installer Build (`npx tauri build`)**: **PASSED** (`AMIYO FLOW_1.0.0_x64-setup.exe`, 4.28 MiB)
@@ -106,6 +106,26 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 ---
 
 ## 4. Semantic Version Changelog
+
+### [1.0.12] — 2026-11-23
+- **DeepSeek-R1 & Claude Reasoning Tag Stripper (BUG-034)**:
+  - Added native `strip_reasoning_tags()` in `ai/providers/mod.rs` to intercept and remove internal `<think>...</think>` and `<thinking>...</thinking>` scratchpads emitted by reasoning models (DeepSeek-R1, Claude, Groq R1-distill) before returning text.
+  - Eliminates model reasoning leakage into typed output, ensuring only pure refined prose reaches active applications.
+- **Enhanced Developer Coding Vocabulary**:
+  - Expanded Developer mode to recognize programming comparison operators and syntax natively:
+    - `"triple equals"` $\rightarrow$ `===`
+    - `"double equals"` $\rightarrow$ `==`
+    - `"not equals"` $\rightarrow$ `!=`
+    - `"greater than or equal to"` $\rightarrow$ `>=`
+    - `"less than or equal to"` $\rightarrow$ `<=`
+    - `"open/close parenthesis"` $\rightarrow$ `()`
+  - Switched substitutions to case-insensitive regex word boundary patterns `(?i)\b...\b` to handle capitalized initial tokens.
+- **Timezone-Agnostic Analytics Word Counter**:
+  - Upgraded `Database::get_analytics()` in `src-tauri/src/db/mod.rs` to match both UTC and Local calendar date prefixes (`%Y-%m-%d`), ensuring accurate calculation of "Today's Words" and productivity metrics across all global timezones.
+- **Custom Hotkey Persistence Across Reboots**:
+  - Refined SQLite database migration in `seed_defaults()` to avoid resetting user-configured `Control+Shift+Space` hotkeys back to `Control+Space` on application launch.
+- **Live Studio Canvas Deduplication Guard**:
+  - Refined Live Dictation scratchpad sync in `LiveDictation.tsx` with a last-appended reference guard, allowing repeated affirmations ('Approved', 'Yes') across separate dictations while preventing re-render duplication loops.
 
 ### [1.0.11] — 2026-11-23
 - **Multiline Spoken Formatting & Paragraph Preservation (BUG-031)**:

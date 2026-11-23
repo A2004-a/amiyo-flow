@@ -296,6 +296,8 @@ fn test_writing_styles_transformation() {
     assert!(dev.contains('{'));
     assert!(dev.contains(';'));
     assert!(dev.contains('}'));
+    assert!(apply_style_formatting("x triple equals y", "Developer", "").contains("==="));
+    assert!(apply_style_formatting("a not equals b", "Developer", "").contains("!="));
 
     let casual = apply_style_formatting("See you later.", "Casual", "");
     assert_eq!(casual, "See you later");

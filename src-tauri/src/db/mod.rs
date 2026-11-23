@@ -168,7 +168,7 @@ impl Database {
 
         // Migrate legacy hotkey if set to CommandOrControl variants
         let _ = conn.execute(
-            "UPDATE settings SET value = 'Control+Space' WHERE key = 'hotkey' AND (value = 'CommandOrControl+Shift+Space' OR value = 'Control+Shift+Space' OR value LIKE '%CommandOrControl%')",
+            "UPDATE settings SET value = 'Control+Space' WHERE key = 'hotkey' AND (value = 'CommandOrControl+Shift+Space' OR value LIKE '%CommandOrControl%')",
             [],
         );
 
@@ -489,10 +489,11 @@ impl Database {
             },
         );
 
-        let today_prefix = chrono::Utc::now().format("%Y-%m-%d").to_string();
+        let today_utc = chrono::Utc::now().format("%Y-%m-%d").to_string();
+        let today_local = chrono::Local::now().format("%Y-%m-%d").to_string();
         let _ = conn.query_row(
-            "SELECT COALESCE(SUM(word_count), 0) FROM history WHERE timestamp LIKE ?1",
-            params![format!("{}%", today_prefix)],
+            "SELECT COALESCE(SUM(word_count), 0) FROM history WHERE timestamp LIKE ?1 OR timestamp LIKE ?2",
+            params![format!("{}%", today_utc), format!("{}%", today_local)],
             |row| {
                 today_words = row.get(0)?;
                 Ok(())

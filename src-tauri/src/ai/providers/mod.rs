@@ -295,6 +295,15 @@ struct GeminiPartOut {
     text: Option<String>,
 }
 
+/// Strips internal model reasoning/scratchpad blocks (e.g. DeepSeek R1 <think>...</think> or Claude <thinking>...</thinking>)
+pub fn strip_reasoning_tags(text: &str) -> String {
+    let re_think = regex::Regex::new(r"(?s)<think>.*?</think>").unwrap();
+    let cleaned = re_think.replace_all(text, "").to_string();
+    let re_thinking = regex::Regex::new(r"(?s)<thinking>.*?</thinking>").unwrap();
+    let cleaned = re_thinking.replace_all(&cleaned, "").to_string();
+    cleaned.trim().to_string()
+}
+
 pub struct CloudAIClient;
 
 impl CloudAIClient {
@@ -353,7 +362,7 @@ impl CloudAIClient {
 
                 let parsed: AnthropicResp = resp.json().await.map_err(|e| format!("Anthropic parse error: {}", e))?;
                 let text = parsed.content.into_iter().filter_map(|b| b.text).collect::<Vec<_>>().join("");
-                Ok(text.trim().to_string())
+                Ok(strip_reasoning_tags(&text))
             }
 
             "gemini" => {
@@ -398,7 +407,7 @@ impl CloudAIClient {
                     .and_then(|p| p.text)
                     .unwrap_or_default();
 
-                Ok(text.trim().to_string())
+                Ok(strip_reasoning_tags(&text))
             }
 
             // OpenAI and standard OpenAI-compatible endpoints: DeepSeek, Groq, OpenRouter, Mistral, Together, Fireworks, Custom
@@ -477,7 +486,7 @@ impl CloudAIClient {
                     .and_then(|c| c.message.content)
                     .unwrap_or_default();
 
-                Ok(text.trim().to_string())
+                Ok(strip_reasoning_tags(&text))
             }
         }
     }
@@ -612,5 +621,24 @@ impl CloudAIClient {
             .map_err(|e| format!("Failed to parse transcription response: {}", e))?;
 
         Ok(body.text.unwrap_or_default().trim().to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_strip_reasoning_tags() {
+        let input = "<think>\nThinking about grammar...\nFixing comma.\n</think>Hello world, this is a test.";
+        let cleaned = strip_reasoning_tags(input);
+        assert_eq!(cleaned, "Hello world, this is a test.");
+
+        let input_thinking = "<thinking>Analyze punctuation</thinking>Deployment succeeded.";
+        let cleaned2 = strip_reasoning_tags(input_thinking);
+        assert_eq!(cleaned2, "Deployment succeeded.");
+
+        let regular = "Regular output without thinking tags.";
+        assert_eq!(strip_reasoning_tags(regular), regular);
     }
 }
