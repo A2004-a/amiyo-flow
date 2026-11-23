@@ -438,6 +438,32 @@ pub mod win_impl {
         }
     }
 
+    pub fn is_legacy_console_window(hwnd_val: isize) -> bool {
+        unsafe {
+            let hwnd = HWND(hwnd_val as *mut _);
+            let mut pid = 0u32;
+            GetWindowThreadProcessId(hwnd, Some(&mut pid));
+            if pid != 0 {
+                if let Ok(handle) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
+                    let mut proc_buf = [0u16; 260];
+                    let mut size = proc_buf.len() as u32;
+                    let success = QueryFullProcessImageNameW(
+                        handle,
+                        PROCESS_NAME_FORMAT(0),
+                        windows::core::PWSTR(proc_buf.as_mut_ptr()),
+                        &mut size,
+                    );
+                    let _ = windows::Win32::Foundation::CloseHandle(handle);
+                    if success.is_ok() && size > 0 {
+                        let full = OsString::from_wide(&proc_buf[..size as usize]).to_string_lossy().to_lowercase();
+                        return full.contains("cmd.exe") || full.contains("conhost.exe");
+                    }
+                }
+            }
+            false
+        }
+    }
+
     pub fn insert_text(target_hwnd: isize, text: &str, use_clipboard: bool, restore_delay_ms: u64) -> Result<(), String> {
         if text.is_empty() {
             return Ok(());
@@ -454,7 +480,8 @@ pub mod win_impl {
         // Release modifiers again after window activation just in case
         release_all_modifiers();
 
-        if use_clipboard {
+        let is_console = is_legacy_console_window(target_hwnd);
+        if use_clipboard && !is_console {
             let old_clipboard = get_clipboard_text();
             let set_ok = set_clipboard_text(text);
             if set_ok {

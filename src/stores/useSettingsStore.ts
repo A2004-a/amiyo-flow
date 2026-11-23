@@ -42,6 +42,9 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         data.hotkey = 'Control+Space';
         api.saveSettings({ hotkey: 'Control+Space' }).catch(() => {});
       }
+      if (data.audio_device && data.audio_device !== 'default') {
+        api.setAudioDevice(data.audio_device).catch(() => {});
+      }
       set({ settings: data, isLoading: false });
     } catch {
       set({ isLoading: false });

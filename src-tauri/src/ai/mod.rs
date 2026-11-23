@@ -372,7 +372,43 @@ pub fn heuristic_cleanup(input: &str) -> String {
     // 3. Remove accidental duplicate repeated words ("the the" -> "the")
     text = remove_duplicate_words(&text);
 
-    // 4. Normalize spaces and whitespace
+    // 4. Format verbal emails and URLs
+    let email_re = Regex::new(r"(?i)\b([a-zA-Z0-9_\-]+)\s+dot\s+([a-zA-Z0-9_\-]+)\s+at\s+([a-zA-Z0-9_\-]+)\s+dot\s+(com|org|net|edu|gov|io|ai|dev|co|in)\b").unwrap();
+    text = email_re.replace_all(&text, "$1.$2@$3.$4").to_string();
+
+    let email_simple_re = Regex::new(r"(?i)\b([a-zA-Z0-9_\-]+)\s+at\s+([a-zA-Z0-9_\-]+)\s+dot\s+(com|org|net|edu|gov|io|ai|dev|co|in)\b").unwrap();
+    text = email_simple_re.replace_all(&text, "$1@$2.$3").to_string();
+
+    let url_re = Regex::new(r"(?i)\bhttps?\s+colon\s+slash\s+slash\b").unwrap();
+    text = url_re.replace_all(&text, "https://").to_string();
+
+    let www_re = Regex::new(r"(?i)\bwww\s+dot\s+").unwrap();
+    text = www_re.replace_all(&text, "www.").to_string();
+
+    // 5. Expand verbal punctuation commands
+    let punct_patterns = [
+        (r"(?i)\s+period\b", "."),
+        (r"(?i)\s+full stop\b", "."),
+        (r"(?i)\s+comma\b", ","),
+        (r"(?i)\s+question mark\b", "?"),
+        (r"(?i)\s+(?:exclamation mark|exclamation point)\b", "!"),
+        (r"(?i)\s+colon\b", ":"),
+        (r"(?i)\s+semicolon\b", ";"),
+        (r"(?i)\s+(?:new line|newline)\b", "\n"),
+    ];
+
+    for (pat, repl) in punct_patterns {
+        if let Ok(re) = Regex::new(pat) {
+            text = re.replace_all(&text, repl).to_string();
+        }
+    }
+
+    // Clean up spaces before punctuation
+    if let Ok(space_punct) = Regex::new(r"\s+([,\.?!;:])") {
+        text = space_punct.replace_all(&text, "$1").to_string();
+    }
+
+    // 6. Normalize spaces and whitespace
     let space_re = Regex::new(r"\s+").unwrap();
     text = space_re.replace_all(&text, " ").trim().to_string();
 
@@ -589,5 +625,12 @@ mod tests {
         let text = "Check out my profile at ;gh and my signature is ;sig";
         let expanded = apply_snippets(text, &snippets);
         assert_eq!(expanded, "Check out my profile at https://github.com/amiyo and my signature is Best regards,\nAmiyo Garai");
+    }
+
+    #[test]
+    fn test_verbal_punctuation_and_email_formatting() {
+        let raw = "hello world comma please send an email to amiyo at gmail dot com period";
+        let cleaned = heuristic_cleanup(raw);
+        assert_eq!(cleaned, "Hello world, please send an email to amiyo@gmail.com.");
     }
 }

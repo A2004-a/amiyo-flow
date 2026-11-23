@@ -119,9 +119,16 @@ pub fn run() {
 
             let db = Arc::new(Database::new(app_data_dir).expect("Failed to initialize SQLite database"));
 
+            let audio_engine = Arc::new(AudioEngine::new());
+            if let Some(dev_name) = db.get_setting("audio_device") {
+                if dev_name != "default" && !dev_name.trim().is_empty() {
+                    audio_engine.set_device(Some(dev_name));
+                }
+            }
+
             let state = AppState {
                 db: Arc::clone(&db),
-                audio: Arc::new(AudioEngine::new()),
+                audio: audio_engine,
                 auditor: Arc::new(NetworkAuditor::new()),
                 target_hwnd: Arc::new(Mutex::new(0)),
                 target_app_name: Arc::new(Mutex::new("Active Application".to_string())),

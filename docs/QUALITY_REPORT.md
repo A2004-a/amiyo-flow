@@ -1,14 +1,14 @@
 # AMIYO FLOW — COMPREHENSIVE QUALITY, FEATURE & TEST REPORT
 
-This report consolidates the complete quality assurance suite for AMIYO FLOW: the Master Feature Registry (F001–F136), Automated Test Evidence (42/42 passing tests), Structured Bug Tracker (BUG-001–BUG-025), and Semantic Release Changelog.
+This report consolidates the complete quality assurance suite for AMIYO FLOW: the Master Feature Registry (F001–F136), Automated Test Evidence (43/43 passing tests), Structured Bug Tracker (BUG-001–BUG-025), and Semantic Release Changelog.
 
 ---
 
-## 1. Automated Test Execution Evidence (42/42 PASSED)
+## 1. Automated Test Execution Evidence (43/43 PASSED)
 
 - **Test Date**: 2026-11-23
 - **Host Environment**: Windows 11 x64, Intel/AMD architecture, 8GB–16GB RAM
-- **Native Rust Tests (`cargo test`)**: **29 / 29 PASSED** (13 in `lib.rs`, 16 in `unit_tests.rs`)
+- **Native Rust Tests (`cargo test`)**: **30 / 30 PASSED** (14 in `lib.rs`, 16 in `unit_tests.rs`)
 - **Frontend Vitest Tests (`npm test`)**: **13 / 13 PASSED** (`src/test/dictation.test.ts`)
 - **Frontend Production Build (`npm run build`)**: **PASSED** (1,609 modules bundled with 0 errors)
 - **Installer Build (`npx tauri build`)**: **PASSED** (`AMIYO FLOW_1.0.0_x64-setup.exe`, 4.28 MiB)
@@ -18,6 +18,7 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 
 | Test Identifier | Category | Acceptance Criteria | Execution Result | Status |
 |---|---|---|---|---|
+| `test_verbal_punctuation_and_email_formatting` | Phase 5 | Expands verbal punctuation and formats spoken emails/URLs | "amiyo at gmail dot com period" $\rightarrow$ "Amiyo@gmail.com." | **PASSED** |
 | `test_audio_resampling_44100_to_16000` | Phase 2 | Converts 44.1kHz audio to 16kHz mono PCM accurately | Linear resampling ratio verified ($44100 \rightarrow 16000$) | **PASSED** |
 | `test_wav_encoding_header` | Phase 2 | Generates 44-byte standard RIFF WAVE header with PCM fmt subchunk | Header matches `hound` 16-bit mono 16kHz spec | **PASSED** |
 | `test_filler_word_removal` | Phase 5 | Strips conversational fillers ("um", "uh", "you know") without meaning loss | Transformed string matches expected output | **PASSED** |
@@ -105,6 +106,16 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 ---
 
 ## 4. Semantic Version Changelog
+
+### [1.0.7] — 2026-11-23
+- **Verbal Punctuation, Web & Email Formatting Engine**:
+  - Expanded the zero-RAM heuristic NLP engine to automatically recognize spoken punctuation ("period", "full stop", "comma", "question mark", "exclamation mark", "colon", "semicolon", "new line").
+  - Added verbal email and web address formatting (e.g. "amiyo at gmail dot com" $\rightarrow$ "amiyo@gmail.com", "https colon slash slash" $\rightarrow$ "https://", "www dot" $\rightarrow$ "www.").
+  - Automatically cleans up and attaches punctuation without trailing/leading space errors.
+- **Hardware Audio Device Persistence on Desktop Boot**:
+  - Updated `src-tauri/src/lib.rs` and `useSettingsStore.ts` to restore and initialize the user's saved audio input device from SQLite upon desktop application startup, ensuring persistent microphone selection across reboots.
+- **Terminal-Aware Universal Text Injection**:
+  - Added `is_legacy_console_window` detection in `input/mod.rs` to route text via direct SendInput Unicode typing when targeting legacy Windows Command Prompt (`cmd.exe`) and `conhost.exe`, bypassing clipboard shortcuts that may be disabled by system policy.
 
 ### [1.0.6] — 2026-11-23
 - **Warm Persistent STT Daemon Worker for Sub-200ms Dictation**:
