@@ -166,9 +166,9 @@ impl Database {
             )?;
         }
 
-        // Migrate legacy hotkey if set to CommandOrControl+Shift+Space
+        // Migrate legacy hotkey if set to CommandOrControl variants
         let _ = conn.execute(
-            "UPDATE settings SET value = 'Control+Space' WHERE key = 'hotkey' AND value = 'CommandOrControl+Shift+Space'",
+            "UPDATE settings SET value = 'Control+Space' WHERE key = 'hotkey' AND (value = 'CommandOrControl+Shift+Space' OR value = 'Control+Shift+Space' OR value LIKE '%CommandOrControl%')",
             [],
         );
 

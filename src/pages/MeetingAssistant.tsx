@@ -18,11 +18,13 @@ import {
   Volume2,
 } from 'lucide-react';
 import { useWorkspaceStore } from '../stores/useWorkspaceStore';
-import { api } from '../lib/tauri';
+import { useSettingsStore } from '../stores/useSettingsStore';
+import { api, formatHotkeyDisplay } from '../lib/tauri';
 import { MeetingItem } from '../types';
 
 export const MeetingAssistant: React.FC = () => {
   const { meetings, loadMeetings, deleteMeeting } = useWorkspaceStore();
+  const { settings } = useSettingsStore();
   const [isRecording, setIsRecording] = useState(false);
   const [meetingTitle, setMeetingTitle] = useState('');
   const [durationSec, setDurationSec] = useState(0);
@@ -32,9 +34,9 @@ export const MeetingAssistant: React.FC = () => {
   const [showMeetGuide, setShowMeetGuide] = useState(true);
 
   const startMeeting = async () => {
+    const activeTitle = meetingTitle.trim() || `Meeting — ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     if (!meetingTitle.trim()) {
-      alert('Please enter a meeting title (e.g. Sprint Sync, Client Demo) before starting.');
-      return;
+      setMeetingTitle(activeTitle);
     }
 
     try {
@@ -56,6 +58,8 @@ export const MeetingAssistant: React.FC = () => {
     setIntervalId(null);
     setIsRecording(false);
 
+    const activeTitle = meetingTitle.trim() || `Meeting — ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+
     let recordedTranscript = '';
     try {
       const res = await api.stopRecordingAndInsert();
@@ -65,12 +69,12 @@ export const MeetingAssistant: React.FC = () => {
     }
 
     if (!recordedTranscript || recordedTranscript.trim().length === 0) {
-      recordedTranscript = `Meeting discussion for ${meetingTitle}: Team reviewed current sprint status, aligned on universal text insertion across Claude, ChatGPT and Google Meet, verified offline transcription resilience, and assigned action items for final deployment.`;
+      recordedTranscript = `Meeting discussion for ${activeTitle}: Team reviewed current sprint status, aligned on universal text insertion across Claude, ChatGPT and Google Meet, verified offline transcription resilience, and assigned action items for final deployment.`;
     }
 
     try {
       const newMeeting = await api.processMeetingRecording(
-        meetingTitle,
+        activeTitle,
         recordedTranscript,
         durationSec
       );
@@ -148,7 +152,7 @@ export const MeetingAssistant: React.FC = () => {
                 <Mic className="w-3.5 h-3.5" /> 1. Real-time In-Call Chat
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed">
-                Click inside the Google Meet chat box, press <kbd className="px-1 py-0.5 rounded bg-slate-800 text-cyan-300 font-mono">Ctrl+Space</kbd>, speak, and press it again. It types directly into the meeting chat!
+                Click inside the Google Meet chat box, press <kbd className="px-1 py-0.5 rounded bg-slate-800 text-cyan-300 font-mono">{formatHotkeyDisplay(settings.hotkey)}</kbd>, speak, and press it again. It types directly into the meeting chat!
               </p>
             </div>
 

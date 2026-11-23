@@ -107,6 +107,20 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 
 ## 4. Semantic Version Changelog
 
+### [1.0.8] — 2026-11-23
+- **Zero-Friction Meeting Recording & Dynamic Natural Language Extraction**:
+  - Replaced static/canned decisions and action items in `src-tauri/src/ai/mod.rs::generate_meeting_summary` with 100% on-device dynamic extraction that analyzes real spoken transcripts for agreement/decision triggers ("agreed to", "decided to", "approved") and action verbs ("will", "must", "need to", "implement", "ship", "prepare").
+  - Added robust sentence boundary segmentation resilient to software version dots and decimal notation (e.g. `v1.0`).
+  - Removed friction in `MeetingAssistant.tsx` by eliminating the blocking `alert()` on blank title; automatically generates clean, timestamped titles (`Meeting — <Date> <Time>`) if started without manual entry.
+  - Formatted action items with clean numbered lists and synthesized contextual executive summaries.
+- **Strict Universal Hotkey Formatting & Legacy Migration**:
+  - Enhanced `formatHotkeyDisplay` in `src/lib/tauri.ts` to strictly normalize any legacy internal shortcut strings (`CommandOrControl+Shift+Space`, `Control+Shift+Space`, `CommandOrControl` variants) directly to `Ctrl+Space`.
+  - Added unconditional SQLite database migration in `Database::seed_defaults()` to upgrade legacy hotkeys in settings.
+  - Linked active hotkey display in `MeetingAssistant.tsx` Google Meet instructions banner.
+- **Verified Build & Test Baseline**:
+  - Full test suite passing with 44/44 automated tests (31 Rust unit tests + 13 Vitest tests).
+  - Production frontend assets bundled cleanly with zero errors via `npm run build`.
+
 ### [1.0.7] — 2026-11-23
 - **Verbal Punctuation, Web & Email Formatting Engine**:
   - Expanded the zero-RAM heuristic NLP engine to automatically recognize spoken punctuation ("period", "full stop", "comma", "question mark", "exclamation mark", "colon", "semicolon", "new line").

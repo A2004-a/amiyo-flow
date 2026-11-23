@@ -527,20 +527,104 @@ pub async fn generate_meeting_summary(raw_transcript: &str) -> Result<crate::db:
 
     let cleaned = heuristic_cleanup(raw_transcript);
 
-    let summary = format!(
-        "The team conducted an operational alignment session. Key discussion points centered on: {}",
-        if cleaned.len() > 180 { &cleaned[..180] } else { &cleaned }
-    );
+    // Split cleaned text into distinct sentences (avoiding splitting decimal numbers like v1.0)
+    let sentence_regex = Regex::new(r#"(?:\.\s+|\?\s+|\!\s+|\;\s+|\n+)"#).unwrap();
+    let sentences: Vec<String> = sentence_regex
+        .split(&cleaned)
+        .map(|s| s.trim())
+        .filter(|s| s.len() > 3)
+        .map(|s| {
+            let mut chars = s.chars();
+            match chars.next() {
+                None => String::new(),
+                Some(first) => {
+                    let mut capitalized = first.to_uppercase().to_string();
+                    capitalized.extend(chars);
+                    if !capitalized.ends_with('.') && !capitalized.ends_with('!') && !capitalized.ends_with('?') {
+                        capitalized.push('.');
+                    }
+                    capitalized
+                }
+            }
+        })
+        .collect();
 
-    let decisions = vec![
-        "Approved on-device local AI architecture with 100% offline processing.".to_string(),
-        "Standardized on whisper.cpp and llama.cpp local quantized runtimes.".to_string(),
+    // 1. Dynamic Extraction of Decisions
+    let decision_patterns = [
+        "agree", "agreed", "decide", "decided", "approve", "approved",
+        "standardize", "standardized", "chosen", "choose", "resolved",
+        "consensus", "aligned", "selected", "verdict", "deploy local", "concluded"
     ];
 
-    let action_items = vec![
-        "1. Complete local model benchmark audit on 8GB target hardware (Owner: Engineering).".to_string(),
-        "2. Verify zero-network physical disconnection test matrix (Owner: QA).".to_string(),
+    let mut decisions: Vec<String> = sentences
+        .iter()
+        .filter(|s| {
+            let lower = s.to_lowercase();
+            decision_patterns.iter().any(|p| lower.contains(p))
+        })
+        .cloned()
+        .collect();
+
+    // Fallback if no explicit decision trigger was mentioned
+    if decisions.is_empty() {
+        if let Some(first) = sentences.first() {
+            decisions.push(format!("Agreed on key priorities discussed: {}", first));
+        } else {
+            decisions.push("Agreed on operational alignment and next milestones.".to_string());
+        }
+    }
+
+    // 2. Dynamic Extraction of Action Items
+    let action_patterns = [
+        "will", "must", "need to", "action", "todo", "follow up", "assign",
+        "by friday", "by monday", "deadline", "ship", "deliver", "review",
+        "test", "benchmark", "implement", "create", "build", "verify",
+        "plan to", "prepare", "deploy", "suggested"
     ];
+
+    let mut action_items: Vec<String> = sentences
+        .iter()
+        .filter(|s| {
+            let lower = s.to_lowercase();
+            // Avoid exact duplicate with decisions
+            !decisions.contains(s) && action_patterns.iter().any(|p| lower.contains(p))
+        })
+        .cloned()
+        .collect();
+
+    // If still empty, generate meaningful items from sentences
+    if action_items.is_empty() {
+        if sentences.len() > 1 {
+            action_items.push(format!("Follow up on: {}", sentences[1]));
+        } else if let Some(first) = sentences.first() {
+            action_items.push(format!("Complete execution plan for: {}", first));
+        } else {
+            action_items.push("Complete execution plan for next sprint review.".to_string());
+        }
+    }
+
+    // Format action items with clean numbering: "1. ...", "2. ..."
+    let formatted_action_items: Vec<String> = action_items
+        .into_iter()
+        .enumerate()
+        .map(|(i, item)| {
+            let trimmed = item.trim_start_matches(|c: char| c.is_ascii_digit() || c == '.' || c == ' ');
+            format!("{}. {}", i + 1, trimmed)
+        })
+        .collect();
+
+    // 3. Dynamic Synthesis of Executive Summary
+    let summary = if cleaned.len() <= 180 {
+        format!("Discussion Summary: {}", cleaned)
+    } else {
+        let first_sentence = sentences.first().cloned().unwrap_or_else(|| cleaned[..180].to_string());
+        let second_sentence = sentences.get(1).cloned().unwrap_or_default();
+        if !second_sentence.is_empty() {
+            format!("Executive alignment on: {} Key follow-up: {}", first_sentence, second_sentence)
+        } else {
+            format!("Executive alignment session: {}", first_sentence)
+        }
+    };
 
     Ok(crate::db::MeetingItem {
         id: uuid::Uuid::new_v4().to_string(),
@@ -550,7 +634,7 @@ pub async fn generate_meeting_summary(raw_transcript: &str) -> Result<crate::db:
         transcript: raw_transcript.to_string(),
         summary,
         decisions,
-        action_items,
+        action_items: formatted_action_items,
     })
 }
 
@@ -632,5 +716,15 @@ mod tests {
         let raw = "hello world comma please send an email to amiyo at gmail dot com period";
         let cleaned = heuristic_cleanup(raw);
         assert_eq!(cleaned, "Hello world, please send an email to amiyo@gmail.com.");
+    }
+
+    #[tokio::test]
+    async fn test_dynamic_meeting_summary_extraction() {
+        let transcript = "Sarah presented the quarterly release schedule. We agreed to ship v1.0 next Tuesday. John will prepare the release documentation.";
+        let meeting = generate_meeting_summary(transcript).await.unwrap();
+
+        assert!(meeting.summary.contains("Sarah presented") || meeting.summary.contains("Discussion"));
+        assert!(meeting.decisions.iter().any(|d| d.contains("agreed to ship v1.0 next Tuesday")));
+        assert!(meeting.action_items.iter().any(|a| a.contains("prepare the release documentation")));
     }
 }
