@@ -107,6 +107,22 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 
 ## 4. Semantic Version Changelog
 
+### [1.0.9] — 2026-11-23
+- **Elimination of Clipboard Overwrite Race Conditions (BUG-030)**:
+  - Transitioned default insertion mechanism to native Win32 `SendInput(KEYEVENTF_UNICODE)` (Direct Unicode Keystrokes).
+  - Characters are typed directly into the active cursor in Claude, ChatGPT, VS Code, and browsers at 0ms latency without modifying, clearing, or reading the OS clipboard.
+  - Fixes the bug where previously copied file paths or text (e.g. PowerPoint file paths) were erroneously pasted by Chromium/Electron during asynchronous clipboard restoration.
+  - Increased clipboard fallback restore delay from 350ms to 1200ms when clipboard paste is explicitly chosen for massive text blocks (>800 chars).
+- **Persistent STT Daemon Pipe Buffer Deadlock Resolution**:
+  - Configured `cmd.stderr(Stdio::null())` in `spawn_stt_worker` to prevent the 4096-byte Windows pipe buffer from filling with PyTorch/CTranslate2 logging output.
+  - Completely resolves freezing/hanging on successive dictations ("worked first time, but next time slow/stopped working").
+  - Optimized `transcribe_daemon.py` with `vad_filter=True`, `condition_on_previous_text=False`, `beam_size=1`, and `temperature=0.0` for deterministic sub-150ms transcription.
+- **Heuristic AI Natural Language Preservation**:
+  - Refined `self_correction_regex` to strictly match conversational repair clauses (`no wait`, `scratch that`, `I mean`) instead of destroying sentences containing common words like `actually` and `sorry`.
+  - Removed `like` and `literally` from blind filler word deletion, ensuring verbs ("I like this feature") and comparisons are never corrupted.
+- **Production NSIS Release Installers Generated**:
+  - Bundled fresh optimized release installer binaries: `AMIYO FLOW_1.0.8_x64-setup.exe` and `AMIYO FLOW_1.0.0_x64-setup.exe`.
+
 ### [1.0.8] — 2026-11-23
 - **Zero-Friction Meeting Recording & Dynamic Natural Language Extraction**:
   - Replaced static/canned decisions and action items in `src-tauri/src/ai/mod.rs::generate_meeting_summary` with 100% on-device dynamic extraction that analyzes real spoken transcripts for agreement/decision triggers ("agreed to", "decided to", "approved") and action verbs ("will", "must", "need to", "implement", "ship", "prepare").

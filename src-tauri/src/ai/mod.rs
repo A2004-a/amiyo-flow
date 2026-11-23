@@ -350,18 +350,18 @@ async fn run_local_llama_inference(
 pub fn heuristic_cleanup(input: &str) -> String {
     let mut text = input.to_string();
 
-    // 1. Remove spoken self-corrections ("no wait...", "actually...")
-    let self_correction_regex = Regex::new(r"(?i)\b(?:no wait|actually|scratch that|I mean|sorry)\s+(.+)").unwrap();
+    // 1. Remove spoken self-corrections ("no wait...", "scratch that...")
+    let self_correction_regex = Regex::new(r"(?i)\b(?:no wait|scratch that|I mean)[,\s]+(.+)").unwrap();
     if let Some(caps) = self_correction_regex.captures(&text) {
         if let Some(replacement) = caps.get(1) {
             text = replacement.as_str().to_string();
         }
     }
 
-    // 2. Remove verbal filler words
+    // 2. Remove verbal filler words (hesitations)
     let filler_patterns = [
         r"(?i)\b(um|uh|erm|ah)\b,?",
-        r"(?i)\b(you know|like|basically|literally|sort of|kind of)\b,?",
+        r"(?i)\b(you know|basically|sort of|kind of)\b,?",
     ];
 
     for pat in filler_patterns {

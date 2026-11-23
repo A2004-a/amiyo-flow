@@ -220,7 +220,7 @@ export const Settings: React.FC = () => {
               <div>
                 <span className="text-xs font-semibold text-white block">Insertion Mechanism</span>
                 <span className="text-[11px] text-slate-400">
-                  Use Win32 Clipboard Paste (fastest, preserves formatting) or Direct Unicode Injection.
+                  Direct Win32 Unicode Keystrokes (recommended, never alters clipboard) or Clipboard Paste.
                 </span>
               </div>
               <select
@@ -228,8 +228,8 @@ export const Settings: React.FC = () => {
                 onChange={(e) => updateSetting('use_clipboard', e.target.value)}
                 className="px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white"
               >
-                <option value="true">Clipboard Paste (Recommended)</option>
-                <option value="false">Unicode Keystrokes</option>
+                <option value="false">Direct Unicode Keystrokes (Recommended)</option>
+                <option value="true">Clipboard Paste (Legacy)</option>
               </select>
             </div>
 

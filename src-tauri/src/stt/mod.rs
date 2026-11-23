@@ -216,10 +216,7 @@ pub async fn transcribe_audio(
     if let Some(python_path) = find_python() {
         match run_faster_whisper(&python_path, model_name, &wav_bytes, language).await {
             Ok(t) => {
-                let trimmed = t.trim().to_string();
-                if !trimmed.is_empty() {
-                    return Ok(trimmed);
-                }
+                return Ok(t.trim().to_string());
             }
             Err(e) => {
                 eprintln!("Local faster-whisper failed: {}", e);
@@ -227,7 +224,7 @@ pub async fn transcribe_audio(
         }
     }
 
-    // 3. High-performance on-device acoustic decoding engine
+    // 3. Fallback acoustic decoding engine for test environments without Python
     Ok(decode_local_acoustic_features(&wav_bytes, language, dictionary_prompt))
 }
 
@@ -309,7 +306,14 @@ def transcribe():
             except Exception:
                 model = WhisperModel("tiny.en", device="cpu", compute_type="int8", local_files_only=True)
 
-        segments, _ = model.transcribe(wav_path, language=lang, beam_size=1)
+        segments, _ = model.transcribe(
+            wav_path,
+            language=lang,
+            beam_size=1,
+            vad_filter=True,
+            condition_on_previous_text=False,
+            temperature=0.0
+        )
         text = " ".join(s.text.strip() for s in segments if s.text)
         print(text.strip())
     except Exception as e:
@@ -339,29 +343,37 @@ fn get_or_create_daemon_script() -> Result<PathBuf, String> {
 import json
 import os
 
-models = {}
+model = None
+current_model_name = None
 
 def get_model(name):
+    global model, current_model_name
     clean = name
     if clean.startswith("ggml-"):
         clean = clean[5:]
     if clean.endswith(".bin"):
         clean = clean[:-4]
-    if clean not in models:
+    if model is None or current_model_name != clean:
         from faster_whisper import WhisperModel
         try:
-            models[clean] = WhisperModel(clean, device="cpu", compute_type="int8", local_files_only=True)
+            model = WhisperModel(clean, device="cpu", compute_type="int8", local_files_only=True)
+            current_model_name = clean
         except Exception:
             try:
-                models[clean] = WhisperModel("base.en", device="cpu", compute_type="int8", local_files_only=True)
+                model = WhisperModel("base.en", device="cpu", compute_type="int8", local_files_only=True)
+                current_model_name = "base.en"
             except Exception:
-                models[clean] = WhisperModel("tiny.en", device="cpu", compute_type="int8", local_files_only=True)
-    return models[clean]
+                model = WhisperModel("tiny.en", device="cpu", compute_type="int8", local_files_only=True)
+                current_model_name = "tiny.en"
+    return model
 
 try:
-    get_model("tiny.en")
+    get_model("base.en")
 except Exception:
-    pass
+    try:
+        get_model("tiny.en")
+    except Exception:
+        pass
 
 sys.stdout.write(json.dumps({"status": "ready"}) + "\n")
 sys.stdout.flush()
@@ -388,7 +400,14 @@ for line in sys.stdin:
             if lang in ("auto", "", "None"):
                 lang = None
             model = get_model(model_name)
-            segments, _ = model.transcribe(wav_path, language=lang, beam_size=1)
+            segments, _ = model.transcribe(
+            wav_path,
+            language=lang,
+            beam_size=1,
+            vad_filter=True,
+            condition_on_previous_text=False,
+            temperature=0.0
+        )
             text = " ".join(s.text.strip() for s in segments if s.text).strip()
             sys.stdout.write(json.dumps({"status": "ok", "text": text}) + "\n")
             sys.stdout.flush()
@@ -415,7 +434,7 @@ fn spawn_stt_worker(python_path: &Path) -> Result<SttWorker, String> {
     cmd.arg(&daemon_script)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        .stderr(Stdio::null()); // Prevents pipe buffer deadlock on Windows
 
     #[cfg(target_os = "windows")]
     {

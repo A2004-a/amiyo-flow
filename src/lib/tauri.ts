@@ -62,7 +62,7 @@ let mockSettings: AppSettings = {
   vad_enabled: 'true',
   silence_cutoff_ms: '1800',
   auto_insert: 'true',
-  use_clipboard: 'true',
+  use_clipboard: 'false',
   restore_clipboard_delay_ms: '35',
   audio_retention: '0',
   theme: 'dark',

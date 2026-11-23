@@ -465,7 +465,7 @@ pub mod win_impl {
     }
 
     pub fn insert_text(target_hwnd: isize, text: &str, use_clipboard: bool, restore_delay_ms: u64) -> Result<(), String> {
-        if text.is_empty() {
+        if text.trim().is_empty() {
             return Ok(());
         }
 
@@ -481,23 +481,29 @@ pub mod win_impl {
         release_all_modifiers();
 
         let is_console = is_legacy_console_window(target_hwnd);
-        if use_clipboard && !is_console {
-            let old_clipboard = get_clipboard_text();
-            let set_ok = set_clipboard_text(text);
-            if set_ok {
-                sleep(Duration::from_millis(35));
-                simulate_ctrl_v();
-                // Allow Chromium/Electron/Claude/Antigravity sufficient time to process paste IPC
-                sleep(Duration::from_millis(restore_delay_ms.max(350)));
 
-                if let Some(ref prev) = old_clipboard {
-                    set_clipboard_text(prev);
-                }
-            } else {
-                // Seamlessly fall back to direct SendInput Unicode injection
-                send_unicode_text(text);
+        // Win32 native SendInput Unicode dispatch (AGENTS.md Rule 3)
+        // By default or for standard text (<800 chars), inject directly into target cursor.
+        // This NEVER touches, clears, or modifies the user's OS clipboard, eliminating race conditions.
+        if !use_clipboard || is_console || text.len() <= 800 {
+            send_unicode_text(text);
+            return Ok(());
+        }
+
+        // Fallback for massive text blocks (>800 chars) when clipboard paste is explicitly chosen
+        let old_clipboard = get_clipboard_text();
+        let set_ok = set_clipboard_text(text);
+        if set_ok {
+            sleep(Duration::from_millis(50));
+            simulate_ctrl_v();
+            // Allow target application (Chromium/Electron/Claude) sufficient time to read clipboard before restoring
+            sleep(Duration::from_millis(restore_delay_ms.max(1200)));
+
+            if let Some(ref prev) = old_clipboard {
+                set_clipboard_text(prev);
             }
         } else {
+            // Seamlessly fall back to direct SendInput Unicode injection
             send_unicode_text(text);
         }
 

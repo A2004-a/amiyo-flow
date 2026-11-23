@@ -152,7 +152,7 @@ impl Database {
             ("anthropic_api_key", ""),
             ("gemini_api_key", ""),
             ("auto_insert", "true"),
-            ("use_clipboard", "true"),
+            ("use_clipboard", "false"),
             ("restore_clipboard_delay_ms", "35"),
             ("audio_retention", "0"), // 0 = delete immediately
             ("theme", "dark"),
@@ -169,6 +169,12 @@ impl Database {
         // Migrate legacy hotkey if set to CommandOrControl variants
         let _ = conn.execute(
             "UPDATE settings SET value = 'Control+Space' WHERE key = 'hotkey' AND (value = 'CommandOrControl+Shift+Space' OR value = 'Control+Shift+Space' OR value LIKE '%CommandOrControl%')",
+            [],
+        );
+
+        // Ensure safe Direct Unicode injection is default (eliminates clipboard race condition)
+        let _ = conn.execute(
+            "UPDATE settings SET value = 'false' WHERE key = 'use_clipboard' AND value = 'true'",
             [],
         );
 
