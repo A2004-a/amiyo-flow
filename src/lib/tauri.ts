@@ -3,6 +3,7 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import {
   AudioDeviceInfo,
   ForegroundWindowInfo,
+  RecordingStateResponse,
   HistoryItem,
   DictionaryItem,
   SnippetItem,
@@ -146,6 +147,18 @@ export const api = {
   getForegroundWindow: async (): Promise<ForegroundWindowInfo | null> => {
     if (isTauri()) return invoke('get_foreground_window');
     return { hwnd: 12345, title: 'Visual Studio Code - main.rs', process_name: 'code.exe' };
+  },
+
+  getRecordingState: async (): Promise<RecordingStateResponse> => {
+    if (isTauri()) return invoke('get_recording_state');
+    return {
+      is_recording: false,
+      is_paused: false,
+      is_processing: false,
+      target_app: 'code.exe',
+      target_title: 'Visual Studio Code',
+      duration_ms: 0,
+    };
   },
 
   startRecording: async (): Promise<ForegroundWindowInfo> => {

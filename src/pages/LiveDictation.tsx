@@ -119,7 +119,9 @@ export const LiveDictation: React.FC = () => {
           <span className="w-2 h-2 rounded-full bg-cyan-400" />
           <span>Active Target:</span>
           <span className="font-semibold text-white font-mono">
-            {targetApp?.process_name || 'Focused Window'}
+            {targetApp?.process_name && targetApp.process_name !== 'unknown.exe'
+              ? targetApp.process_name
+              : 'Active Cursor Window'}
           </span>
         </div>
 
@@ -174,22 +176,39 @@ export const LiveDictation: React.FC = () => {
             </span>
           )}
           {state === 'failed' && (
-            <span className="px-3 py-1 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs font-semibold">
-              {errorMessage || 'Dictation Failed'}
-            </span>
+            <button
+              onClick={cancelRecording}
+              className="px-3 py-1 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs font-semibold cursor-pointer hover:bg-rose-500/30 transition-all flex items-center gap-1.5"
+              title="Click to reset"
+            >
+              <span>{errorMessage || 'Dictation Error'}</span>
+              <span className="text-[10px] text-rose-400 font-normal underline">Reset</span>
+            </button>
           )}
         </div>
 
         {/* Action Controls */}
         <div className="flex items-center gap-3 pt-2">
           {state === 'idle' || state === 'completed' || state === 'failed' ? (
-            <button
-              onClick={startRecording}
-              className="flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-sm shadow-xl transition-all active:scale-95"
-            >
-              <Mic className="w-4 h-4" />
-              <span>Start Recording</span>
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={startRecording}
+                className="flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-sm shadow-xl transition-all active:scale-95 cursor-pointer"
+              >
+                <Mic className="w-4 h-4" />
+                <span>Start Recording</span>
+              </button>
+              {state === 'failed' && (
+                <button
+                  onClick={cancelRecording}
+                  className="flex items-center gap-2 px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-all cursor-pointer"
+                  title="Reset dictation engine"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  <span>Reset State</span>
+                </button>
+              )}
+            </div>
           ) : (
             <>
               {state === 'recording' ? (

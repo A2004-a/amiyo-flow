@@ -94,7 +94,7 @@ impl AudioEngine {
 
     pub fn start_recording(&self, app_handle: AppHandle) -> Result<(), String> {
         if self.is_recording() {
-            return Ok(());
+            self.cancel();
         }
 
         let host = cpal::default_host();

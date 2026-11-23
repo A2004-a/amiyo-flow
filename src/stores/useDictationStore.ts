@@ -60,6 +60,42 @@ export const useDictationStore = create<DictationStore>((set, get) => ({
     }
     set({ listenersInitialized: true });
 
+    // Query initial backend state on mount to prevent any desync
+    api.getRecordingState().then((backendState) => {
+      if (backendState && backendState.is_recording) {
+        const { timerInterval, unlistenAudio } = get();
+        if (timerInterval) clearInterval(timerInterval);
+        if (unlistenAudio) unlistenAudio();
+
+        const startTime = Date.now() - backendState.duration_ms;
+        const timer = window.setInterval(() => {
+          set({ durationMs: Date.now() - startTime });
+        }, 100);
+
+        const unlisten = onAudioLevel((level) => {
+          set({ audioLevel: level });
+        });
+
+        set({
+          state: backendState.is_paused ? 'paused' : 'recording',
+          durationMs: backendState.duration_ms,
+          targetApp: {
+            hwnd: 0,
+            title: backendState.target_title,
+            process_name: backendState.target_app,
+          },
+          timerInterval: timer,
+          unlistenAudio: unlisten,
+          errorMessage: null,
+        });
+      } else {
+        const current = get();
+        if (current.state !== 'processing' && current.state !== 'inserting') {
+          current.reset();
+        }
+      }
+    }).catch(() => {});
+
     const unlistens: (() => void)[] = [];
 
     // Backend recording started (via global shortcut or native tray)
@@ -188,9 +224,10 @@ export const useDictationStore = create<DictationStore>((set, get) => ({
   },
 
   startRecording: async () => {
-    if (get().state === 'recording') {
-      return;
-    }
+    const { timerInterval, unlistenAudio } = get();
+    if (timerInterval) clearInterval(timerInterval);
+    if (unlistenAudio) unlistenAudio();
+
     try {
       const target = await api.startRecording();
       const startTime = Date.now();

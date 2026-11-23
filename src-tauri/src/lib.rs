@@ -190,8 +190,23 @@ pub fn run() {
                 });
             }
 
-            #[cfg(target_os = "windows")]
             if let Some(pill_win) = app.get_webview_window("pill") {
+                if let Ok(Some(monitor)) = pill_win.primary_monitor() {
+                    let screen_size = monitor.size();
+                    let scale_factor = monitor.scale_factor();
+                    let pill_w = 380.0;
+                    let pill_h = 76.0;
+                    let screen_w = screen_size.width as f64 / scale_factor;
+                    let screen_h = screen_size.height as f64 / scale_factor;
+                    let pos_x = (screen_w - pill_w) / 2.0;
+                    let pos_y = (screen_h - pill_h - 70.0).max(10.0);
+                    let _ = pill_win.set_position(tauri::Position::Logical(tauri::LogicalPosition {
+                        x: pos_x,
+                        y: pos_y,
+                    }));
+                }
+
+                #[cfg(target_os = "windows")]
                 if let Ok(hwnd) = pill_win.hwnd() {
                     use windows::Win32::UI::WindowsAndMessaging::{
                         GetWindowLongW, SetWindowLongW, GWL_EXSTYLE, WS_EX_NOACTIVATE, WS_EX_TOPMOST,

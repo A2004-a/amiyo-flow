@@ -13,6 +13,15 @@ export interface ForegroundWindowInfo {
   process_name: string;
 }
 
+export interface RecordingStateResponse {
+  is_recording: boolean;
+  is_paused: boolean;
+  is_processing: boolean;
+  target_app: string;
+  target_title: string;
+  duration_ms: number;
+}
+
 export interface AudioDeviceInfo {
   name: string;
   is_default: boolean;

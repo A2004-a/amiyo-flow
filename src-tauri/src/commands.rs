@@ -102,6 +102,20 @@ pub async fn start_recording(app_handle: AppHandle, state: State<'_, AppState>) 
     }
 
     if let Some(pill_window) = app_handle.get_webview_window("pill") {
+        if let Ok(Some(monitor)) = pill_window.primary_monitor() {
+            let screen_size = monitor.size();
+            let scale_factor = monitor.scale_factor();
+            let pill_w = 380.0;
+            let pill_h = 76.0;
+            let screen_w = screen_size.width as f64 / scale_factor;
+            let screen_h = screen_size.height as f64 / scale_factor;
+            let pos_x = (screen_w - pill_w) / 2.0;
+            let pos_y = (screen_h - pill_h - 70.0).max(10.0);
+            let _ = pill_window.set_position(tauri::Position::Logical(tauri::LogicalPosition {
+                x: pos_x,
+                y: pos_y,
+            }));
+        }
         let _ = pill_window.show();
     }
 
