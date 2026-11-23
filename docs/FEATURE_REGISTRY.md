@@ -201,3 +201,22 @@ This registry tracks the status, acceptance criteria, test evidence, and platfor
 | **F122** | Install Verification | Fresh installation & uninstallation | IMPLEMENTED | VERIFIED | Windows | NSIS installer script validated |
 | **F123** | Update Mechanism | User-initiated updater configuration | IMPLEMENTED | VERIFIED | Cross-platform | Updater configuration prepared |
 | **F124** | Release Docs | Complete engineering & user guide suite | IMPLEMENTED | VERIFIED | Cross-platform | All 12 docs created in `docs/` |
+
+---
+
+## Phase 11 — Cloud AI, Hybrid Router & Privacy Center (F125–F136)
+
+| Feature ID | Feature Name | Description | Status | Test Status | Platform | Verification Evidence |
+|---|---|---|---|---|---|---|
+| **F125** | OS Secure Keychain | Native Windows Credential Manager & macOS Keychain | IMPLEMENTED | VERIFIED | Cross-platform | `keyring = "2"`, `CredentialManager::set_key/get_key` |
+| **F126** | Key Masking & Privacy | Zero plaintext key storage, masked UI display | IMPLEMENTED | VERIFIED | Cross-platform | `test_credential_manager_masking` passed |
+| **F127** | 10 Cloud AI Adapters | OpenAI, DeepSeek, Claude, Gemini, Groq, OpenRouter, Mistral, Together, Fireworks, Custom | IMPLEMENTED | VERIFIED | Cross-platform | `test_cloud_providers_catalog` passed (10/10) |
+| **F128** | Credential Testing | Live API connection verification with latency tracking | IMPLEMENTED | VERIFIED | Cross-platform | `test_cloud_provider` command & UI integration |
+| **F129** | 3-Way AI Router | Local AI, Cloud AI, and Hybrid AI operating modes | IMPLEMENTED | VERIFIED | Cross-platform | `test_ai_router_defaults_and_mode_switching` passed |
+| **F130** | Task Routing Rules | Task-specific rules (dictation, academic, developer) | IMPLEMENTED | VERIFIED | Cross-platform | Verified in `AiRouter.tsx` & `router.rs` |
+| **F131** | Anti-Leak Protection | Block silent cloud fallback when local engine unavailable | IMPLEMENTED | VERIFIED | Cross-platform | `allow_cloud_fallback: false` enforcement |
+| **F132** | Network Audit Trail | Metadata-only audit ledger (destination, latency, status) | IMPLEMENTED | VERIFIED | Cross-platform | `test_network_auditor_lifecycle` passed |
+| **F133** | Privacy Center UI | Dedicated audit viewer, data retention & local purge | IMPLEMENTED | VERIFIED | Cross-platform | `PrivacyCenter.tsx` built & verified |
+| **F134** | Cloud Providers UI | 10-provider configuration, key entry & test UI | IMPLEMENTED | VERIFIED | Cross-platform | `CloudProviders.tsx` built & verified |
+| **F135** | AI Router UI | Visual 3-way mode switcher & per-task routing tables | IMPLEMENTED | VERIFIED | Cross-platform | `AiRouter.tsx` built & verified |
+| **F136** | Ollama Local Engine | Local Ollama auto-detection, version check & model listing | IMPLEMENTED | VERIFIED | Cross-platform | `OllamaClient::check_status` & `list_installed_models` |

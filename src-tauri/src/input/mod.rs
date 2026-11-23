@@ -100,14 +100,28 @@ pub mod win_impl {
 
             let mut foreground_pid = 0u32;
             let foreground_thread = GetWindowThreadProcessId(foreground_hwnd, Some(&mut foreground_pid));
+            let mut target_pid = 0u32;
+            let target_thread = GetWindowThreadProcessId(hwnd, Some(&mut target_pid));
             let current_thread = GetCurrentThreadId();
 
-            let _ = AttachThreadInput(current_thread, foreground_thread, true);
+            if foreground_thread != 0 && current_thread != foreground_thread {
+                let _ = AttachThreadInput(current_thread, foreground_thread, true);
+            }
+            if target_thread != 0 && current_thread != target_thread {
+                let _ = AttachThreadInput(current_thread, target_thread, true);
+            }
+
             let _ = BringWindowToTop(hwnd);
             let res = SetForegroundWindow(hwnd);
-            let _ = AttachThreadInput(current_thread, foreground_thread, false);
 
-            sleep(Duration::from_millis(30));
+            if target_thread != 0 && current_thread != target_thread {
+                let _ = AttachThreadInput(current_thread, target_thread, false);
+            }
+            if foreground_thread != 0 && current_thread != foreground_thread {
+                let _ = AttachThreadInput(current_thread, foreground_thread, false);
+            }
+
+            sleep(Duration::from_millis(35));
             res.as_bool()
         }
     }
@@ -181,7 +195,7 @@ pub mod win_impl {
             let v_key = VIRTUAL_KEY(0x56); // 'V'
             let ctrl_key = VK_CONTROL;
 
-            let inputs = [
+            let key_down = [
                 INPUT {
                     r#type: INPUT_KEYBOARD,
                     Anonymous: INPUT_0 {
@@ -206,6 +220,13 @@ pub mod win_impl {
                         },
                     },
                 },
+            ];
+            SendInput(&key_down, std::mem::size_of::<INPUT>() as i32);
+
+            // Give Windows & Chromium/Electron event queue 15ms to register key-down
+            sleep(Duration::from_millis(15));
+
+            let key_up = [
                 INPUT {
                     r#type: INPUT_KEYBOARD,
                     Anonymous: INPUT_0 {
@@ -231,8 +252,7 @@ pub mod win_impl {
                     },
                 },
             ];
-
-            SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
+            SendInput(&key_up, std::mem::size_of::<INPUT>() as i32);
         }
     }
 
@@ -317,9 +337,9 @@ pub mod win_impl {
         if use_clipboard {
             let old_clipboard = get_clipboard_text();
             set_clipboard_text(text);
-            sleep(Duration::from_millis(15));
+            sleep(Duration::from_millis(25));
             simulate_ctrl_v();
-            sleep(Duration::from_millis(restore_delay_ms.max(25)));
+            sleep(Duration::from_millis(restore_delay_ms.max(50)));
 
             if let Some(ref prev) = old_clipboard {
                 set_clipboard_text(prev);

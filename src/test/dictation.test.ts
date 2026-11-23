@@ -85,4 +85,47 @@ describe('AMIYO FLOW Frontend Store & Pipeline Tests', () => {
     expect(status.is_offline_ready).toBe(true);
     expect(status.vad_enabled).toBe(true);
   });
+
+  it('retrieves cloud providers catalog and manages keys', async () => {
+    const providers = await api.listCloudProviders();
+    expect(providers.length).toBe(10);
+    expect(providers.some((p) => p.id === 'openai')).toBe(true);
+    expect(providers.some((p) => p.id === 'deepseek')).toBe(true);
+
+    await api.setCloudApiKey('deepseek', 'sk-test-key-1234');
+    const hasKey = await api.hasCloudApiKey('deepseek');
+    expect(hasKey).toBe(true);
+
+    const testMsg = await api.testCloudProvider('deepseek');
+    expect(testMsg).toContain('verified successfully');
+
+    await api.deleteCloudApiKey('deepseek');
+    const hasKeyAfter = await api.hasCloudApiKey('deepseek');
+    expect(hasKeyAfter).toBe(false);
+  });
+
+  it('manages AI router configuration and modes', async () => {
+    const config = await api.getAiRouterConfig();
+    expect(config.mode).toBe('Local');
+    expect(config.task_rules.dictation).toBeDefined();
+
+    await api.saveAiRouterConfig({
+      ...config,
+      mode: 'Hybrid',
+      allow_cloud_fallback: false,
+    });
+
+    const updated = await api.getAiRouterConfig();
+    expect(updated.mode).toBe('Hybrid');
+    expect(updated.allow_cloud_fallback).toBe(false);
+  });
+
+  it('records and clears network audit events', async () => {
+    const events = await api.getNetworkAuditEvents();
+    expect(Array.isArray(events)).toBe(true);
+
+    await api.clearNetworkAuditEvents();
+    const cleared = await api.getNetworkAuditEvents();
+    expect(cleared.length).toBe(0);
+  });
 });

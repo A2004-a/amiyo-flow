@@ -12,13 +12,43 @@ import {
   LocalSpeechModelInfo,
   LocalLlmModelInfo,
   OfflineSystemStatus,
+  CloudProviderMeta,
+  OllamaStatus,
+  OllamaModelItem,
+  AiRouterConfig,
+  NetworkAuditEvent,
 } from '../types';
 
 export const isTauri = (): boolean => {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 };
 
-// Mock in-memory DB for browser dev fallback
+let mockCloudKeys: Record<string, string> = {};
+let mockRouterConfig: AiRouterConfig = {
+  mode: 'Local',
+  default_local_model: 'heuristic-rule-engine',
+  default_cloud_provider: 'openai',
+  default_cloud_model: 'gpt-4o-mini',
+  ollama_endpoint: 'http://localhost:11434',
+  task_rules: {
+    dictation: { engine_type: 'local', provider_id: 'ollama', model: 'smollm2:360m' },
+    academic: { engine_type: 'cloud', provider_id: 'openai', model: 'gpt-4o-mini' },
+    developer: { engine_type: 'cloud', provider_id: 'deepseek', model: 'deepseek-chat' },
+  },
+  allow_cloud_fallback: false,
+};
+let mockNetworkAuditEvents: NetworkAuditEvent[] = [
+  {
+    id: '1',
+    timestamp: new Date().toISOString(),
+    destination: 'Local Heuristic Engine',
+    is_local: true,
+    request_type: 'Deterministic Rule (Professional)',
+    status: 'Success',
+    latency_ms: 2,
+    approx_tokens: 18,
+  },
+];
 let mockSettings: AppSettings = {
   hotkey: 'CommandOrControl+Shift+Space',
   hold_to_talk: 'false',
@@ -329,6 +359,79 @@ export const api = {
       cpu_threads: 8,
       metal_or_cuda_available: false,
     };
+  },
+
+  checkOllamaStatus: async (endpoint?: string): Promise<OllamaStatus> => {
+    if (isTauri()) return invoke('check_ollama_status', { endpoint });
+    return {
+      is_running: true,
+      version: '0.5.7',
+      endpoint: endpoint || 'http://localhost:11434',
+    };
+  },
+
+  listOllamaModels: async (endpoint?: string): Promise<OllamaModelItem[]> => {
+    if (isTauri()) return invoke('list_ollama_models', { endpoint });
+    return [
+      { name: 'llama3.2:1b', size: 1300000000, digest: 'sha256:abc123', modified_at: new Date().toISOString() },
+      { name: 'qwen2.5:0.5b', size: 398000000, digest: 'sha256:def456', modified_at: new Date().toISOString() },
+    ];
+  },
+
+  listCloudProviders: async (): Promise<CloudProviderMeta[]> => {
+    if (isTauri()) return invoke('list_cloud_providers');
+    return [
+      { id: 'openai', name: 'OpenAI', description: 'GPT-4o, GPT-4o-mini', default_model: 'gpt-4o-mini', supported_models: ['gpt-4o-mini', 'gpt-4o'], docs_url: 'https://platform.openai.com', requires_custom_endpoint: false },
+      { id: 'deepseek', name: 'DeepSeek', description: 'DeepSeek Chat & DeepSeek Reasoner', default_model: 'deepseek-chat', supported_models: ['deepseek-chat', 'deepseek-reasoner'], docs_url: 'https://platform.deepseek.com', requires_custom_endpoint: false },
+      { id: 'anthropic', name: 'Anthropic Claude', description: 'Claude 3.5 Sonnet & Haiku', default_model: 'claude-3-5-haiku-20241022', supported_models: ['claude-3-5-haiku-20241022', 'claude-3-5-sonnet-20241022'], docs_url: 'https://console.anthropic.com', requires_custom_endpoint: false },
+      { id: 'gemini', name: 'Google Gemini', description: 'Gemini 2.0 Flash & Pro', default_model: 'gemini-2.0-flash', supported_models: ['gemini-2.0-flash', 'gemini-1.5-flash'], docs_url: 'https://aistudio.google.com', requires_custom_endpoint: false },
+      { id: 'groq', name: 'Groq Cloud', description: 'Ultra-low latency LPU inference', default_model: 'llama-3.3-70b-versatile', supported_models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'], docs_url: 'https://console.groq.com', requires_custom_endpoint: false },
+      { id: 'openrouter', name: 'OpenRouter', description: 'Universal multi-provider gateway', default_model: 'meta-llama/llama-3.3-70b-instruct', supported_models: ['meta-llama/llama-3.3-70b-instruct', 'google/gemini-flash-1.5'], docs_url: 'https://openrouter.ai', requires_custom_endpoint: false },
+      { id: 'mistral', name: 'Mistral AI', description: 'Mistral Large, Pixtral & Nemo', default_model: 'mistral-small-latest', supported_models: ['mistral-small-latest', 'mistral-large-latest'], docs_url: 'https://console.mistral.ai', requires_custom_endpoint: false },
+      { id: 'together', name: 'Together AI', description: 'Open-source model hosting', default_model: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo', supported_models: ['meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo'], docs_url: 'https://together.ai', requires_custom_endpoint: false },
+      { id: 'fireworks', name: 'Fireworks AI', description: 'High-speed generative inference', default_model: 'accounts/fireworks/models/llama-v3p1-8b-instruct', supported_models: ['accounts/fireworks/models/llama-v3p1-8b-instruct'], docs_url: 'https://fireworks.ai', requires_custom_endpoint: false },
+      { id: 'custom', name: 'Custom OpenAI-Compatible', description: 'vLLM, LM Studio, LocalAI, or private gateway', default_model: 'default', supported_models: ['default'], docs_url: 'https://github.com/vllm-project/vllm', requires_custom_endpoint: true },
+    ];
+  },
+
+  setCloudApiKey: async (providerId: string, apiKey: string): Promise<void> => {
+    if (isTauri()) return invoke('set_cloud_api_key', { providerId, apiKey });
+    mockCloudKeys[providerId] = apiKey;
+  },
+
+  deleteCloudApiKey: async (providerId: string): Promise<void> => {
+    if (isTauri()) return invoke('delete_cloud_api_key', { providerId });
+    delete mockCloudKeys[providerId];
+  },
+
+  hasCloudApiKey: async (providerId: string): Promise<boolean> => {
+    if (isTauri()) return invoke('has_cloud_api_key', { providerId });
+    return !!mockCloudKeys[providerId];
+  },
+
+  testCloudProvider: async (providerId: string, customEndpoint?: string): Promise<string> => {
+    if (isTauri()) return invoke('test_cloud_provider', { providerId, customEndpoint });
+    return `Connection to ${providerId} verified successfully via secure key (latency ~210ms).`;
+  },
+
+  getAiRouterConfig: async (): Promise<AiRouterConfig> => {
+    if (isTauri()) return invoke('get_ai_router_config');
+    return { ...mockRouterConfig };
+  },
+
+  saveAiRouterConfig: async (config: AiRouterConfig): Promise<void> => {
+    if (isTauri()) return invoke('save_ai_router_config', { config });
+    mockRouterConfig = { ...config };
+  },
+
+  getNetworkAuditEvents: async (limit?: number): Promise<NetworkAuditEvent[]> => {
+    if (isTauri()) return invoke('get_network_audit_events', { limit });
+    return [...mockNetworkAuditEvents];
+  },
+
+  clearNetworkAuditEvents: async (): Promise<void> => {
+    if (isTauri()) return invoke('clear_network_audit_events');
+    mockNetworkAuditEvents = [];
   },
 };
 

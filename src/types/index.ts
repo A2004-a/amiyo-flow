@@ -114,6 +114,60 @@ export interface AppSettings {
   audio_device: string;
 }
 
+export interface CloudProviderMeta {
+  id: string;
+  name: string;
+  description: string;
+  default_model: string;
+  supported_models: string[];
+  docs_url: string;
+  requires_custom_endpoint: boolean;
+}
+
+export interface OllamaStatus {
+  is_running: boolean;
+  version: string;
+  endpoint: string;
+  error?: string;
+}
+
+export interface OllamaModelItem {
+  name: string;
+  size: number;
+  digest: string;
+  modified_at: string;
+}
+
+export type AiOperatingMode = 'Local' | 'Cloud' | 'Hybrid';
+
+export interface TaskRoutingRule {
+  engine_type: 'local' | 'cloud';
+  provider_id: string;
+  model: string;
+}
+
+export interface AiRouterConfig {
+  mode: AiOperatingMode;
+  default_local_model: string;
+  default_cloud_provider: string;
+  default_cloud_model: string;
+  ollama_endpoint: string;
+  custom_endpoint?: string;
+  task_rules: Record<string, TaskRoutingRule>;
+  allow_cloud_fallback: boolean;
+}
+
+export interface NetworkAuditEvent {
+  id: string;
+  timestamp: string;
+  destination: string;
+  is_local: boolean;
+  request_type: string;
+  status: string;
+  latency_ms: number;
+  approx_tokens: number;
+}
+
 export type PageId =
   | 'dashboard'
   | 'live-dictation'
@@ -123,5 +177,8 @@ export type PageId =
   | 'writing-styles'
   | 'meeting-assistant'
   | 'local-models'
+  | 'cloud-providers'
+  | 'ai-router'
+  | 'privacy-center'
   | 'analytics'
   | 'settings';

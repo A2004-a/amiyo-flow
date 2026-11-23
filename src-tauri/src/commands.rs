@@ -150,9 +150,9 @@ pub async fn stop_recording_and_insert(
 
     let settings = state.db.get_all_settings().unwrap_or_default();
     let local_stt_model = settings.get("local_stt_model").cloned().unwrap_or_else(|| "base.en".to_string());
-    let local_llm_model = settings.get("local_llm_model").cloned().unwrap_or_else(|| "heuristic-rule-engine".to_string());
+    let _local_llm_model = settings.get("local_llm_model").cloned().unwrap_or_else(|| "heuristic-rule-engine".to_string());
     let custom_stt_path = settings.get("custom_stt_path").cloned();
-    let custom_llm_path = settings.get("custom_llm_path").cloned();
+    let _custom_llm_path = settings.get("custom_llm_path").cloned();
     let style = settings.get("style").cloned().unwrap_or_else(|| "Professional".to_string());
     let language = settings.get("language").cloned().unwrap_or_else(|| "auto".to_string());
     let auto_insert = settings.get("auto_insert").map(|v| v == "true").unwrap_or(true);
@@ -190,14 +190,20 @@ pub async fn stop_recording_and_insert(
         }
     };
 
-    let cleaned_text = match ai::clean_transcript(
-        &local_llm_model,
-        custom_llm_path.as_deref(),
+    let router_config = if let Some(json_str) = state.db.get_setting("ai_router_config") {
+        serde_json::from_str::<ai::router::AiRouterConfig>(&json_str).unwrap_or_default()
+    } else {
+        ai::router::AiRouterConfig::default()
+    };
+
+    let cleaned_text = match ai::clean_transcript_routed(
+        &router_config,
         &raw_text,
         &style,
         &format!("{} ({})", target_app, target_title),
         &dictionary,
         &snippets,
+        &state.auditor,
     )
     .await
     {
@@ -267,21 +273,23 @@ pub async fn transcribe_and_clean(
     target_app: String,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
-    let settings = state.db.get_all_settings().unwrap_or_default();
-    let local_llm_model = settings.get("local_llm_model").cloned().unwrap_or_else(|| "heuristic-rule-engine".to_string());
-    let custom_llm_path = settings.get("custom_llm_path").cloned();
+    let router_config = if let Some(json_str) = state.db.get_setting("ai_router_config") {
+        serde_json::from_str::<ai::router::AiRouterConfig>(&json_str).unwrap_or_default()
+    } else {
+        ai::router::AiRouterConfig::default()
+    };
 
     let dict = state.db.get_dictionary().unwrap_or_default();
     let snips = state.db.get_snippets().unwrap_or_default();
 
-    ai::clean_transcript(
-        &local_llm_model,
-        custom_llm_path.as_deref(),
+    ai::clean_transcript_routed(
+        &router_config,
         &raw_text,
         &style,
         &target_app,
         &dict,
         &snips,
+        &state.auditor,
     )
     .await
 }
@@ -437,4 +445,104 @@ pub fn toggle_main_window(app_handle: AppHandle) {
             let _ = main.set_focus();
         }
     }
+}
+
+#[tauri::command]
+pub async fn check_ollama_status(endpoint: Option<String>) -> ai::ollama::OllamaStatus {
+    let ep = endpoint.unwrap_or_else(|| "http://localhost:11434".to_string());
+    ai::ollama::OllamaClient::check_status(&ep).await
+}
+
+#[tauri::command]
+pub async fn list_ollama_models(endpoint: Option<String>) -> Result<Vec<ai::ollama::OllamaModelItem>, String> {
+    let ep = endpoint.unwrap_or_else(|| "http://localhost:11434".to_string());
+    ai::ollama::OllamaClient::list_installed_models(&ep).await
+}
+
+#[tauri::command]
+pub fn list_cloud_providers() -> Vec<ai::providers::CloudProviderMeta> {
+    ai::providers::list_supported_cloud_providers()
+}
+
+#[tauri::command]
+pub fn set_cloud_api_key(provider_id: String, api_key: String) -> Result<(), String> {
+    crate::security::CredentialManager::set_key(&provider_id, &api_key)
+}
+
+#[tauri::command]
+pub fn delete_cloud_api_key(provider_id: String) -> Result<(), String> {
+    crate::security::CredentialManager::delete_key(&provider_id)
+}
+
+#[tauri::command]
+pub fn has_cloud_api_key(provider_id: String) -> bool {
+    crate::security::CredentialManager::has_key(&provider_id)
+}
+
+#[tauri::command]
+pub async fn test_cloud_provider(
+    provider_id: String,
+    custom_endpoint: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    let api_key = match crate::security::CredentialManager::get_key(&provider_id)? {
+        Some(k) if !k.trim().is_empty() => k,
+        _ => return Err("No API key configured for this provider in OS secure keychain".to_string()),
+    };
+
+    let start = Instant::now();
+    let res = ai::providers::CloudAIClient::test_connection(&provider_id, &api_key, custom_endpoint.as_deref()).await;
+    let latency = start.elapsed().as_millis() as u64;
+
+    match &res {
+        Ok(_) => {
+            state.auditor.record_event(
+                &format!("Cloud ({})", provider_id),
+                false,
+                "API Key Connection Test",
+                "Success",
+                latency,
+                0,
+            );
+        }
+        Err(err) => {
+            state.auditor.record_event(
+                &format!("Cloud ({})", provider_id),
+                false,
+                "API Key Connection Test",
+                &format!("Error: {}", err),
+                latency,
+                0,
+            );
+        }
+    }
+
+    res
+}
+
+#[tauri::command]
+pub fn get_ai_router_config(state: State<'_, AppState>) -> Result<ai::router::AiRouterConfig, String> {
+    if let Some(json_str) = state.db.get_setting("ai_router_config") {
+        if let Ok(cfg) = serde_json::from_str::<ai::router::AiRouterConfig>(&json_str) {
+            return Ok(cfg);
+        }
+    }
+    Ok(ai::router::AiRouterConfig::default())
+}
+
+#[tauri::command]
+pub fn save_ai_router_config(config: ai::router::AiRouterConfig, state: State<'_, AppState>) -> Result<(), String> {
+    let json_str = serde_json::to_string(&config).map_err(|e| e.to_string())?;
+    state.db.set_setting("ai_router_config", &json_str).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_network_audit_events(limit: Option<usize>, state: State<'_, AppState>) -> Vec<crate::security::network_audit::NetworkAuditEvent> {
+    state.auditor.get_recent_events(limit.unwrap_or(100))
+}
+
+#[tauri::command]
+pub fn clear_network_audit_events(state: State<'_, AppState>) {
+    state.auditor.clear_events();
 }

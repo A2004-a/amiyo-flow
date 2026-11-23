@@ -32,3 +32,18 @@ AMIYO FLOW is designed with a **Privacy-First, Zero-Telemetry** architecture. Th
 - **Mitigation**:
   - All SQLite database operations use `rusqlite` parameterized queries (`?1`, `?2`).
   - No raw string concatenation is used in SQL statement preparation.
+
+### 2.5 Native OS Keychain & Zero Plaintext Secrets
+- **Threat**: Extraction of user API keys from local configuration files or plaintext database inspection.
+- **Mitigation**:
+  - Raw API keys are stored strictly in the native OS secure credential store (`keyring` crate) using Windows Credential Manager on Windows and Keychain Services on macOS.
+  - Zero API keys are stored in the SQLite database or configuration JSON files.
+  - Keys returned to the frontend for display are masked (`••••••••`), and only boolean presence flags are surfaced to the UI.
+
+### 2.6 Anti-Leak AI Fallback Prevention & Network Audit Ledger
+- **Threat**: Silent external leakage of voice dictation or private text when local Ollama/whisper engines encounter errors or timeouts.
+- **Mitigation**:
+  - In `Local AI Mode`, all outbound HTTP requests to external cloud endpoints are hard-blocked at the routing layer (`router.rs`).
+  - `allow_cloud_fallback: false` prevents the engine from silently uploading speech or text to cloud providers without explicit user consent.
+  - A real-time `NetworkAuditor` maintains an in-memory ledger recording destination, request type, latency, and status without logging raw user text, passwords, or tokens.
+  - Users can inspect and export the full network audit log anytime via the dedicated `Privacy Center`.

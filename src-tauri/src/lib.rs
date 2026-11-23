@@ -3,11 +3,13 @@ pub mod audio;
 pub mod commands;
 pub mod db;
 pub mod input;
+pub mod security;
 pub mod stt;
 
 use audio::AudioEngine;
 use db::Database;
 use parking_lot::Mutex;
+use security::network_audit::NetworkAuditor;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Instant;
@@ -19,6 +21,7 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 pub struct AppState {
     pub db: Arc<Database>,
     pub audio: Arc<AudioEngine>,
+    pub auditor: Arc<NetworkAuditor>,
     pub target_hwnd: Arc<Mutex<isize>>,
     pub target_app_name: Arc<Mutex<String>>,
     pub target_app_title: Arc<Mutex<String>>,
@@ -119,6 +122,7 @@ pub fn run() {
             let state = AppState {
                 db: Arc::clone(&db),
                 audio: Arc::new(AudioEngine::new()),
+                auditor: Arc::new(NetworkAuditor::new()),
                 target_hwnd: Arc::new(Mutex::new(0)),
                 target_app_name: Arc::new(Mutex::new("Active Application".to_string())),
                 target_app_title: Arc::new(Mutex::new("".to_string())),
@@ -174,6 +178,24 @@ pub fn run() {
                 });
             }
 
+            #[cfg(target_os = "windows")]
+            if let Some(pill_win) = app.get_webview_window("pill") {
+                if let Ok(hwnd) = pill_win.hwnd() {
+                    use windows::Win32::UI::WindowsAndMessaging::{
+                        GetWindowLongW, SetWindowLongW, GWL_EXSTYLE, WS_EX_NOACTIVATE, WS_EX_TOPMOST,
+                    };
+                    unsafe {
+                        let win_hwnd = windows::Win32::Foundation::HWND(hwnd.0 as _);
+                        let ex_style = GetWindowLongW(win_hwnd, GWL_EXSTYLE);
+                        let _ = SetWindowLongW(
+                            win_hwnd,
+                            GWL_EXSTYLE,
+                            ex_style | (WS_EX_NOACTIVATE.0 as i32) | (WS_EX_TOPMOST.0 as i32),
+                        );
+                    }
+                }
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -207,7 +229,18 @@ pub fn run() {
             commands::toggle_main_window,
             commands::list_local_speech_models,
             commands::list_local_llm_models,
-            commands::get_offline_system_status
+            commands::get_offline_system_status,
+            commands::check_ollama_status,
+            commands::list_ollama_models,
+            commands::list_cloud_providers,
+            commands::set_cloud_api_key,
+            commands::delete_cloud_api_key,
+            commands::has_cloud_api_key,
+            commands::test_cloud_provider,
+            commands::get_ai_router_config,
+            commands::save_ai_router_config,
+            commands::get_network_audit_events,
+            commands::clear_network_audit_events
         ])
         .run(tauri::generate_context!())
         .expect("error while running AMIYO FLOW application");

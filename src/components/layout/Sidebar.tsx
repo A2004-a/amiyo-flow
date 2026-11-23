@@ -13,6 +13,9 @@ import {
   Play,
   Square,
   Sparkles,
+  Cloud,
+  Route,
+  ShieldCheck,
 } from 'lucide-react';
 import { useWorkspaceStore } from '../../stores/useWorkspaceStore';
 import { useDictationStore } from '../../stores/useDictationStore';
@@ -40,16 +43,19 @@ export const Sidebar: React.FC = () => {
     { id: 'writing-styles', label: 'Writing Styles', icon: PenTool },
     { id: 'meeting-assistant', label: 'Meetings', icon: Users },
     { id: 'local-models', label: 'Local AI Models', icon: Cpu },
+    { id: 'cloud-providers', label: 'Cloud Providers', icon: Cloud },
+    { id: 'ai-router', label: 'AI Router', icon: Route },
+    { id: 'privacy-center', label: 'Privacy Center', icon: ShieldCheck },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
   ];
 
   return (
-    <aside className="w-64 h-[calc(100vh-40px)] bg-[#0A0E17] border-r border-slate-800/80 flex flex-col justify-between p-3 select-none">
+    <aside className="w-64 h-[calc(100vh-40px)] bg-[#0A0E17] border-r border-slate-800/80 flex flex-col justify-between p-3 select-none overflow-hidden">
       {/* Top Section */}
-      <div className="space-y-4">
+      <div className="space-y-3 flex-1 flex flex-col min-h-0">
         {/* Quick Dictate Hero Trigger */}
-        <div className="p-3 rounded-xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 shadow-lg">
+        <div className="p-3 rounded-xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 shadow-lg shrink-0">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
               Global Hotkey
@@ -79,7 +85,7 @@ export const Sidebar: React.FC = () => {
         </div>
 
         {/* Navigation Links */}
-        <nav className="space-y-1">
+        <nav className="space-y-1 overflow-y-auto pr-1 flex-1 min-h-0">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activePage === item.id;

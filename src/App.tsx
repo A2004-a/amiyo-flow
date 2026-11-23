@@ -10,6 +10,9 @@ import { Snippets } from './pages/Snippets';
 import { WritingStyles } from './pages/WritingStyles';
 import { MeetingAssistant } from './pages/MeetingAssistant';
 import { LocalModels } from './pages/LocalModels';
+import { CloudProviders } from './pages/CloudProviders';
+import { AiRouter } from './pages/AiRouter';
+import { PrivacyCenter } from './pages/PrivacyCenter';
 import { Analytics } from './pages/Analytics';
 import { Settings } from './pages/Settings';
 import { useWorkspaceStore } from './stores/useWorkspaceStore';
@@ -84,6 +87,9 @@ export const App: React.FC = () => {
           {activePage === 'writing-styles' && <WritingStyles />}
           {activePage === 'meeting-assistant' && <MeetingAssistant />}
           {activePage === 'local-models' && <LocalModels />}
+          {activePage === 'cloud-providers' && <CloudProviders />}
+          {activePage === 'ai-router' && <AiRouter />}
+          {activePage === 'privacy-center' && <PrivacyCenter />}
           {activePage === 'analytics' && <Analytics />}
           {activePage === 'settings' && <Settings />}
         </main>

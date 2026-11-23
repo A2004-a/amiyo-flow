@@ -206,3 +206,82 @@ fn test_local_model_enumeration() {
     assert!(!llm_models.is_empty(), "Should enumerate local LLM models");
     assert!(llm_models.iter().any(|m| m.id == "heuristic-rule-engine"));
 }
+
+#[test]
+fn test_credential_manager_masking() {
+    use amiyo_flow_lib::security::CredentialManager;
+
+    assert_eq!(CredentialManager::mask_key(""), "");
+    assert_eq!(CredentialManager::mask_key("short"), "••••••••••••");
+    let masked = CredentialManager::mask_key("sk-proj-1234567890abcdefghijklmnopqrstuvwxyz");
+    assert!(masked.starts_with("sk-"));
+    assert!(masked.ends_with("wxyz"));
+    assert!(masked.contains("••••••••"));
+}
+
+#[test]
+fn test_network_auditor_lifecycle() {
+    use amiyo_flow_lib::security::network_audit::NetworkAuditor;
+
+    let auditor = NetworkAuditor::new();
+    assert_eq!(auditor.get_recent_events(10).len(), 0);
+
+    auditor.record_event("Ollama (localhost)", true, "Grammar Cleanup", "Success", 35, 120);
+    auditor.record_event("OpenAI (api.openai.com)", false, "Meeting Summarization", "Success", 420, 350);
+
+    let events = auditor.get_recent_events(10);
+    assert_eq!(events.len(), 2);
+    // Most recent event comes first
+    assert_eq!(events[0].destination, "OpenAI (api.openai.com)");
+    assert!(!events[0].is_local);
+    assert_eq!(events[1].destination, "Ollama (localhost)");
+    assert!(events[1].is_local);
+
+    auditor.clear_events();
+    assert_eq!(auditor.get_recent_events(10).len(), 0);
+}
+
+#[test]
+fn test_ai_router_defaults_and_mode_switching() {
+    use amiyo_flow_lib::ai::router::{AiOperatingMode, AiRouter, AiRouterConfig};
+
+    let default_config = AiRouterConfig::default();
+    assert_eq!(default_config.mode, AiOperatingMode::Local);
+    assert_eq!(default_config.default_local_model, "heuristic-rule-engine");
+    assert!(!default_config.allow_cloud_fallback);
+
+    // In Local Mode, route for "dictation" should select local Ollama/Heuristic
+    let route = AiRouter::resolve_route(&default_config, "dictation");
+    assert!(route.is_local);
+
+    // In Cloud Mode, route should select configured cloud provider
+    let mut cloud_config = AiRouterConfig::default();
+    cloud_config.mode = AiOperatingMode::Cloud;
+    cloud_config.default_cloud_provider = "anthropic".to_string();
+    cloud_config.default_cloud_model = "claude-3-5-sonnet".to_string();
+
+    let route = AiRouter::resolve_route(&cloud_config, "reasoning");
+    assert!(!route.is_local);
+    assert_eq!(route.provider_id, "anthropic");
+    assert_eq!(route.model, "claude-3-5-sonnet");
+}
+
+#[test]
+fn test_cloud_providers_catalog() {
+    use amiyo_flow_lib::ai::providers::list_supported_cloud_providers;
+
+    let providers = list_supported_cloud_providers();
+    assert_eq!(providers.len(), 10, "Must support all 10 standard cloud providers");
+
+    let ids: Vec<&str> = providers.iter().map(|p| p.id.as_str()).collect();
+    assert!(ids.contains(&"openai"));
+    assert!(ids.contains(&"deepseek"));
+    assert!(ids.contains(&"anthropic"));
+    assert!(ids.contains(&"gemini"));
+    assert!(ids.contains(&"groq"));
+    assert!(ids.contains(&"openrouter"));
+    assert!(ids.contains(&"mistral"));
+    assert!(ids.contains(&"together"));
+    assert!(ids.contains(&"fireworks"));
+    assert!(ids.contains(&"custom"));
+}

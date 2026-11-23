@@ -1,11 +1,18 @@
 /// Local On-Device AI Text Intelligence Engine (llama.cpp & Heuristic NLP)
 /// Operates 100% locally with ZERO external network calls.
 
+pub mod ollama;
+pub mod providers;
+pub mod router;
+
+use crate::security::CredentialManager;
+use crate::security::network_audit::NetworkAuditor;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::Instant;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LocalLlmModelInfo {
@@ -120,6 +127,163 @@ pub async fn clean_transcript(
     }
 
     Ok(styled_text)
+}
+
+/// Routed text processing pipeline
+/// Respects user-configured operating mode (Local, Cloud, Hybrid) and task-specific rules.
+pub async fn clean_transcript_routed(
+    router_config: &router::AiRouterConfig,
+    raw_text: &str,
+    style: &str,
+    target_app: &str,
+    dictionary: &[crate::db::DictionaryItem],
+    snippets: &[crate::db::SnippetItem],
+    auditor: &NetworkAuditor,
+) -> Result<String, String> {
+    if raw_text.trim().is_empty() {
+        return Ok("".to_string());
+    }
+
+    if style.eq_ignore_ascii_case("raw") {
+        return Ok(raw_text.to_string());
+    }
+
+    // Step 1: Instant deterministic local pre-clean (0 MB RAM)
+    let pre_cleaned = heuristic_cleanup(raw_text);
+
+    // Step 2: Personal Dictionary substitution
+    let after_dict = apply_dictionary(&pre_cleaned, dictionary);
+
+    // Step 3: Snippet macro expansion
+    let after_snippets = apply_snippets(&after_dict, snippets);
+
+    // Step 4: Formatting baseline
+    let styled_baseline = apply_style_formatting(&after_snippets, style, target_app);
+
+    // Step 5: Resolve Route
+    let route = router::AiRouter::resolve_route(router_config, style);
+
+    let start = Instant::now();
+
+    if route.engine_type == "local" {
+        if route.provider_id == "ollama" && route.model != "heuristic-rule-engine" {
+            let prompt = format!(
+                "Clean the following speech transcript for style '{}'. Output ONLY the cleaned text with no explanations:\n\"{}\"",
+                style, styled_baseline
+            );
+
+            match ollama::OllamaClient::generate_text(
+                &router_config.ollama_endpoint,
+                &route.model,
+                &prompt,
+                Some("You are a professional text formatting and grammar assistant. Return only the cleaned transcript."),
+                0.1,
+            )
+            .await
+            {
+                Ok(cleaned) => {
+                    auditor.record_event(
+                        &format!("Ollama ({})", route.model),
+                        true,
+                        &format!("Text Cleanup ({})", style),
+                        "Success",
+                        start.elapsed().as_millis() as u64,
+                        styled_baseline.split_whitespace().count(),
+                    );
+                    if !cleaned.trim().is_empty() {
+                        return Ok(cleaned);
+                    }
+                }
+                Err(e) => {
+                    auditor.record_event(
+                        &format!("Ollama ({})", route.model),
+                        true,
+                        &format!("Text Cleanup ({})", style),
+                        &format!("Error: {}", e),
+                        start.elapsed().as_millis() as u64,
+                        styled_baseline.split_whitespace().count(),
+                    );
+                    // Do NOT fall back silently to cloud; preserve local baseline
+                }
+            }
+        } else {
+            auditor.record_event(
+                "Local Heuristic Engine",
+                true,
+                &format!("Deterministic Rule ({})", style),
+                "Success",
+                start.elapsed().as_millis() as u64,
+                styled_baseline.split_whitespace().count(),
+            );
+        }
+
+        return Ok(styled_baseline);
+    }
+
+    // Cloud Engine Execution (Strictly user-authorized)
+    if router_config.mode == router::AiOperatingMode::Local {
+        return Err("Cloud AI execution blocked by Local-Only Privacy Mode".to_string());
+    }
+
+    let api_key = match CredentialManager::get_key(&route.provider_id)? {
+        Some(k) if !k.trim().is_empty() => k,
+        _ => {
+            auditor.record_event(
+                &format!("Cloud ({})", route.provider_id),
+                false,
+                &format!("Text Cleanup ({})", style),
+                "Failed (Missing Credential)",
+                start.elapsed().as_millis() as u64,
+                0,
+            );
+            return Ok(styled_baseline);
+        }
+    };
+
+    let sys_prompt = format!(
+        "You are an expert universal text formatting assistant for active desktop typing. Clean grammar, fix punctuation, and adapt to style '{}'. Preserve meaning, technical terms, and code exactly. Return ONLY the final cleaned text without quotes or explanation.",
+        style
+    );
+
+    match providers::CloudAIClient::complete(
+        &route.provider_id,
+        &api_key,
+        &route.model,
+        &styled_baseline,
+        Some(&sys_prompt),
+        router_config.custom_endpoint.as_deref(),
+        0.1,
+    )
+    .await
+    {
+        Ok(cloud_result) => {
+            auditor.record_event(
+                &format!("{} ({})", route.provider_id, route.model),
+                false,
+                &format!("Text Cleanup ({})", style),
+                "Success",
+                start.elapsed().as_millis() as u64,
+                styled_baseline.split_whitespace().count(),
+            );
+            if !cloud_result.trim().is_empty() {
+                Ok(cloud_result)
+            } else {
+                Ok(styled_baseline)
+            }
+        }
+        Err(e) => {
+            auditor.record_event(
+                &format!("{} ({})", route.provider_id, route.model),
+                false,
+                &format!("Text Cleanup ({})", style),
+                &format!("Error: {}", e),
+                start.elapsed().as_millis() as u64,
+                0,
+            );
+            // Return baseline text rather than destroying user transcript
+            Ok(styled_baseline)
+        }
+    }
 }
 
 /// Searches local paths for pre-compiled llama-cli binary
