@@ -18,7 +18,13 @@ export const Settings: React.FC = () => {
     loadDevices();
   }, [loadDevices]);
 
-  const hotkeys = ['Control+Space', 'Alt+Space', 'Control+Shift+Space', 'F8', 'F9'];
+  const hotkeys = [
+    { value: 'Control+Space', label: 'Control+Space (Ctrl + Space) — Recommended' },
+    { value: 'Alt+Space', label: 'Alt+Space (Alt + Space)' },
+    { value: 'Control+Shift+Space', label: 'Control+Shift+Space (Ctrl + Shift + Space)' },
+    { value: 'F8', label: 'F8 (Function Key)' },
+    { value: 'F9', label: 'F9 (Function Key)' },
+  ];
 
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto overflow-y-auto h-[calc(100vh-40px)]">
@@ -74,13 +80,13 @@ export const Settings: React.FC = () => {
             <div className="space-y-2">
               <label className="text-xs text-slate-400 block font-medium">Activation Hotkey</label>
               <select
-                value={settings.hotkey}
+                value={settings.hotkey === 'CommandOrControl+Shift+Space' ? 'Control+Space' : (settings.hotkey || 'Control+Space')}
                 onChange={(e) => updateSetting('hotkey', e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono"
               >
                 {hotkeys.map((h) => (
-                  <option key={h} value={h}>
-                    {h}
+                  <option key={h.value} value={h.value}>
+                    {h.label}
                   </option>
                 ))}
               </select>

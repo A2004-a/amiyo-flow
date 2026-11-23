@@ -51,7 +51,7 @@ let mockNetworkAuditEvents: NetworkAuditEvent[] = [
   },
 ];
 let mockSettings: AppSettings = {
-  hotkey: 'CommandOrControl+Shift+Space',
+  hotkey: 'Control+Space',
   hold_to_talk: 'false',
   style: 'Professional',
   language: 'auto',
@@ -579,7 +579,7 @@ export const onAudioLevel = (callback: (level: number) => void): (() => void) =>
     };
   }
   // Mock browser simulator for audio level if recording
-  return () => {};
+  return () => { };
 };
 
 export const onDictationEvent = <T = unknown>(
@@ -595,7 +595,7 @@ export const onDictationEvent = <T = unknown>(
       if (unlisten) unlisten();
     };
   }
-  return () => {};
+  return () => { };
 };
 
 export const onNavigate = (callback: (page: string) => void): (() => void) => {
@@ -608,5 +608,12 @@ export const onNavigate = (callback: (page: string) => void): (() => void) => {
       if (unlisten) unlisten();
     };
   }
-  return () => {};
+  return () => { };
+};
+
+export const formatHotkeyDisplay = (key?: string): string => {
+  if (!key) return 'Ctrl+Space';
+  return key
+    .replace('CommandOrControl', 'Ctrl')
+    .replace('Control', 'Ctrl');
 };

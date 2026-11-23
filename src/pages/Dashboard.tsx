@@ -25,12 +25,13 @@ import { useWorkspaceStore } from '../stores/useWorkspaceStore';
 import { useDictationStore } from '../stores/useDictationStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { AudioVisualizer } from '../components/visualizer/AudioVisualizer';
-import { api } from '../lib/tauri';
+import { api, formatHotkeyDisplay } from '../lib/tauri';
 
 export const Dashboard: React.FC = () => {
   const { analytics, history, setActivePage, loadAll } = useWorkspaceStore();
   const { state, audioLevel, startRecording, stopRecording } = useDictationStore();
   const { settings } = useSettingsStore();
+  const hotkeyDisplay = formatHotkeyDisplay(settings.hotkey);
 
   const [selectedApp, setSelectedApp] = useState<'claude' | 'chatgpt' | 'antigravity' | 'meet' | 'docs'>('claude');
   const [testingCountdown, setTestingCountdown] = useState<number | null>(null);
@@ -93,9 +94,9 @@ export const Dashboard: React.FC = () => {
       tag: 'claude.ai / Claude Desktop',
       steps: [
         'Open Claude (browser or desktop) and click your cursor into the prompt box.',
-        `Press the global hotkey (${settings.hotkey || 'Ctrl+Space'}). The floating pill appears.`,
+        `Press the global hotkey (${hotkeyDisplay}). The floating pill appears.`,
         'Speak your query or prompt naturally.',
-        `Press (${settings.hotkey || 'Ctrl+Space'}) again. Text types directly into Claude!`,
+        `Press (${hotkeyDisplay}) again. Text types directly into Claude!`,
       ],
       tip: 'No browser extension or plugin needed! AMIYO FLOW injects via native Win32 SendInput.',
     },
@@ -106,9 +107,9 @@ export const Dashboard: React.FC = () => {
       tag: 'chatgpt.com / ChatGPT Desktop',
       steps: [
         'Open ChatGPT and click inside the "Message ChatGPT" input field.',
-        `Press ${settings.hotkey || 'Ctrl+Space'} to activate listening.`,
+        `Press ${hotkeyDisplay} to activate listening.`,
         'Speak your prompt, code request, or ideas.',
-        `Press ${settings.hotkey || 'Ctrl+Space'} to finish. Cleaned text appears at cursor instantly.`,
+        `Press ${hotkeyDisplay} to finish. Cleaned text appears at cursor instantly.`,
       ],
       tip: 'Works seamlessly across Google Chrome, Brave, Edge, Firefox, and the native ChatGPT app.',
     },
@@ -119,9 +120,9 @@ export const Dashboard: React.FC = () => {
       tag: 'Antigravity IDE / Cursor / VS Code',
       steps: [
         'Place your cursor in any code file, terminal, or AI sidebar chat panel.',
-        `Press ${settings.hotkey || 'Ctrl+Space'} to start dictating.`,
+        `Press ${hotkeyDisplay} to start dictating.`,
         'Speak your code instructions or variable names. Switch style to "Developer" in Settings for syntax preservation.',
-        `Press ${settings.hotkey || 'Ctrl+Space'} to insert into editor or prompt box.`,
+        `Press ${hotkeyDisplay} to insert into editor or prompt box.`,
       ],
       tip: 'Preserves camelCase, brackets, symbols, and formatting without modifying clipboard history.',
     },
@@ -145,9 +146,9 @@ export const Dashboard: React.FC = () => {
       tag: 'Google Docs / Slack / Notion / Word',
       steps: [
         'Click anywhere in your Google Doc, Slack message box, or Notion page.',
-        `Press ${settings.hotkey || 'Ctrl+Space'} anywhere on your system.`,
+        `Press ${hotkeyDisplay} anywhere on your system.`,
         'Speak sentences, paragraphs, or lists. Punctuation and filler removal happen automatically.',
-        `Press ${settings.hotkey || 'Ctrl+Space'} to insert. Text formats cleanly in place.`,
+        `Press ${hotkeyDisplay} to insert. Text formats cleanly in place.`,
       ],
       tip: 'Dictate 3x faster than typing without leaving your favorite workspace tools.',
     },
@@ -173,7 +174,7 @@ export const Dashboard: React.FC = () => {
               Ready to dictate into any desktop app.
             </h1>
             <p className="text-xs text-slate-400 max-w-xl">
-              Press <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-cyan-300 font-mono text-[11px]">{settings.hotkey || 'Ctrl+Space'}</kbd> anywhere — in Claude, ChatGPT, Antigravity, Google Meet, or Docs. Text appears directly at your cursor.
+              Press <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-cyan-300 font-mono text-[11px]">{hotkeyDisplay}</kbd> anywhere — in Claude, ChatGPT, Antigravity, Google Meet, or Docs. Text appears directly at your cursor.
             </p>
           </div>
 
@@ -411,7 +412,7 @@ export const Dashboard: React.FC = () => {
 
         {recentHistory.length === 0 ? (
           <div className="py-8 text-center text-slate-500 text-xs">
-            No dictations recorded yet. Hit <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">{settings.hotkey || 'Ctrl+Space'}</kbd> in Claude, ChatGPT, or Antigravity to begin.
+            No dictations recorded yet. Hit <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">{hotkeyDisplay}</kbd> in Claude, ChatGPT, or Antigravity to begin.
           </div>
         ) : (
           <div className="space-y-2">

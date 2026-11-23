@@ -99,10 +99,24 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 | BUG-025 | Low | Local AI | Developer writing style replacement order collision | Atomic `curly brace` token was replaced before `close curly brace` | Reordered replacements so composite tokens (`close curly brace`, `open curly brace`) resolve before atomic tokens | FIXED |
 | BUG-026 | Critical | Speech Pipeline & HUD | Floating Pill stuck on `(!) Error`, runaway timer (`134:37.4`), and failed voice typing in Claude / VS Code | 1) `start_recording` returned `Already recording` error when prior state remained active, locking frontend in `failed` state; 2) <kbd>Alt+Space</kbd> opened Windows system menu trapping keystrokes in menu loop; 3) DPI scaling squeezed pill width causing buttons to be cut off | Added auto-cancellation of prior recordings on start; auto-recovery from stale recordings (>10m); dispatched `WM_CANCELMODE` to dismiss system menu; enforced `440x78` logical sizing with click-to-reset error handling; added Hugging Face on-demand model downloader | FIXED |
 | BUG-027 | High | Audio Pipeline & Injection | Microphone initialization silent thread exit, empty audio transcription error, and target window handle loss | 1) CPAL unsupported format match silently dropped 32-bit int and 16-bit unsigned studio interfaces; 2) Silent/empty recording triggered STT "Audio payload is empty" error; 3) `target_hwnd` overwritten with 0 during transient focus shifts; 4) Visible topmost pill retained focus over target window during paste | 1) Added `SampleFormat::I32` & `SampleFormat::U16` support with synchronous 1.5s rendezvous startup verification; 2) Handled empty/silent audio (<800 samples) cleanly with 0 words without throwing STT errors; 3) Preserved non-zero target handle during focus shifts; 4) Hid pill prior to insertion to return focus to target, coupled with synthetic Alt pulse to bypass Windows foreground lock timeout; 5) Added `minWidth: 440, minHeight: 78` in `tauri.conf.json` | FIXED |
+| BUG-028 | High | Shortcuts & UI | Hotkey mismatch displaying raw `CommandOrControl+Shift+Space` instead of selected `Control+Space` | 1) `useSettingsStore` and `tauri.ts` had un-normalized default `CommandOrControl+Shift+Space` which was absent from Settings options, causing visual select desynchronization; 2) UI rendered raw internal string without human-readable mapping | 1) Unified defaults to `Control+Space`; 2) Added auto-migration in `loadSettings` and SQLite DB initialization; 3) Implemented `formatHotkeyDisplay()` transforming internal keys to clean `Ctrl+Space` / `Alt+Space` throughout Sidebar, Dashboard, and Live Studio | FIXED |
+| BUG-029 | Critical | Speech-to-Text | Real voice not converting in Claude / desktop apps due to missing whisper-cli fallback returning canned text | 1) `stt/mod.rs` only probed for `whisper-cli.exe` and `ggml-*.bin` files; when absent, it fell back to canned dummy sentences ignoring the user's actual spoken audio; 2) Pre-cached faster-whisper INT8 models on the machine were ignored | 1) Integrated on-device `faster-whisper` INT8 inference bridge via local Python (`CREATE_NO_WINDOW`); 2) Added detection of cached Hugging Face hub snapshots (`tiny.en`, `base.en`, `small`, `large-v3-turbo`); 3) Cached local models so speech is transcribed with high fidelity 100% on-device | FIXED |
 
 ---
 
 ## 4. Semantic Version Changelog
+
+### [1.0.5] — 2026-11-23
+- **Local Faster-Whisper INT8 Speech Recognition Engine (BUG-029)**:
+  - Eliminated canned text fallbacks by embedding a high-performance, 100% on-device `faster-whisper` INT8 transcription pipeline with zero network overhead.
+  - Added native Python discovery (`find_python`) and dynamic background runner (`transcribe_whisper.py`) executing with `CREATE_NO_WINDOW` to avoid console flashes.
+  - Added detection of local Hugging Face hub cached models (`models--Systran--faster-whisper-*`), recognizing existing `base.en`, `tiny.en`, `small`, and `large-v3-turbo` models on disk.
+  - Spoken queries and voice prompts now accurately convert and type into Claude, ChatGPT, and VS Code with context-aware punctuation and styling.
+- **Global Hotkey Synchronization & Human-Readable Formatting (BUG-028)**:
+  - Unified default activation hotkey to `Control+Space` across Zustand stores, Tauri mock defaults, and SQLite database seeding.
+  - Added automated migration in `loadSettings()` and SQLite startup to upgrade legacy `CommandOrControl+Shift+Space` entries to `Control+Space`.
+  - Added `formatHotkeyDisplay()` helper mapping internal Tauri shortcut strings to clean, user-friendly labels (e.g. `Ctrl+Space`, `Alt+Space`, `Ctrl+Shift+Space`).
+  - Updated Sidebar header badge, Dashboard hero banner, step-by-step guides, and Live Dictation ready banner to use formatted hotkey labels consistently.
 
 ### [1.0.4] — 2026-11-23
 - **Comprehensive Cloud AI Model Catalog Expansion**:

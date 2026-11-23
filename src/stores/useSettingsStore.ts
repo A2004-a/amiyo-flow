@@ -14,7 +14,7 @@ interface SettingsStore {
 
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
   settings: {
-    hotkey: 'CommandOrControl+Shift+Space',
+    hotkey: 'Control+Space',
     hold_to_talk: 'false',
     style: 'Professional',
     language: 'auto',
@@ -38,6 +38,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ isLoading: true });
     try {
       const data = await api.getSettings();
+      if (!data.hotkey || data.hotkey === 'CommandOrControl+Shift+Space') {
+        data.hotkey = 'Control+Space';
+        api.saveSettings({ hotkey: 'Control+Space' }).catch(() => {});
+      }
       set({ settings: data, isLoading: false });
     } catch {
       set({ isLoading: false });

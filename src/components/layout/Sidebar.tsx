@@ -20,6 +20,7 @@ import {
 import { useWorkspaceStore } from '../../stores/useWorkspaceStore';
 import { useDictationStore } from '../../stores/useDictationStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
+import { formatHotkeyDisplay } from '../../lib/tauri';
 import { PageId } from '../../types';
 
 interface NavItem {
@@ -61,7 +62,7 @@ export const Sidebar: React.FC = () => {
               Global Hotkey
             </span>
             <kbd className="px-2 py-0.5 text-[10px] font-mono rounded bg-slate-800 text-cyan-300 border border-slate-700">
-              {settings.hotkey || 'Ctrl+Space'}
+              {formatHotkeyDisplay(settings.hotkey)}
             </kbd>
           </div>
 

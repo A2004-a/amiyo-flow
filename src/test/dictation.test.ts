@@ -26,7 +26,7 @@ describe('AMIYO FLOW Frontend Store & Pipeline Tests', () => {
 
   it('loads and stores settings properly', async () => {
     await useSettingsStore.getState().loadSettings();
-    expect(useSettingsStore.getState().settings.hotkey).toBe('CommandOrControl+Shift+Space');
+    expect(useSettingsStore.getState().settings.hotkey).toBe('Control+Space');
     expect(useSettingsStore.getState().settings.style).toBe('Professional');
 
     await useSettingsStore.getState().updateSetting('style', 'Developer');

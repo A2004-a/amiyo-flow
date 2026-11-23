@@ -166,6 +166,12 @@ impl Database {
             )?;
         }
 
+        // Migrate legacy hotkey if set to CommandOrControl+Shift+Space
+        let _ = conn.execute(
+            "UPDATE settings SET value = 'Control+Space' WHERE key = 'hotkey' AND value = 'CommandOrControl+Shift+Space'",
+            [],
+        );
+
         // Seed default dictionary words
         let default_words = [
             ("Amiyo", "Amiyo", "Names"),
