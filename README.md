@@ -59,6 +59,77 @@
 
 ---
 
+## Repository Structure
+
+```
+amiyo-flow/
+├── .github/
+│   ├── workflows/
+│   │   └── ci.yml             # GitHub Actions CI for automated build and test
+│   └── ISSUE_TEMPLATE/
+│       ├── bug_report.yml      # Structured bug report form
+│       ├── feature_request.yml # Structured feature proposal form
+│       └── config.yml          # GitHub issues configuration & resource links
+├── docs/
+│   ├── ARCHITECTURE.md        # Technical architecture, thread models, audio pipeline
+│   └── QUALITY_REPORT.md      # Feature registry (F001–F136), 42-test log & bug tracker
+├── src/                       # React 18/19 + TypeScript + Tailwind Frontend
+│   ├── components/            # TitleBar, Sidebar, PillWidget, AudioVisualizer
+│   ├── pages/                 # 13 dedicated application views
+│   ├── stores/                # Zustand reactive state stores
+│   ├── lib/                   # Tauri IPC client and type bindings
+│   └── test/                  # Vitest unit & integration tests
+├── src-tauri/                 # Rust 2021 Tauri 2 Native Desktop Backend
+│   ├── src/
+│   │   ├── main.rs            # Desktop binary entrypoint
+│   │   ├── lib.rs             # App initialization, tray menu, global shortcuts
+│   │   ├── commands.rs        # All Tauri IPC command handlers
+│   │   ├── audio/             # cpal capture, 16kHz resampling, VAD
+│   │   ├── stt/               # whisper.cpp local speech recognition engine
+│   │   ├── ai/                # Zero-RAM heuristic cleaner, Ollama, cloud adapters
+│   │   ├── input/             # Win32 SendInput Unicode dispatch & modifier safety
+│   │   ├── db/                # rusqlite SQLite persistence (history, dict, snippets)
+│   │   └── security/          # Keyring credentials & zero-secret network auditor
+│   ├── tests/                 # Integration tests for local features
+│   ├── tauri.conf.json        # Dual-window desktop shell configuration
+│   └── Cargo.toml             # Rust dependencies and native compilation flags
+├── .editorconfig              # Cross-editor formatting rules
+├── .gitattributes             # Git line ending normalization
+├── .gitignore                 # Build artifact, model, and OS exclusion rules
+├── AGENTS.md                  # Permanent project rules and architectural contract
+├── package.json               # Frontend dependencies and npm scripts
+└── README.md                  # Comprehensive user guide and documentation
+```
+
+---
+
+## Development & Building
+
+### Prerequisites
+- **Node.js**: v18.0 or higher
+- **Rust**: 1.75.0 or higher (stable toolchain)
+- **C++ Build Tools**: Visual Studio C++ Build Tools (Windows)
+
+### Commands
+```bash
+# Install frontend dependencies
+npm install
+
+# Run frontend tests (Vitest)
+npm test -- --run
+
+# Run native backend tests (Cargo)
+cargo test --manifest-path src-tauri/Cargo.toml
+
+# Start desktop application in development mode
+npm run tauri dev
+
+# Build standalone production installer (NSIS)
+npm run tauri build -- --bundles nsis
+```
+
+---
+
 ## Technical Specifications
 
 - **Frontend**: React 18/19, TypeScript, Vite, Tailwind CSS, Lucide Icons, Zustand reactive state stores.
@@ -75,4 +146,4 @@ The project documentation has been consolidated into 4 essential, comprehensive 
 1. [AGENTS.md](AGENTS.md) — Permanent engineering rules, architectural contracts, and non-negotiable directives.
 2. [README.md](README.md) — Complete user guide, navigation walkthrough, and quickstart documentation (this file).
 3. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — Deep system design, thread models, audio pipeline, VAD, 3-way AI router, and security audits.
-4. [docs/QUALITY_REPORT.md](docs/QUALITY_REPORT.md) — Master feature registry (F001–F136), 42-test results log, bug tracker (BUG-001–BUG-025), and changelog.
+4. [docs/QUALITY_REPORT.md](docs/QUALITY_REPORT.md) — Master feature registry (F001–F136), 42-test results log, bug tracker (BUG-001–BUG-027), and changelog.

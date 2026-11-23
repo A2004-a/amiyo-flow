@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Architecture Documentation
+    url: https://github.com/amiyogarai/amiyo-flow/blob/master/docs/ARCHITECTURE.md
+    about: Read system architecture and offline execution contracts.
+  - name: Quality & Test Report
+    url: https://github.com/amiyogarai/amiyo-flow/blob/master/docs/QUALITY_REPORT.md
+    about: View the 42/42 passing test results and bug resolution tracker.

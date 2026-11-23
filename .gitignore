@@ -1,29 +1,42 @@
-# Node & Frontend dependencies
+# Node.js and web dependencies
 node_modules/
 dist/
 dist-ssr/
 *.local
 
-# Rust & Tauri build targets
+# Rust and Tauri build outputs
 src-tauri/target/
 **/*.rs.bk
 
-# Environment variables & secrets
+# Local AI models (downloaded dynamically on demand)
+models/
+*.bin
+*.gguf
+!resources/models/.gitkeep
+
+# Local user database and persistent runtime storage
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment and secrets
 .env
 .env.*
 !.env.example
 
-# Logs
+# Logs and system artifacts
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+*.log
 
-# Editor & OS files
+# IDE and OS files
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 *.suo
 *.ntvs*
 *.njsproj
