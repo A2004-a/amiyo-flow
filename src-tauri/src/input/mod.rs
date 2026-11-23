@@ -38,7 +38,16 @@ pub mod win_impl {
 
     pub fn get_foreground_window() -> Option<ForegroundWindowInfo> {
         unsafe {
-            let hwnd = GetForegroundWindow();
+            let mut hwnd = GetForegroundWindow();
+            if hwnd.0 == (0 as _) {
+                for _ in 0..3 {
+                    sleep(Duration::from_millis(15));
+                    hwnd = GetForegroundWindow();
+                    if hwnd.0 != (0 as _) {
+                        break;
+                    }
+                }
+            }
             if hwnd.0 == (0 as _) {
                 return None;
             }
@@ -129,6 +138,35 @@ pub mod win_impl {
                 let _ = SendMessageW(foreground_hwnd, WM_CANCELMODE, WPARAM(0), LPARAM(0));
             }
 
+            // Bypass Windows foreground lock timeout restriction via synthetic Alt pulse
+            let alt_tap = [
+                INPUT {
+                    r#type: INPUT_KEYBOARD,
+                    Anonymous: INPUT_0 {
+                        ki: KEYBDINPUT {
+                            wVk: VIRTUAL_KEY(0x12), // VK_MENU
+                            wScan: 0,
+                            dwFlags: windows::Win32::UI::Input::KeyboardAndMouse::KEYBD_EVENT_FLAGS(0),
+                            time: 0,
+                            dwExtraInfo: 0,
+                        },
+                    },
+                },
+                INPUT {
+                    r#type: INPUT_KEYBOARD,
+                    Anonymous: INPUT_0 {
+                        ki: KEYBDINPUT {
+                            wVk: VIRTUAL_KEY(0x12),
+                            wScan: 0,
+                            dwFlags: KEYEVENTF_KEYUP,
+                            time: 0,
+                            dwExtraInfo: 0,
+                        },
+                    },
+                },
+            ];
+            SendInput(&alt_tap, std::mem::size_of::<INPUT>() as i32);
+
             let mut foreground_pid = 0u32;
             let foreground_thread = GetWindowThreadProcessId(foreground_hwnd, Some(&mut foreground_pid));
             let mut target_pid = 0u32;
@@ -144,6 +182,7 @@ pub mod win_impl {
 
             let _ = BringWindowToTop(hwnd);
             let res = SetForegroundWindow(hwnd);
+            let _ = SendMessageW(hwnd, WM_CANCELMODE, WPARAM(0), LPARAM(0));
 
             if target_thread != 0 && current_thread != target_thread {
                 let _ = AttachThreadInput(current_thread, target_thread, false);

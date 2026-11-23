@@ -313,7 +313,7 @@ export const LiveDictation: React.FC = () => {
           {state === 'idle' && (
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700/80 text-xs text-slate-400 font-medium">
               <Keyboard className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Ready — Press <kbd className="px-1.5 py-0.5 rounded bg-slate-700 text-cyan-300 font-mono text-[10px]">{settings.hotkey || 'Alt+Space'}</kbd> anywhere</span>
+              <span>Ready — Press <kbd className="px-1.5 py-0.5 rounded bg-slate-700 text-cyan-300 font-mono text-[10px]">{settings.hotkey || 'Ctrl+Space'}</kbd> anywhere</span>
             </div>
           )}
           {state === 'recording' && (

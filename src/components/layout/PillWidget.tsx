@@ -143,14 +143,14 @@ export const PillWidget: React.FC = () => {
             {state === 'processing' && 'Refining...'}
             {state === 'inserting' && 'Inserting...'}
             {state === 'completed' && 'Inserted!'}
-            {state === 'failed' && (errorMessage ? 'Error' : 'Ready')}
+            {state === 'failed' && (errorMessage ? 'Notice' : 'Ready')}
             {state === 'idle' && 'AMIYO FLOW'}
           </div>
           <div className="text-[9px] text-slate-400 font-mono">
             {state === 'recording' || state === 'paused'
               ? formatTime(durationMs)
               : state === 'failed'
-              ? 'Click to Reset'
+              ? 'Tap to Reset'
               : 'Ready'}
           </div>
         </div>

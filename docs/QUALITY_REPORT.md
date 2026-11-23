@@ -98,10 +98,27 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 | BUG-024 | High | Audio Capture | Runaway dictation timer ticking indefinitely on failure (`134:37.4`) | Catch blocks did not clear `timerInterval`; backend error did not emit event | Added explicit `clearInterval(timerInterval)` in error handlers; emitted `amiyo-dictation-failed` | FIXED |
 | BUG-025 | Low | Local AI | Developer writing style replacement order collision | Atomic `curly brace` token was replaced before `close curly brace` | Reordered replacements so composite tokens (`close curly brace`, `open curly brace`) resolve before atomic tokens | FIXED |
 | BUG-026 | Critical | Speech Pipeline & HUD | Floating Pill stuck on `(!) Error`, runaway timer (`134:37.4`), and failed voice typing in Claude / VS Code | 1) `start_recording` returned `Already recording` error when prior state remained active, locking frontend in `failed` state; 2) <kbd>Alt+Space</kbd> opened Windows system menu trapping keystrokes in menu loop; 3) DPI scaling squeezed pill width causing buttons to be cut off | Added auto-cancellation of prior recordings on start; auto-recovery from stale recordings (>10m); dispatched `WM_CANCELMODE` to dismiss system menu; enforced `440x78` logical sizing with click-to-reset error handling; added Hugging Face on-demand model downloader | FIXED |
+| BUG-027 | High | Audio Pipeline & Injection | Microphone initialization silent thread exit, empty audio transcription error, and target window handle loss | 1) CPAL unsupported format match silently dropped 32-bit int and 16-bit unsigned studio interfaces; 2) Silent/empty recording triggered STT "Audio payload is empty" error; 3) `target_hwnd` overwritten with 0 during transient focus shifts; 4) Visible topmost pill retained focus over target window during paste | 1) Added `SampleFormat::I32` & `SampleFormat::U16` support with synchronous 1.5s rendezvous startup verification; 2) Handled empty/silent audio (<800 samples) cleanly with 0 words without throwing STT errors; 3) Preserved non-zero target handle during focus shifts; 4) Hid pill prior to insertion to return focus to target, coupled with synthetic Alt pulse to bypass Windows foreground lock timeout; 5) Added `minWidth: 440, minHeight: 78` in `tauri.conf.json` | FIXED |
 
 ---
 
 ## 4. Semantic Version Changelog
+
+### [1.0.3] — 2026-11-23
+- **Audio Stream Initialization Rendezvous & 32-Bit Studio Interface Support (BUG-027)**:
+  - Added native `SampleFormat::I32` (32-bit PCM) and `SampleFormat::U16` decoding in `AudioEngine` alongside `F32` and `I16`, supporting studio USB audio interfaces (Focusrite, Shure, Rode, Realtek HD).
+  - Added synchronous stream initialization rendezvous channel (`(init_tx, init_rx)`) with 1500ms timeout in `start_recording`, ensuring audio device capture is verified before reporting success to UI.
+  - Automatically resets recording state if microphone initialization fails, preventing ghost recording sessions.
+- **Graceful Silence & Instant Stop Handling**:
+  - In `stop_recording_and_insert`, recordings with empty audio or fewer than 800 samples (<50ms / silence) now complete cleanly with `success: true` and 0 words instead of triggering STT "Audio payload is empty" errors.
+  - Floating pill and live dictation studio no longer enter error states when the user stops without speaking.
+- **Window Activation & Foreground Lock Bypass**:
+  - Hides the floating pill immediately upon text insertion initiation, allowing Windows to naturally return active focus to the underlying application (Claude, VS Code, Notepad, Chrome).
+  - Added synthetic Alt pulse in `activate_window` to bypass the Windows foreground lock timeout restriction (`SPI_SETFOREGROUNDLOCKTIMEOUT`).
+  - Strengthened `get_foreground_window` with 3-attempt polling to avoid losing window handles during transient hotkey transitions.
+  - Prevented overwriting valid `target_hwnd` with 0 or `"unknown.exe"`.
+  - Added strict min/max size constraints (`minWidth: 440, minHeight: 78, maxWidth: 480, maxHeight: 84`) in `tauri.conf.json` to prevent DPI scaling shrinkage.
+  - Added informative hotkey guidance in Settings and unified all hotkey labels.
 
 ### [1.0.2] — 2026-11-23
 - **Floating Pill Error State & Deadlock Resolution (BUG-026)**:

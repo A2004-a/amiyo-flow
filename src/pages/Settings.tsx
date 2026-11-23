@@ -84,6 +84,9 @@ export const Settings: React.FC = () => {
                   </option>
                 ))}
               </select>
+              <p className="text-[10px] text-slate-500">
+                Recommended: <code className="text-cyan-400">Control+Space</code> or <code className="text-cyan-400">F8</code>. (Windows reserves Alt+Space for window menus).
+              </p>
             </div>
 
             <div className="space-y-2">

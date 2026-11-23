@@ -85,21 +85,16 @@ pub async fn start_recording(app_handle: AppHandle, state: State<'_, AppState>) 
         *state.recording_start.lock() = None;
     }
 
-    let fg_info = input::get_foreground_window().unwrap_or(ForegroundWindowInfo {
-        hwnd: 0,
-        title: "Active Application".to_string(),
-        process_name: "unknown.exe".to_string(),
-    });
+    if let Some(fg) = input::get_foreground_window() {
+        let is_amiyo = fg.process_name.to_lowercase().contains("amiyo") 
+            || fg.title.to_lowercase().contains("amiyo")
+            || fg.title.to_lowercase().contains("pill");
 
-    let is_amiyo = fg_info.process_name.to_lowercase().contains("amiyo-flow") 
-        || fg_info.title.to_lowercase().contains("amiyo flow")
-        || fg_info.title.to_lowercase().contains("pill");
-
-    let existing_hwnd = *state.target_hwnd.lock();
-    if !is_amiyo || existing_hwnd == 0 {
-        *state.target_hwnd.lock() = fg_info.hwnd;
-        *state.target_app_name.lock() = fg_info.process_name.clone();
-        *state.target_app_title.lock() = fg_info.title.clone();
+        if !is_amiyo && fg.hwnd != 0 {
+            *state.target_hwnd.lock() = fg.hwnd;
+            *state.target_app_name.lock() = fg.process_name;
+            *state.target_app_title.lock() = fg.title;
+        }
     }
     *state.recording_start.lock() = Some(Instant::now());
 
@@ -217,6 +212,25 @@ pub async fn stop_recording_and_insert(
             return Err(e);
         }
     };
+
+    // If audio buffer was empty or shorter than 50ms of audio, finish cleanly without error
+    if wav_bytes.is_empty() || _samples < 800 {
+        state.is_processing.store(false, Ordering::SeqCst);
+        if let Some(pill_window) = app_handle.get_webview_window("pill") {
+            let _ = pill_window.hide();
+        }
+        let res = DictationResult {
+            success: true,
+            raw_text: String::new(),
+            cleaned_text: String::new(),
+            duration_ms,
+            word_count: 0,
+            target_app: state.target_app_name.lock().clone(),
+            error: None,
+        };
+        let _ = app_handle.emit("amiyo-dictation-completed", &res);
+        return Ok(res);
+    }
 
     let mut target_hwnd = *state.target_hwnd.lock();
     let mut target_app = state.target_app_name.lock().clone();
@@ -357,6 +371,11 @@ pub async fn stop_recording_and_insert(
     };
 
     let word_count = cleaned_text.split_whitespace().count();
+
+    // First hide the pill window so Windows returns focus directly to the target application
+    if let Some(pill) = app_handle.get_webview_window("pill") {
+        let _ = pill.hide();
+    }
 
     let mut insertion_error = None;
     if auto_insert && !cleaned_text.is_empty() {

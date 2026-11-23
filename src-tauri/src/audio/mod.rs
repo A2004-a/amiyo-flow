@@ -130,6 +130,8 @@ impl AudioEngine {
         let (stop_tx, stop_rx) = channel::<()>();
         *self.stop_signal_tx.lock() = Some(stop_tx);
 
+        let (init_tx, init_rx) = channel::<Result<(), String>>();
+
         let buffer_clone = Arc::clone(&self.samples_buffer);
         let is_recording_flag = Arc::clone(&self.is_recording);
         let is_paused_flag = Arc::clone(&self.is_paused);
@@ -208,19 +210,105 @@ impl AudioEngine {
                     err_fn,
                     None,
                 ),
-                _ => return,
+                SampleFormat::I32 => device.build_input_stream(
+                    &config,
+                    move |data: &[i32], _: &_| {
+                        if !is_recording_flag.load(Ordering::SeqCst) || is_paused_flag.load(Ordering::SeqCst) {
+                            return;
+                        }
+
+                        let mut sum_sq = 0.0f32;
+                        let mut count = 0;
+                        let mut mono_samples = Vec::with_capacity(data.len() / channels);
+
+                        for chunk in data.chunks(channels) {
+                            let sample_i64: i64 = chunk.iter().map(|&s| s as i64).sum::<i64>() / (channels as i64);
+                            let sample = (sample_i64 as f32) / 2147483648.0;
+                            mono_samples.push(sample);
+                            sum_sq += sample * sample;
+                            count += 1;
+                        }
+
+                        let rms = if count > 0 { (sum_sq / count as f32).sqrt() } else { 0.0 };
+                        let level = (rms * 5.0).min(1.0);
+
+                        if last_emit_instant.elapsed().as_millis() >= 33 {
+                            let _ = emit_handle.emit("amiyo-audio-level", level);
+                            last_emit_instant = std::time::Instant::now();
+                        }
+
+                        buffer_clone.lock().extend_from_slice(&mono_samples);
+                    },
+                    err_fn,
+                    None,
+                ),
+                SampleFormat::U16 => device.build_input_stream(
+                    &config,
+                    move |data: &[u16], _: &_| {
+                        if !is_recording_flag.load(Ordering::SeqCst) || is_paused_flag.load(Ordering::SeqCst) {
+                            return;
+                        }
+
+                        let mut sum_sq = 0.0f32;
+                        let mut count = 0;
+                        let mut mono_samples = Vec::with_capacity(data.len() / channels);
+
+                        for chunk in data.chunks(channels) {
+                            let sample_i32: i32 = chunk.iter().map(|&s| s as i32 - 32768).sum::<i32>() / (channels as i32);
+                            let sample = (sample_i32 as f32) / 32768.0;
+                            mono_samples.push(sample);
+                            sum_sq += sample * sample;
+                            count += 1;
+                        }
+
+                        let rms = if count > 0 { (sum_sq / count as f32).sqrt() } else { 0.0 };
+                        let level = (rms * 5.0).min(1.0);
+
+                        if last_emit_instant.elapsed().as_millis() >= 33 {
+                            let _ = emit_handle.emit("amiyo-audio-level", level);
+                            last_emit_instant = std::time::Instant::now();
+                        }
+
+                        buffer_clone.lock().extend_from_slice(&mono_samples);
+                    },
+                    err_fn,
+                    None,
+                ),
+                _ => {
+                    let _ = init_tx.send(Err(format!("Unsupported audio sample format: {:?}", sample_format)));
+                    return;
+                }
             };
 
-            if let Ok(stream) = stream_result {
-                let _ = stream.play();
-                // Block thread until stop signal is received
-                let _ = stop_rx.recv();
-                let _ = stream.pause();
-                // stream is dropped here naturally inside its home thread!
+            match stream_result {
+                Ok(stream) => {
+                    if let Err(e) = stream.play() {
+                        let _ = init_tx.send(Err(format!("Failed to activate microphone stream: {}", e)));
+                        return;
+                    }
+                    let _ = init_tx.send(Ok(()));
+                    // Block thread until stop signal is received
+                    let _ = stop_rx.recv();
+                    let _ = stream.pause();
+                    // stream is dropped here naturally inside its home thread!
+                }
+                Err(e) => {
+                    let _ = init_tx.send(Err(format!("Failed to build audio stream: {}", e)));
+                }
             }
         });
 
-        Ok(())
+        match init_rx.recv_timeout(std::time::Duration::from_millis(1500)) {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(e)) => {
+                self.is_recording.store(false, Ordering::SeqCst);
+                Err(e)
+            }
+            Err(_) => {
+                self.is_recording.store(false, Ordering::SeqCst);
+                Err("Audio device initialization timed out".to_string())
+            }
+        }
     }
 
     pub fn stop_recording(&self) -> Result<(Vec<u8>, usize), String> {
@@ -243,15 +331,14 @@ impl AudioEngine {
             data
         };
 
-        let (resampled, sample_count) = if raw_samples.is_empty() {
-            (vec![0.0f32; 8000], 8000)
-        } else {
-            let input_rate = *self.sample_rate.lock();
-            let target_rate = 16000;
-            let r = resample_linear(&raw_samples, input_rate, target_rate);
-            let c = r.len();
-            (r, c)
-        };
+        if raw_samples.is_empty() {
+            return Ok((Vec::new(), 0));
+        }
+
+        let input_rate = *self.sample_rate.lock();
+        let target_rate = 16000;
+        let resampled = resample_linear(&raw_samples, input_rate, target_rate);
+        let sample_count = resampled.len();
 
         let wav_bytes = encode_wav_16bit_mono(&resampled, 16000)
             .map_err(|e| format!("Failed to encode WAV buffer: {}", e))?;
