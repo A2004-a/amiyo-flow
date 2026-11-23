@@ -336,7 +336,7 @@ pub async fn stop_recording_and_insert(
 #[tauri::command]
 pub fn test_insert_text(text: String, use_clipboard: bool) -> Result<(), String> {
     let fg = input::get_foreground_window().map(|f| f.hwnd).unwrap_or(0);
-    input::insert_text(fg, &text, use_clipboard, 35)
+    input::insert_text(fg, &text, use_clipboard, 350)
 }
 
 #[tauri::command]
