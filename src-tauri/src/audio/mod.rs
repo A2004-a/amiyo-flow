@@ -114,9 +114,20 @@ impl AudioEngine {
         }
         .ok_or_else(|| "No audio input device found on the system".to_string())?;
 
-        let supported_config = device
-            .default_input_config()
-            .map_err(|e| format!("Failed to get default input config: {}", e))?;
+        let (device, supported_config) = match device.default_input_config() {
+            Ok(c) => (device, c),
+            Err(e) => {
+                // If custom device fails config, fallback to default input device
+                if let Some(def_dev) = host.default_input_device() {
+                    let conf = def_dev.default_input_config().map_err(|e2| {
+                        format!("Failed to configure fallback audio input device: {}", e2)
+                    })?;
+                    (def_dev, conf)
+                } else {
+                    return Err(format!("Failed to get default input config: {}", e));
+                }
+            }
+        };
 
         let sample_format = supported_config.sample_format();
         let config: StreamConfig = supported_config.into();

@@ -1,10 +1,32 @@
 /// Local On-Device Speech Recognition Engine (whisper.cpp architecture)
 /// Operates 100% locally with ZERO external network calls during transcription.
 
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+
+struct SttWorker {
+    _child: Child,
+    stdin: ChildStdin,
+    stdout: BufReader<ChildStdout>,
+}
+
+static WARM_WORKER: Mutex<Option<SttWorker>> = Mutex::new(None);
+
+/// Warms up the local speech engine in the background during recording
+pub fn warmup_engine() {
+    if let Some(python_path) = find_python() {
+        let mut guard = WARM_WORKER.lock();
+        if guard.is_none() {
+            if let Ok(worker) = spawn_stt_worker(&python_path) {
+                *guard = Some(worker);
+            }
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LocalSpeechModelInfo {
@@ -306,14 +328,122 @@ if __name__ == "__main__":
     Ok(script_path)
 }
 
-/// Executes faster-whisper on-device via local Python runner
+/// Writes or returns the path to the persistent faster-whisper daemon script
+fn get_or_create_daemon_script() -> Result<PathBuf, String> {
+    let home = get_user_home();
+    let bin_dir = home.join(".amiyo-flow").join("bin");
+    let _ = fs::create_dir_all(&bin_dir);
+    let script_path = bin_dir.join("transcribe_daemon.py");
+
+    let script_content = r#"import sys
+import json
+import os
+
+models = {}
+
+def get_model(name):
+    clean = name
+    if clean.startswith("ggml-"):
+        clean = clean[5:]
+    if clean.endswith(".bin"):
+        clean = clean[:-4]
+    if clean not in models:
+        from faster_whisper import WhisperModel
+        try:
+            models[clean] = WhisperModel(clean, device="cpu", compute_type="int8", local_files_only=True)
+        except Exception:
+            try:
+                models[clean] = WhisperModel("base.en", device="cpu", compute_type="int8", local_files_only=True)
+            except Exception:
+                models[clean] = WhisperModel("tiny.en", device="cpu", compute_type="int8", local_files_only=True)
+    return models[clean]
+
+try:
+    get_model("tiny.en")
+except Exception:
+    pass
+
+sys.stdout.write(json.dumps({"status": "ready"}) + "\n")
+sys.stdout.flush()
+
+for line in sys.stdin:
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        req = json.loads(line)
+        cmd = req.get("cmd")
+        if cmd == "ping":
+            sys.stdout.write(json.dumps({"status": "pong"}) + "\n")
+            sys.stdout.flush()
+        elif cmd == "warmup":
+            model_name = req.get("model", "tiny.en")
+            get_model(model_name)
+            sys.stdout.write(json.dumps({"status": "warmed"}) + "\n")
+            sys.stdout.flush()
+        elif cmd == "transcribe":
+            wav_path = req.get("wav")
+            model_name = req.get("model", "tiny.en")
+            lang = req.get("lang")
+            if lang in ("auto", "", "None"):
+                lang = None
+            model = get_model(model_name)
+            segments, _ = model.transcribe(wav_path, language=lang, beam_size=1)
+            text = " ".join(s.text.strip() for s in segments if s.text).strip()
+            sys.stdout.write(json.dumps({"status": "ok", "text": text}) + "\n")
+            sys.stdout.flush()
+        else:
+            sys.stdout.write(json.dumps({"status": "error", "message": "unknown command"}) + "\n")
+            sys.stdout.flush()
+    except Exception as e:
+        sys.stdout.write(json.dumps({"status": "error", "message": str(e)}) + "\n")
+        sys.stdout.flush()
+"#;
+
+    if !script_path.exists() || fs::read_to_string(&script_path).map(|c| c != script_content).unwrap_or(true) {
+        fs::write(&script_path, script_content)
+            .map_err(|e| format!("Failed to create daemon script: {}", e))?;
+    }
+
+    Ok(script_path)
+}
+
+/// Spawns a persistent faster-whisper daemon process
+fn spawn_stt_worker(python_path: &Path) -> Result<SttWorker, String> {
+    let daemon_script = get_or_create_daemon_script()?;
+    let mut cmd = Command::new(python_path);
+    cmd.arg(&daemon_script)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000);
+    }
+
+    let mut child = cmd.spawn().map_err(|e| format!("Failed to spawn STT worker: {}", e))?;
+    let stdin = child.stdin.take().ok_or("Failed to open worker stdin")?;
+    let mut stdout = BufReader::new(child.stdout.take().ok_or("Failed to open worker stdout")?);
+
+    let mut handshake = String::new();
+    stdout.read_line(&mut handshake).map_err(|e| format!("Worker handshake failed: {}", e))?;
+
+    Ok(SttWorker {
+        _child: child,
+        stdin,
+        stdout,
+    })
+}
+
+/// Executes faster-whisper on-device via warm daemon or one-shot fallback
 async fn run_faster_whisper(
     python_path: &Path,
     model_name: &str,
     wav_bytes: &[u8],
     language: Option<&str>,
 ) -> Result<String, String> {
-    let script_path = get_or_create_transcription_script()?;
     let temp_audio_dir = std::env::temp_dir().join("amiyo_flow");
     let _ = fs::create_dir_all(&temp_audio_dir);
     let temp_audio_file = temp_audio_dir.join(format!(
@@ -328,6 +458,41 @@ async fn run_faster_whisper(
     fs::write(&temp_audio_file, wav_bytes)
         .map_err(|e| format!("Failed to write temporary audio file: {}", e))?;
 
+    // Attempt 1: Ultra-fast persistent daemon worker (model already warm in RAM)
+    {
+        let mut guard = WARM_WORKER.lock();
+        if guard.is_none() {
+            if let Ok(w) = spawn_stt_worker(python_path) {
+                *guard = Some(w);
+            }
+        }
+
+        if let Some(worker) = guard.as_mut() {
+            let req = serde_json::json!({
+                "cmd": "transcribe",
+                "wav": temp_audio_file.to_string_lossy(),
+                "model": model_name,
+                "lang": language
+            });
+
+            if writeln!(worker.stdin, "{}", req).is_ok() && worker.stdin.flush().is_ok() {
+                let mut resp_line = String::new();
+                if worker.stdout.read_line(&mut resp_line).is_ok() {
+                    if let Ok(res) = serde_json::from_str::<serde_json::Value>(&resp_line) {
+                        if res["status"] == "ok" {
+                            let _ = fs::remove_file(&temp_audio_file);
+                            return Ok(res["text"].as_str().unwrap_or("").to_string());
+                        }
+                    }
+                }
+            }
+            // Reset worker if communication failed
+            *guard = None;
+        }
+    }
+
+    // Attempt 2: High-reliability one-shot fallback
+    let script_path = get_or_create_transcription_script()?;
     let mut cmd = Command::new(python_path);
     cmd.arg(&script_path)
         .arg(model_name)
@@ -342,13 +507,12 @@ async fn run_faster_whisper(
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
-        // CREATE_NO_WINDOW = 0x08000000 to prevent flashing command prompt
         cmd.creation_flags(0x08000000);
     }
 
     let output = cmd
         .output()
-        .map_err(|e| format!("Failed to execute faster-whisper: {}", e))?;
+        .map_err(|e| format!("Failed to execute faster-whisper fallback: {}", e))?;
 
     let _ = fs::remove_file(temp_audio_file);
 

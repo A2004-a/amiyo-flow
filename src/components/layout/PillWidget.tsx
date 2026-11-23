@@ -140,8 +140,8 @@ export const PillWidget: React.FC = () => {
           <div className="text-[11px] font-semibold text-slate-200 truncate flex items-center gap-1">
             {state === 'recording' && (targetApp?.process_name && targetApp.process_name !== 'unknown.exe' ? targetApp.process_name : 'Active App')}
             {state === 'paused' && 'Paused'}
-            {state === 'processing' && 'Refining...'}
-            {state === 'inserting' && 'Inserting...'}
+            {state === 'processing' && 'Transcribing...'}
+            {state === 'inserting' && 'Typing...'}
             {state === 'completed' && 'Inserted!'}
             {state === 'failed' && (errorMessage ? 'Notice' : 'Ready')}
             {state === 'idle' && 'AMIYO FLOW'}

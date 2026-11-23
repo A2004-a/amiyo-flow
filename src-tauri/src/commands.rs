@@ -98,6 +98,11 @@ pub async fn start_recording(app_handle: AppHandle, state: State<'_, AppState>) 
     }
     *state.recording_start.lock() = Some(Instant::now());
 
+    // Pre-warm the on-device speech engine in the background while user speaks
+    std::thread::spawn(|| {
+        stt::warmup_engine();
+    });
+
     if let Err(e) = state.audio.start_recording(app_handle.clone()) {
         let _ = app_handle.emit("amiyo-dictation-failed", &e);
         let pill_h = app_handle.clone();

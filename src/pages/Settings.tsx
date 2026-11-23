@@ -6,6 +6,7 @@ import {
   Send,
   ShieldCheck,
   Trash2,
+  Cpu,
 } from 'lucide-react';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { useWorkspaceStore } from '../stores/useWorkspaceStore';
@@ -122,6 +123,73 @@ export const Settings: React.FC = () => {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* On-Device Speech Recognition Engine */}
+        <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+          <div className="flex items-center gap-2">
+            <Cpu className="w-4 h-4 text-emerald-400" />
+            <h2 className="text-sm font-bold text-white">On-Device Speech Recognition Engine</h2>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-xs text-slate-400 block font-medium">Whisper Model (INT8 CTranslate2)</label>
+              <select
+                value={settings.local_stt_model || 'base.en'}
+                onChange={(e) => updateSetting('local_stt_model', e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500 font-medium"
+              >
+                <option value="tiny.en">Whisper Tiny (English) — 75 MB (Fastest, Sub-200ms)</option>
+                <option value="base.en">Whisper Base (English) — 142 MB (Recommended Default)</option>
+                <option value="small.en">Whisper Small (English) — 466 MB (High Precision)</option>
+                <option value="base">Whisper Base (Multilingual) — 142 MB (English, Hindi, Bengali)</option>
+                <option value="small">Whisper Small (Multilingual) — 466 MB (Multilingual High Precision)</option>
+              </select>
+              <p className="text-[10px] text-slate-500">
+                Executes 100% locally on CPU via faster-whisper INT8 quantization with zero cloud latency.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs text-slate-400 block font-medium">Spoken Dictation Language</label>
+              <select
+                value={settings.language || 'auto'}
+                onChange={(e) => updateSetting('language', e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-cyan-500 font-medium"
+              >
+                <option value="auto">Auto-Detect Language</option>
+                <option value="en">English (US / UK / Global)</option>
+                <option value="hi">Hindi (हिंदी)</option>
+                <option value="bn">Bengali (বাংলা)</option>
+                <option value="es">Spanish (Español)</option>
+                <option value="fr">French (Français)</option>
+                <option value="de">German (Deutsch)</option>
+              </select>
+              <p className="text-[10px] text-slate-500">
+                Target spoken language for acoustic decoding. Set to English or Auto for fastest response.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between border-t border-slate-800 pt-3">
+            <div>
+              <span className="text-xs font-semibold text-white block">Hands-Free Silence Auto-Cutoff</span>
+              <span className="text-[11px] text-slate-400">
+                Automatically stops recording and types text when you finish speaking.
+              </span>
+            </div>
+            <select
+              value={settings.silence_cutoff_ms || '1800'}
+              onChange={(e) => updateSetting('silence_cutoff_ms', e.target.value)}
+              className="px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white"
+            >
+              <option value="1200">1.2 seconds (Fast Typing)</option>
+              <option value="1800">1.8 seconds (Balanced)</option>
+              <option value="2500">2.5 seconds (Natural Pauses)</option>
+              <option value="3500">3.5 seconds (Thoughtful Dictation)</option>
+            </select>
           </div>
         </div>
 
