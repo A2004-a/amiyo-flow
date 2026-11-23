@@ -222,8 +222,44 @@ pub mod win_impl {
         }
     }
 
+    pub fn release_all_modifiers() {
+        unsafe {
+            use windows::Win32::UI::Input::KeyboardAndMouse::{
+                VK_LMENU, VK_RMENU, VK_MENU, VK_LCONTROL, VK_RCONTROL, VK_CONTROL,
+                VK_LSHIFT, VK_RSHIFT, VK_SHIFT, VK_LWIN, VK_RWIN,
+            };
+
+            let modifiers = [
+                VK_LMENU, VK_RMENU, VK_MENU,
+                VK_LCONTROL, VK_RCONTROL, VK_CONTROL,
+                VK_LSHIFT, VK_RSHIFT, VK_SHIFT,
+                VK_LWIN, VK_RWIN,
+            ];
+
+            let mut inputs = Vec::with_capacity(modifiers.len());
+            for vk in modifiers {
+                inputs.push(INPUT {
+                    r#type: INPUT_KEYBOARD,
+                    Anonymous: INPUT_0 {
+                        ki: KEYBDINPUT {
+                            wVk: vk,
+                            wScan: 0,
+                            dwFlags: KEYEVENTF_KEYUP,
+                            time: 0,
+                            dwExtraInfo: 0,
+                        },
+                    },
+                });
+            }
+            SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
+            sleep(Duration::from_millis(20));
+        }
+    }
+
     pub fn simulate_ctrl_v() {
         unsafe {
+            release_all_modifiers();
+
             let v_key = VIRTUAL_KEY(0x56); // 'V'
             let ctrl_key = VK_CONTROL;
 
@@ -255,8 +291,8 @@ pub mod win_impl {
             ];
             SendInput(&key_down, std::mem::size_of::<INPUT>() as i32);
 
-            // Give Windows & Chromium/Electron event queue 15ms to register key-down
-            sleep(Duration::from_millis(15));
+            // Give Windows & Chromium/Electron event queue 25ms to register key-down
+            sleep(Duration::from_millis(25));
 
             let key_up = [
                 INPUT {
@@ -361,19 +397,25 @@ pub mod win_impl {
             return Ok(());
         }
 
+        // Release any held modifier keys from hotkey (Alt, Ctrl, Shift, Win)
+        release_all_modifiers();
+
         if target_hwnd != 0 {
             activate_window(target_hwnd);
-            sleep(Duration::from_millis(45));
+            sleep(Duration::from_millis(60));
         }
+
+        // Release modifiers again after window activation just in case
+        release_all_modifiers();
 
         if use_clipboard {
             let old_clipboard = get_clipboard_text();
             let set_ok = set_clipboard_text(text);
             if set_ok {
-                sleep(Duration::from_millis(30));
+                sleep(Duration::from_millis(35));
                 simulate_ctrl_v();
                 // Allow Chromium/Electron/Claude/Antigravity sufficient time to process paste IPC
-                sleep(Duration::from_millis(restore_delay_ms.max(250)));
+                sleep(Duration::from_millis(restore_delay_ms.max(350)));
 
                 if let Some(ref prev) = old_clipboard {
                     set_clipboard_text(prev);

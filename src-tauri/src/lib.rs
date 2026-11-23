@@ -179,6 +179,11 @@ pub fn run() {
             if let Ok(shortcut) = shortcut_str.parse::<Shortcut>() {
                 let _ = handle.global_shortcut().register(shortcut);
             }
+            if shortcut_str != "Control+Space" {
+                if let Ok(ctrl_space) = "Control+Space".parse::<Shortcut>() {
+                    let _ = handle.global_shortcut().register(ctrl_space);
+                }
+            }
 
             if let Some(main_win) = app.get_webview_window("main") {
                 let main_clone = main_win.clone();

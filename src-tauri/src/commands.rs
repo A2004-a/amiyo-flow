@@ -204,15 +204,15 @@ pub async fn stop_recording_and_insert(
     let mut target_app = state.target_app_name.lock().clone();
     let mut target_title = state.target_app_title.lock().clone();
 
-    // If target was amiyo-flow or 0, check if user is focused on an external window
-    let is_amiyo = target_app.to_lowercase().contains("amiyo-flow") || target_hwnd == 0;
-    if is_amiyo {
-        if let Some(fg) = input::get_foreground_window() {
-            if !fg.process_name.to_lowercase().contains("amiyo-flow") {
-                target_hwnd = fg.hwnd;
-                target_app = fg.process_name;
-                target_title = fg.title;
-            }
+    // Check if user is currently focused on an external application right now (e.g. Claude, Antigravity, etc.)
+    if let Some(fg) = input::get_foreground_window() {
+        let is_amiyo = fg.process_name.to_lowercase().contains("amiyo") 
+            || fg.title.to_lowercase().contains("amiyo")
+            || fg.title.to_lowercase().contains("pill");
+        if !is_amiyo && fg.hwnd != 0 {
+            target_hwnd = fg.hwnd;
+            target_app = fg.process_name;
+            target_title = fg.title;
         }
     }
 
@@ -413,9 +413,21 @@ pub fn get_settings(state: State<'_, AppState>) -> Result<HashMap<String, String
 }
 
 #[tauri::command]
-pub fn save_settings(settings: HashMap<String, String>, state: State<'_, AppState>) -> Result<(), String> {
-    for (k, v) in settings {
-        state.db.set_setting(&k, &v).map_err(|e| e.to_string())?;
+pub fn save_settings(app_handle: AppHandle, settings: HashMap<String, String>, state: State<'_, AppState>) -> Result<(), String> {
+    for (k, v) in &settings {
+        state.db.set_setting(k, v).map_err(|e| e.to_string())?;
+    }
+    if let Some(new_hotkey) = settings.get("hotkey") {
+        use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
+        let _ = app_handle.global_shortcut().unregister_all();
+        if let Ok(shortcut) = new_hotkey.parse::<Shortcut>() {
+            let _ = app_handle.global_shortcut().register(shortcut);
+        }
+        if new_hotkey != "Control+Space" {
+            if let Ok(ctrl_space) = "Control+Space".parse::<Shortcut>() {
+                let _ = app_handle.global_shortcut().register(ctrl_space);
+            }
+        }
     }
     Ok(())
 }
