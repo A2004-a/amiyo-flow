@@ -251,9 +251,14 @@ pub async fn stop_recording_and_insert(
         Ok(t) => t,
         Err(e) => {
             state.is_processing.store(false, Ordering::SeqCst);
-            if let Some(pill_window) = app_handle.get_webview_window("pill") {
-                let _ = pill_window.hide();
-            }
+            let _ = app_handle.emit("amiyo-dictation-failed", &e);
+            let pill_h = app_handle.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
+                if let Some(pill_window) = pill_h.get_webview_window("pill") {
+                    let _ = pill_window.hide();
+                }
+            });
             return Err(format!("Local transcription failed: {}", e));
         }
     };

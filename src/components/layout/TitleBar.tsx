@@ -13,6 +13,12 @@ export const TitleBar: React.FC = () => {
     try {
       const win = getCurrentWebviewWindow();
       win.isMaximized().then(setIsMaximized).catch(() => {});
+      const unlistenPromise = win.onResized(() => {
+        win.isMaximized().then(setIsMaximized).catch(() => {});
+      });
+      return () => {
+        unlistenPromise.then((unlisten) => unlisten()).catch(() => {});
+      };
     } catch {
       // fallback
     }
@@ -20,41 +26,55 @@ export const TitleBar: React.FC = () => {
 
   const handleMinimize = async () => {
     try {
-      await api.windowMinimize();
-    } catch {
       if (isTauri()) {
         const win = getCurrentWebviewWindow();
         await win.minimize();
+        return;
       }
+    } catch {
+      // fallback
+    }
+    try {
+      await api.windowMinimize();
+    } catch (e) {
+      console.error('Minimize error', e);
     }
   };
 
   const handleMaximize = async () => {
     try {
-      const toggled = await api.windowToggleMaximize();
-      setIsMaximized(toggled);
-    } catch {
       if (isTauri()) {
         const win = getCurrentWebviewWindow();
-        if (isMaximized) {
-          await win.unmaximize();
-          setIsMaximized(false);
-        } else {
-          await win.maximize();
-          setIsMaximized(true);
-        }
+        await win.toggleMaximize();
+        const max = await win.isMaximized();
+        setIsMaximized(max);
+        return;
       }
+    } catch {
+      // fallback
+    }
+    try {
+      const toggled = await api.windowToggleMaximize();
+      setIsMaximized(toggled);
+    } catch (e) {
+      console.error('Maximize error', e);
     }
   };
 
   const handleClose = async () => {
     try {
-      await api.windowClose();
-    } catch {
       if (isTauri()) {
         const win = getCurrentWebviewWindow();
         await win.close();
+        return;
       }
+    } catch {
+      // fallback
+    }
+    try {
+      await api.windowClose();
+    } catch (e) {
+      console.error('Close error', e);
     }
   };
 
@@ -96,17 +116,20 @@ export const TitleBar: React.FC = () => {
 
       {/* Right: Window Controls */}
       <div
-        className="flex items-center space-x-1 titlebar-no-drag z-50"
+        className="flex items-center space-x-1 titlebar-no-drag z-50 pointer-events-auto"
+        data-tauri-drag-region="false"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       >
         <button
           type="button"
+          data-tauri-drag-region="false"
+          onPointerDown={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             handleMinimize();
           }}
-          className="titlebar-no-drag w-9 h-7 flex items-center justify-center rounded hover:bg-slate-800 text-slate-400 hover:text-slate-100 transition-colors cursor-pointer pointer-events-auto"
+          className="titlebar-no-drag w-9 h-7 flex items-center justify-center rounded hover:bg-slate-800 text-slate-400 hover:text-slate-100 transition-colors cursor-pointer pointer-events-auto select-none"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           title="Minimize"
         >
@@ -114,12 +137,14 @@ export const TitleBar: React.FC = () => {
         </button>
         <button
           type="button"
+          data-tauri-drag-region="false"
+          onPointerDown={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             handleMaximize();
           }}
-          className="titlebar-no-drag w-9 h-7 flex items-center justify-center rounded hover:bg-slate-800 text-slate-400 hover:text-slate-100 transition-colors cursor-pointer pointer-events-auto"
+          className="titlebar-no-drag w-9 h-7 flex items-center justify-center rounded hover:bg-slate-800 text-slate-400 hover:text-slate-100 transition-colors cursor-pointer pointer-events-auto select-none"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           title={isMaximized ? 'Restore' : 'Maximize'}
         >
@@ -131,12 +156,14 @@ export const TitleBar: React.FC = () => {
         </button>
         <button
           type="button"
+          data-tauri-drag-region="false"
+          onPointerDown={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             handleClose();
           }}
-          className="titlebar-no-drag w-9 h-7 flex items-center justify-center rounded hover:bg-rose-600 text-slate-400 hover:text-white transition-colors cursor-pointer pointer-events-auto"
+          className="titlebar-no-drag w-9 h-7 flex items-center justify-center rounded hover:bg-rose-600 text-slate-400 hover:text-white transition-colors cursor-pointer pointer-events-auto select-none"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           title="Close / Hide to Tray"
         >

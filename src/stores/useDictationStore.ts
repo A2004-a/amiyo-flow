@@ -249,9 +249,15 @@ export const useDictationStore = create<DictationStore>((set, get) => ({
         unlistenAudio: unlisten,
       });
     } catch (err: unknown) {
+      const { timerInterval, unlistenAudio } = get();
+      if (timerInterval) clearInterval(timerInterval);
+      if (unlistenAudio) unlistenAudio();
       set({
         state: 'failed',
         errorMessage: err instanceof Error ? err.message : String(err),
+        timerInterval: null,
+        unlistenAudio: null,
+        audioLevel: 0,
       });
       scheduleAutoReset(2500);
     }
@@ -295,9 +301,15 @@ export const useDictationStore = create<DictationStore>((set, get) => ({
         scheduleAutoReset(2500);
       }
     } catch (err: unknown) {
+      const { timerInterval, unlistenAudio } = get();
+      if (timerInterval) clearInterval(timerInterval);
+      if (unlistenAudio) unlistenAudio();
       set({
         state: 'failed',
         errorMessage: err instanceof Error ? err.message : String(err),
+        timerInterval: null,
+        unlistenAudio: null,
+        audioLevel: 0,
       });
       scheduleAutoReset(2500);
     }

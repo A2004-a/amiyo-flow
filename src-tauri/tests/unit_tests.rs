@@ -285,3 +285,37 @@ fn test_cloud_providers_catalog() {
     assert!(ids.contains(&"fireworks"));
     assert!(ids.contains(&"custom"));
 }
+
+#[test]
+fn test_writing_styles_transformation() {
+    use amiyo_flow_lib::ai::apply_style_formatting;
+
+    let text = "define function arrow function curly brace return true semicolon close curly brace";
+    let dev = apply_style_formatting(text, "Developer", "");
+    assert!(dev.contains("=>"));
+    assert!(dev.contains('{'));
+    assert!(dev.contains(';'));
+    assert!(dev.contains('}'));
+
+    let casual = apply_style_formatting("See you later.", "Casual", "");
+    assert_eq!(casual, "See you later");
+
+    let prompt = apply_style_formatting("Write a rust function", "AI Prompt", "");
+    assert!(prompt.starts_with("Instructions: "));
+
+    let raw = apply_style_formatting("Raw text unchanged.", "Raw", "");
+    assert_eq!(raw, "Raw text unchanged.");
+}
+
+#[tokio::test]
+async fn test_meeting_assistant_structured_extraction() {
+    use amiyo_flow_lib::ai::generate_meeting_summary;
+
+    let transcript = "Amiyo suggested we implement on-device whisper transcription. Team agreed to deploy local models by Friday.";
+    let meeting = generate_meeting_summary(transcript).await.expect("Failed to generate meeting");
+
+    assert!(!meeting.summary.is_empty());
+    assert!(!meeting.decisions.is_empty());
+    assert!(!meeting.action_items.is_empty());
+    assert_eq!(meeting.transcript, transcript);
+}

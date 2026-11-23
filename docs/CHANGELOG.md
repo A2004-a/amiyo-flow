@@ -2,6 +2,17 @@
 
 All notable changes to the AMIYO FLOW project are documented in this file in adherence to Semantic Versioning (`MAJOR.MINOR.PATCH`).
 
+## [1.0.1] — 2026-11-23
+
+### Fixed & Enhanced
+- **Titlebar Window Controls (`-`, `[ ]`, `X`)**: Hardened frameless window control buttons with dual-fallback invocation (`getCurrentWebviewWindow` + backend IPC commands), `data-tauri-drag-region="false"`, pointer event propagation stopping, and dynamic `onResized` maximize state synchronization.
+- **Modifier Key Release (`release_all_modifiers()`)**: Implemented native Win32 `KEYEVENTF_KEYUP` dispatch for all modifier keys (`VK_LMENU`, `VK_RMENU`, `VK_LCONTROL`, `VK_RCONTROL`, `VK_LSHIFT`, `VK_RSHIFT`, `VK_LWIN`, `VK_RWIN`) prior to text insertion, completely preventing physically held shortcuts from corrupting paste into `Alt+Ctrl+V` in Claude, Antigravity, and Chrome.
+- **Dynamic Hotkey Re-Registration**: Enhanced `save_settings` command to dynamically unregister existing shortcuts and bind new shortcuts on the fly via `tauri-plugin-global-shortcut` without requiring an application restart.
+- **Pill Widget Move & Remove Features**: Added native OS window drag handle (`GripVertical` with `startDragging()`), persistent `✕` close button in all states, <kbd>Escape</kbd> keyboard dismissal, and centering commands.
+- **Runaway Timer & Error Recovery**: Fixed timer runaway issue (`134:37.4`) by guaranteeing timer cancellation in all error catch blocks, emitting `amiyo-dictation-failed` on speech recognition errors, and auto-resetting failed states.
+- **Developer Style Token Ordering**: Reordered composite token substitution (`close curly brace`, `open curly brace`) to resolve before atomic tokens, ensuring flawless coding syntax translation.
+- **Comprehensive Self-Test Suite**: Expanded test coverage to 42 / 42 passing tests (29 Rust backend tests + 13 frontend tests), achieving 100% green pass rate across all 15 modules.
+
 ## [1.0.0] — 2026-11-23
 
 ### Added

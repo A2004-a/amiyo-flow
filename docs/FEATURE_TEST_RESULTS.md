@@ -19,6 +19,8 @@
 | `test_filler_word_removal` | Phase 5 | Strips conversational fillers ("um", "uh", "you know") without meaning loss | Transformed string matches expected output | **PASSED** |
 | `test_spoken_self_correction` | Phase 5 | Replaces discarded pre-correction clauses ("no wait...", "actually...") | "deploy Friday no wait Monday" $\rightarrow$ "Deploy on Monday." | **PASSED** |
 | `test_accidental_duplicate_removal` | Phase 5 | Deduplicates immediate word echoes ("the the" $\rightarrow$ "the") | Clean single token emitted | **PASSED** |
+| `test_writing_styles_transformation` | Phase 5, 9 | Transforms text according to Developer, Casual, AI Prompt, and Raw modes | Developer syntax (`=>`, `{`, `;`, `}`), Casual, Prompt verified | **PASSED** |
+| `test_meeting_assistant_structured_extraction` | Phase 9 | Extracts executive summary, key decisions, and action items from transcripts | MeetingItem summary, decisions, and action items populated | **PASSED** |
 | `test_dictionary_replacement` | Phase 7 | Injects custom casing and technical vocabulary | "amiyo" $\rightarrow$ "Amiyo", "taury" $\rightarrow$ "Tauri" | **PASSED** |
 | `test_snippet_expansion` | Phase 7 | Expands shorthand triggers to multiline strings | ";sig" $\rightarrow$ full multi-line signature | **PASSED** |
 | `test_in_memory_database_crud` | Phase 1, 8 | Performs ACID CRUD on settings, history, dictionary, and snippets | Rusqlite in-memory transactions commit cleanly | **PASSED** |
@@ -38,12 +40,16 @@
 | `retrieves cloud providers catalog and manages keys` | Phase 11 | Tests 10-provider retrieval, setting/testing/deleting keys | Key lifecycle verified with mock fallback | **PASSED** |
 | `manages AI router configuration and modes` | Phase 11 | Tests mode switching between Local, Cloud, and Hybrid | Router config persistence verified | **PASSED** |
 | `records and clears network audit events` | Phase 11 | Tests audit event recording, pagination, and clearing | Real-time event log lifecycle verified | **PASSED** |
+| `handles window titlebar controls without errors` | Phase 1 | Tests minimize, maximize toggle, and close window commands | Window management API resolves without errors | **PASSED** |
+| `handles pill widget controls and positioning` | Phase 1, 9 | Tests show, reset position, and hide pill window commands | Pill HUD positioning and visibility commands succeed | **PASSED** |
+| `cleans up timers and state on reset` | Phase 1, 2 | Verifies timers, intervals, and audio listeners stop on reset | Reset returns state to idle and clears timer intervals | **PASSED** |
 
 ---
 
 ## 3. Test Suite Summary
-- **Rust Backend Tests**: 27 / 27 PASSED (13 in `lib.rs`, 14 in `unit_tests.rs`)
-- **Frontend Vitest Tests**: 10 / 10 PASSED (`src/test/dictation.test.ts`)
+- **Rust Backend Tests**: 29 / 29 PASSED (13 in `lib.rs`, 16 in `unit_tests.rs`)
+- **Frontend Vitest Tests**: 13 / 13 PASSED (`src/test/dictation.test.ts`)
+- **Total Automated Tests**: 42 / 42 PASSED (100% pass rate)
 - **Frontend Production Build**: `npm run build` PASSED (1609 modules, 0 errors)
 - **Overall Quality Gate Status**: **100% GREEN (ALL PASSING)**
 

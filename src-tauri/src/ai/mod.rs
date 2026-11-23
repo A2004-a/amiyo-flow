@@ -440,22 +440,44 @@ pub fn apply_snippets(text: &str, snippets: &[crate::db::SnippetItem]) -> String
 }
 
 /// Applies writing style formatting
-fn apply_style_formatting(text: &str, style: &str, _target_app: &str) -> String {
-    match style.to_lowercase().as_str() {
+pub fn apply_style_formatting(text: &str, style: &str, _target_app: &str) -> String {
+    match style.to_lowercase().replace('-', " ").replace('_', " ").trim() {
         "casual" => {
             text.trim_end_matches('.').to_string()
         }
         "developer" => {
             let mut dev = text.to_string();
-            dev = dev.replace(" curly brace", " {");
             dev = dev.replace(" close curly brace", " }");
+            dev = dev.replace(" open curly brace", " {");
+            dev = dev.replace(" curly brace", " {");
+            dev = dev.replace(" close bracket", " ]");
+            dev = dev.replace(" open bracket", " [");
+            dev = dev.replace(" bracket", " [");
+            dev = dev.replace(" close paren", " )");
+            dev = dev.replace(" open paren", " (");
+            dev = dev.replace(" paren", " (");
             dev = dev.replace(" arrow function", " =>");
             dev = dev.replace(" colon", ":");
             dev = dev.replace(" semicolon", ";");
+            dev = dev.replace(" backtick", "`");
             dev
         }
-        "ai_prompt" => {
+        "ai prompt" => {
             format!("Instructions: {}", text)
+        }
+        "academic" => {
+            let mut s = text.trim().to_string();
+            if !s.is_empty() && !s.ends_with('.') && !s.ends_with('?') && !s.ends_with('!') {
+                s.push('.');
+            }
+            s
+        }
+        "professional" => {
+            let mut s = text.trim().to_string();
+            if !s.is_empty() && !s.ends_with('.') && !s.ends_with('?') && !s.ends_with('!') {
+                s.push('.');
+            }
+            s
         }
         _ => text.to_string(),
     }

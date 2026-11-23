@@ -128,4 +128,26 @@ describe('AMIYO FLOW Frontend Store & Pipeline Tests', () => {
     const cleared = await api.getNetworkAuditEvents();
     expect(cleared.length).toBe(0);
   });
+
+  it('handles window titlebar controls without errors', async () => {
+    await expect(api.windowMinimize()).resolves.toBeUndefined();
+    await expect(api.windowToggleMaximize()).resolves.toBeDefined();
+    await expect(api.windowClose()).resolves.toBeUndefined();
+  });
+
+  it('handles pill widget controls and positioning', async () => {
+    await expect(api.showPillWindow()).resolves.toBeUndefined();
+    await expect(api.resetPillPosition()).resolves.toBeUndefined();
+    await expect(api.hidePillWindow()).resolves.toBeUndefined();
+  });
+
+  it('cleans up timers and state on reset', () => {
+    const store = useDictationStore.getState();
+    store.reset();
+    expect(store.state).toBe('idle');
+    expect(store.durationMs).toBe(0);
+    expect(store.audioLevel).toBe(0);
+    expect(store.timerInterval).toBeNull();
+    expect(store.unlistenAudio).toBeNull();
+  });
 });
