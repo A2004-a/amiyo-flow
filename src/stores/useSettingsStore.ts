@@ -1,0 +1,67 @@
+import { create } from 'zustand';
+import { api } from '../lib/tauri';
+import { AppSettings, AudioDeviceInfo } from '../types';
+
+interface SettingsStore {
+  settings: AppSettings;
+  devices: AudioDeviceInfo[];
+  isLoading: boolean;
+  loadSettings: () => Promise<void>;
+  updateSetting: (key: keyof AppSettings, value: string) => Promise<void>;
+  loadDevices: () => Promise<void>;
+  selectDevice: (name: string) => Promise<void>;
+}
+
+export const useSettingsStore = create<SettingsStore>((set, get) => ({
+  settings: {
+    hotkey: 'Control+Space',
+    hold_to_talk: 'false',
+    style: 'Professional',
+    language: 'auto',
+    stt_provider: 'groq',
+    ai_provider: 'groq',
+    groq_api_key: '',
+    openai_api_key: '',
+    anthropic_api_key: '',
+    gemini_api_key: '',
+    auto_insert: 'true',
+    use_clipboard: 'true',
+    restore_clipboard_delay_ms: '35',
+    audio_retention: '0',
+    theme: 'dark',
+    audio_device: 'default',
+  },
+  devices: [],
+  isLoading: false,
+
+  loadSettings: async () => {
+    set({ isLoading: true });
+    try {
+      const data = await api.getSettings();
+      set({ settings: data, isLoading: false });
+    } catch {
+      set({ isLoading: false });
+    }
+  },
+
+  updateSetting: async (key, value) => {
+    const current = get().settings;
+    const updated = { ...current, [key]: value };
+    set({ settings: updated });
+    await api.saveSettings({ [key]: value });
+  },
+
+  loadDevices: async () => {
+    try {
+      const devs = await api.getAudioDevices();
+      set({ devices: devs });
+    } catch (e) {
+      console.error('Failed to load audio devices', e);
+    }
+  },
+
+  selectDevice: async (name: string) => {
+    await api.setAudioDevice(name === 'default' ? null : name);
+    await get().updateSetting('audio_device', name);
+  },
+}));

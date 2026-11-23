@@ -1,0 +1,355 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ForegroundWindowInfo {
+    pub hwnd: isize,
+    pub title: String,
+    pub process_name: String,
+}
+
+#[cfg(target_os = "windows")]
+pub mod win_impl {
+    use super::ForegroundWindowInfo;
+    use std::ffi::OsString;
+    use std::os::windows::ffi::OsStringExt;
+    use std::thread::sleep;
+    use std::time::Duration;
+    use windows::Win32::Foundation::{HANDLE, HWND};
+    use windows::Win32::System::DataExchange::{
+        CloseClipboard, EmptyClipboard, GetClipboardData, IsClipboardFormatAvailable,
+        OpenClipboard, SetClipboardData,
+    };
+    use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE};
+    use windows::Win32::System::ProcessStatus::GetModuleBaseNameW;
+    use windows::Win32::System::Threading::{
+        AttachThreadInput, GetCurrentThreadId, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP,
+        KEYEVENTF_UNICODE, VIRTUAL_KEY, VK_CONTROL, VK_RETURN,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{
+        BringWindowToTop, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId, IsWindow,
+        SetForegroundWindow,
+    };
+
+    const CF_UNICODETEXT: u32 = 13;
+
+    pub fn get_foreground_window() -> Option<ForegroundWindowInfo> {
+        unsafe {
+            let hwnd = GetForegroundWindow();
+            if hwnd.0 == (0 as _) {
+                return None;
+            }
+
+            // Window title
+            let mut title_buf = [0u16; 512];
+            let len = GetWindowTextW(hwnd, &mut title_buf);
+            let title = if len > 0 {
+                OsString::from_wide(&title_buf[..len as usize])
+                    .to_string_lossy()
+                    .into_owned()
+            } else {
+                "Unknown Window".to_string()
+            };
+
+            // Process name
+            let mut process_id = 0u32;
+            GetWindowThreadProcessId(hwnd, Some(&mut process_id));
+
+            let process_name = if process_id != 0 {
+                if let Ok(process_handle) =
+                    OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, process_id)
+                {
+                    let mut proc_buf = [0u16; 260];
+                    let p_len = GetModuleBaseNameW(process_handle, None, &mut proc_buf);
+                    let _ = windows::Win32::Foundation::CloseHandle(process_handle);
+                    if p_len > 0 {
+                        OsString::from_wide(&proc_buf[..p_len as usize])
+                            .to_string_lossy()
+                            .into_owned()
+                    } else {
+                        "unknown.exe".to_string()
+                    }
+                } else {
+                    "unknown.exe".to_string()
+                }
+            } else {
+                "unknown.exe".to_string()
+            };
+
+            Some(ForegroundWindowInfo {
+                hwnd: hwnd.0 as isize,
+                title,
+                process_name,
+            })
+        }
+    }
+
+    pub fn activate_window(hwnd_val: isize) -> bool {
+        unsafe {
+            let hwnd = HWND(hwnd_val as *mut _);
+            if !IsWindow(hwnd).as_bool() {
+                return false;
+            }
+
+            let foreground_hwnd = GetForegroundWindow();
+            if foreground_hwnd == hwnd {
+                return true;
+            }
+
+            let mut foreground_pid = 0u32;
+            let foreground_thread = GetWindowThreadProcessId(foreground_hwnd, Some(&mut foreground_pid));
+            let current_thread = GetCurrentThreadId();
+
+            let _ = AttachThreadInput(current_thread, foreground_thread, true);
+            let _ = BringWindowToTop(hwnd);
+            let res = SetForegroundWindow(hwnd);
+            let _ = AttachThreadInput(current_thread, foreground_thread, false);
+
+            sleep(Duration::from_millis(30));
+            res.as_bool()
+        }
+    }
+
+    pub fn get_clipboard_text() -> Option<String> {
+        unsafe {
+            if OpenClipboard(HWND(0 as _)).is_err() {
+                return None;
+            }
+
+            let result = if IsClipboardFormatAvailable(CF_UNICODETEXT).is_ok() {
+                let handle = GetClipboardData(CF_UNICODETEXT);
+                if let Ok(h_global) = handle {
+                    let ptr = GlobalLock(windows::Win32::Foundation::HGLOBAL(h_global.0 as _)) as *const u16;
+                    if !ptr.is_null() {
+                        let mut len = 0;
+                        while *ptr.add(len) != 0 {
+                            len += 1;
+                        }
+                        let slice = std::slice::from_raw_parts(ptr, len);
+                        let text = OsString::from_wide(slice).to_string_lossy().into_owned();
+                        let _ = GlobalUnlock(windows::Win32::Foundation::HGLOBAL(h_global.0 as _));
+                        Some(text)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            let _ = CloseClipboard();
+            result
+        }
+    }
+
+    pub fn set_clipboard_text(text: &str) -> bool {
+        unsafe {
+            if OpenClipboard(HWND(0 as _)).is_err() {
+                return false;
+            }
+
+            let _ = EmptyClipboard();
+
+            let wide: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
+            let size = wide.len() * std::mem::size_of::<u16>();
+
+            let h_global = GlobalAlloc(GMEM_MOVEABLE, size);
+
+            if let Ok(handle) = h_global {
+                let ptr = GlobalLock(handle) as *mut u16;
+                if !ptr.is_null() {
+                    std::ptr::copy_nonoverlapping(wide.as_ptr(), ptr, wide.len());
+                    let _ = GlobalUnlock(handle);
+                    let _ = SetClipboardData(
+                        CF_UNICODETEXT,
+                        HANDLE(handle.0 as *mut _),
+                    );
+                }
+            }
+
+            let _ = CloseClipboard();
+            true
+        }
+    }
+
+    pub fn simulate_ctrl_v() {
+        unsafe {
+            let v_key = VIRTUAL_KEY(0x56); // 'V'
+            let ctrl_key = VK_CONTROL;
+
+            let inputs = [
+                INPUT {
+                    r#type: INPUT_KEYBOARD,
+                    Anonymous: INPUT_0 {
+                        ki: KEYBDINPUT {
+                            wVk: ctrl_key,
+                            wScan: 0,
+                            dwFlags: windows::Win32::UI::Input::KeyboardAndMouse::KEYBD_EVENT_FLAGS(0),
+                            time: 0,
+                            dwExtraInfo: 0,
+                        },
+                    },
+                },
+                INPUT {
+                    r#type: INPUT_KEYBOARD,
+                    Anonymous: INPUT_0 {
+                        ki: KEYBDINPUT {
+                            wVk: v_key,
+                            wScan: 0,
+                            dwFlags: windows::Win32::UI::Input::KeyboardAndMouse::KEYBD_EVENT_FLAGS(0),
+                            time: 0,
+                            dwExtraInfo: 0,
+                        },
+                    },
+                },
+                INPUT {
+                    r#type: INPUT_KEYBOARD,
+                    Anonymous: INPUT_0 {
+                        ki: KEYBDINPUT {
+                            wVk: v_key,
+                            wScan: 0,
+                            dwFlags: KEYEVENTF_KEYUP,
+                            time: 0,
+                            dwExtraInfo: 0,
+                        },
+                    },
+                },
+                INPUT {
+                    r#type: INPUT_KEYBOARD,
+                    Anonymous: INPUT_0 {
+                        ki: KEYBDINPUT {
+                            wVk: ctrl_key,
+                            wScan: 0,
+                            dwFlags: KEYEVENTF_KEYUP,
+                            time: 0,
+                            dwExtraInfo: 0,
+                        },
+                    },
+                },
+            ];
+
+            SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
+        }
+    }
+
+    pub fn send_unicode_text(text: &str) {
+        unsafe {
+            let mut inputs = Vec::new();
+            for c in text.chars() {
+                if c == '\n' {
+                    inputs.push(INPUT {
+                        r#type: INPUT_KEYBOARD,
+                        Anonymous: INPUT_0 {
+                            ki: KEYBDINPUT {
+                                wVk: VK_RETURN,
+                                wScan: 0,
+                                dwFlags: windows::Win32::UI::Input::KeyboardAndMouse::KEYBD_EVENT_FLAGS(0),
+                                time: 0,
+                                dwExtraInfo: 0,
+                            },
+                        },
+                    });
+                    inputs.push(INPUT {
+                        r#type: INPUT_KEYBOARD,
+                        Anonymous: INPUT_0 {
+                            ki: KEYBDINPUT {
+                                wVk: VK_RETURN,
+                                wScan: 0,
+                                dwFlags: KEYEVENTF_KEYUP,
+                                time: 0,
+                                dwExtraInfo: 0,
+                            },
+                        },
+                    });
+                    continue;
+                }
+
+                let mut buf = [0u16; 2];
+                let encoded = c.encode_utf16(&mut buf);
+                for &u16_code in encoded.iter() {
+                    inputs.push(INPUT {
+                        r#type: INPUT_KEYBOARD,
+                        Anonymous: INPUT_0 {
+                            ki: KEYBDINPUT {
+                                wVk: VIRTUAL_KEY(0),
+                                wScan: u16_code,
+                                dwFlags: KEYEVENTF_UNICODE,
+                                time: 0,
+                                dwExtraInfo: 0,
+                            },
+                        },
+                    });
+                    inputs.push(INPUT {
+                        r#type: INPUT_KEYBOARD,
+                        Anonymous: INPUT_0 {
+                            ki: KEYBDINPUT {
+                                wVk: VIRTUAL_KEY(0),
+                                wScan: u16_code,
+                                dwFlags: KEYEVENTF_UNICODE | KEYEVENTF_KEYUP,
+                                time: 0,
+                                dwExtraInfo: 0,
+                            },
+                        },
+                    });
+                }
+            }
+
+            if !inputs.is_empty() {
+                SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
+            }
+        }
+    }
+
+    pub fn insert_text(target_hwnd: isize, text: &str, use_clipboard: bool, restore_delay_ms: u64) -> Result<(), String> {
+        if text.is_empty() {
+            return Ok(());
+        }
+
+        if target_hwnd != 0 {
+            activate_window(target_hwnd);
+            sleep(Duration::from_millis(35));
+        }
+
+        if use_clipboard {
+            let old_clipboard = get_clipboard_text();
+            set_clipboard_text(text);
+            sleep(Duration::from_millis(15));
+            simulate_ctrl_v();
+            sleep(Duration::from_millis(restore_delay_ms.max(25)));
+
+            if let Some(ref prev) = old_clipboard {
+                set_clipboard_text(prev);
+            }
+        } else {
+            send_unicode_text(text);
+        }
+
+        Ok(())
+    }
+}
+
+pub fn get_foreground_window() -> Option<ForegroundWindowInfo> {
+    #[cfg(target_os = "windows")]
+    {
+        win_impl::get_foreground_window()
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        None
+    }
+}
+
+pub fn insert_text(target_hwnd: isize, text: &str, use_clipboard: bool, restore_delay_ms: u64) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        win_impl::insert_text(target_hwnd, text, use_clipboard, restore_delay_ms)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("Text insertion currently implemented natively for Windows".to_string())
+    }
+}
