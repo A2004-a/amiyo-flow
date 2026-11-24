@@ -337,4 +337,24 @@ describe('AMIYO FLOW Frontend Store & Pipeline Tests', () => {
     expect(wsContent).toContain('ekta\\s+kotha');
     expect(wsContent).toContain('bolchi');
   });
+
+  it('verifies Image 2 AI agents, DeepSeek, and ChatGPT-like service restoration in WritingStyles', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const wsContent = fs.readFileSync(path.resolve(__dirname, '../pages/WritingStyles.tsx'), 'utf-8');
+
+    // 1. Verify Image 2 homophone patterns
+    expect(wsContent).toContain('head[- ]plot');
+    expect(wsContent).toContain('charging\\s+device');
+    expect(wsContent).toContain('DPC\\s+Kermit');
+    expect(wsContent).toContain('DeepSeek');
+    expect(wsContent).toContain('ChatGPT-like service');
+    expect(wsContent).toContain('AI Agents & DeepSeek (Image 2)');
+
+    // 2. Verify expanded 4 cards descriptions
+    expect(wsContent).toContain('Filters vocal throat clearing');
+    expect(wsContent).toContain('Deduplicates 1-to-5 word phrase loops');
+    expect(wsContent).toContain('Detects spoken backtrack triggers');
+    expect(wsContent).toContain('enforces grammatical articles');
+  });
 });

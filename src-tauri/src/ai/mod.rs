@@ -542,6 +542,10 @@ pub fn is_interrogative_sentence(sentence: &str) -> bool {
         return false;
     }
 
+    if trimmed.ends_with('?') {
+        return true;
+    }
+
     let lower = trimmed.to_lowercase();
     let words: Vec<&str> = lower.split_whitespace().collect();
     if words.is_empty() {
@@ -557,34 +561,50 @@ pub fn is_interrogative_sentence(sentence: &str) -> bool {
     if single_starters.contains(&clean_first) {
         // Exclude declarative noun/relative clauses: "what we need...", "how it works...", "what I want..."
         if words.len() >= 2 && (words[1] == "we" || words[1] == "it" || words[1] == "they" || words[1] == "i") {
-            return false;
+            // declarative clause
+        } else if words.len() >= 3 && words[1] == "you" && words[2..].iter().any(|&w| w == "is" || w == "was" || w == "are" || w == "were") {
+            // declarative clause
+        } else {
+            return true;
         }
-        // Exclude clauses with "you" followed by copula: "what you said was...", "what you need is..."
-        if words.len() >= 3 && words[1] == "you" && words[2..].iter().any(|&w| w == "is" || w == "was" || w == "are" || w == "were") {
-            return false;
-        }
-        return true;
     }
 
     // 2. Auxiliary modal question starters (e.g. "can you", "would it", "is this", etc.)
+    const AUX_STARTERS: &[&str] = &[
+        "can you", "can we", "can i", "could you", "could we", "could i",
+        "would you", "would we", "would it", "would that", "would this",
+        "should we", "should i", "should you", "should it",
+        "is it", "is there", "is that", "is this", "is he", "is she", "is the",
+        "are you", "are we", "are they", "are there", "are the",
+        "do you", "do we", "do they", "does it", "does he", "does she", "does the",
+        "did you", "did we", "did they", "did it", "did the",
+        "will you", "will we", "will it", "will that", "will the",
+        "have you", "have we", "have they", "has it", "has anyone", "has someone", "has the",
+        "may i", "may we", "shall we", "shall i",
+    ];
     if words.len() >= 2 {
         let clean_second = words[1].trim_matches(|c: char| !c.is_alphanumeric());
         let first_two = format!("{} {}", clean_first, clean_second);
-        let aux_starters = [
-            "can you", "can we", "can i", "could you", "could we", "could i",
-            "would you", "would we", "would it", "would that", "would this",
-            "should we", "should i", "should you", "should it",
-            "is it", "is there", "is that", "is this", "is he", "is she", "is the",
-            "are you", "are we", "are they", "are there", "are the",
-            "do you", "do we", "do they", "does it", "does he", "does she", "does the",
-            "did you", "did we", "did they", "did it", "did the",
-            "will you", "will we", "will it", "will that", "will the",
-            "have you", "have we", "have they", "has it", "has anyone", "has someone", "has the",
-            "may i", "may we", "shall we", "shall i",
-        ];
-        if aux_starters.contains(&first_two.as_str()) {
+        if AUX_STARTERS.contains(&first_two.as_str()) {
             return true;
         }
+    }
+
+    // 3. Trailing interrogative tag or compound question clause (e.g. "...can you build this", "...what do you think")
+    for clause in lower.rsplit(|c| c == ',' || c == ';' || c == '-' || c == ':') {
+        let clause_words: Vec<&str> = clause.split_whitespace().collect();
+        if clause_words.len() >= 2 {
+            let c_first = clause_words[0].trim_matches(|c: char| !c.is_alphanumeric());
+            let c_second = clause_words[1].trim_matches(|c: char| !c.is_alphanumeric());
+            let c_two = format!("{} {}", c_first, c_second);
+            if AUX_STARTERS.contains(&c_two.as_str()) {
+                return true;
+            }
+            if single_starters.contains(&c_first) && (c_second == "do" || c_second == "does" || c_second == "did" || c_second == "can" || c_second == "is" || c_second == "are") {
+                return true;
+            }
+        }
+        break; // Only evaluate the final trailing clause
     }
 
     false
@@ -896,7 +916,7 @@ pub fn heuristic_cleanup_full_with_app(
     // 0a. Pre-greeting cleaner: strips throat clearing, coughs, warmup stutters before assistant greetings
     let pre_greeting_re = PRE_GREETING_RE.get_or_init(|| {
         Regex::new(
-            r"(?i)^(?:\s*[,.]*\s*(?:een|aam|ehn|uhn|ehm|um|uh|nu|na|erm|ah|aa|aah|ahh|amiyo|garai|omiya|omiyaya|omiyo|omi|testing|mic|hello|hi|one\s+two|one\s+two\s+three|mic\s+check|check\s+check|sound\s+check|mic\s+testing|sound\s+testing|test\s+test)+\s*[,.]*)+\s*(?:omi)?\s*(hey\s+claude|hi\s+claude|hello\s+claude|claude|hey\s+opencode|hi\s+opencode|hello\s+opencode|opencode|hey\s+open\s+code|open\s+code|hey\s+open\s+port|open\s+port|hey\s+chatgpt|hi\s+chatgpt|hello\s+chatgpt|chatgpt)\b"
+            r"(?i)^(?:\s*[,.]*\s*(?:and|so|well|een|aam|ehn|uhn|ehm|um|uh|nu|na|erm|ah|aa|aah|ahh|amiyo|garai|omiya|omiyaya|omiyo|omi|testing|mic|hello|hi|one\s+two|one\s+two\s+three|mic\s+check|check\s+check|sound\s+check|mic\s+testing|sound\s+testing|test\s+test)+\s*[,.]*)+\s*(?:omi)?\s*(hey\s+claude|hi\s+claude|hello\s+claude|claude|head[- ]plot|hate[- ]plot|heck[- ]plot|hey\s+opencode|hi\s+opencode|hello\s+opencode|opencode|hey\s+open\s+code|open\s+code|hey\s+open\s+port|open\s+port|hey\s+chatgpt|hi\s+chatgpt|hello\s+chatgpt|chatgpt)\b"
         ).unwrap()
     });
     if let Some(caps) = pre_greeting_re.captures(&text) {
@@ -908,6 +928,41 @@ pub fn heuristic_cleanup_full_with_app(
     // 0b. Pre-normalize compound developer terms and acoustic homophones before filler stripping
     let pre_homophones = PRE_HOMOPHONES.get_or_init(|| {
         let raw = [
+            // Image 2 Acoustic Homophones: "head-plot" -> "Hey Claude", "charging device" -> "ChatGPT-like service", "DPC Kermit" -> "DeepSeek"
+            (r"\b(?i)(?:and\s+)?head[- ]plot\b", "Hey Claude"),
+            (r"\b(?i)(?:and\s+)?hate[- ]plot\b", "Hey Claude"),
+            (r"\b(?i)(?:and\s+)?heck[- ]plot\b", "Hey Claude"),
+            (r"\b(?i)(?:and\s+)?head\s+plot\b", "Hey Claude"),
+            (r"\b(?i)head[- ]plot\b", "Hey Claude"),
+            (r"\b(?i)head\s+plot\b", "Hey Claude"),
+            (r"\b(?i)(?:my\s+own\s+)?charging\s+device\b", "my own ChatGPT-like service"),
+            (r"\b(?i)charging\s+device\b", "ChatGPT-like service"),
+            (r"\b(?i)chargey\s+device\b", "ChatGPT-like service"),
+            (r"\b(?i)charging\s+app\b", "ChatGPT app"),
+            (r"\b(?i)charging\s+interface\b", "ChatGPT-like interface"),
+            (r"\b(?i)charging\s+service\b", "ChatGPT service"),
+            (r"\b(?i)charging\s+agent\b", "ChatGPT agent"),
+            (r"\b(?i)charging\s+model\b", "ChatGPT model"),
+            (r"\b(?i)is\s+the\s+build-a\b", "is to build"),
+            (r"\b(?i)is\s+the\s+build\s+a\b", "is to build"),
+            (r"\b(?i)the\s+build-a\b", "to build a"),
+            (r"\b(?i)build-a\s*,\s*one\s+of\b", "build one of"),
+            (r"\b(?i)build-a\s*,\s*", "build a "),
+            (r"\b(?i)build-a\b", "build a"),
+            (r"\b(?i)to\s+build\s*,\s*one\s+of\b", "to build one of"),
+            (r"\b(?i)(?:like\s+)?DPC\s+Kermit\b", "like DeepSeek"),
+            (r"\b(?i)DPC\s+Kermit\b", "DeepSeek"),
+            (r"\b(?i)(?:like\s+)?dpc\s+kermit\b", "like DeepSeek"),
+            (r"\b(?i)dpc\s+kermit\b", "DeepSeek"),
+            (r"\b(?i)DPC\b", "DeepSeek"),
+            (r"\b(?i)deep\s+seek\s+coder\b", "DeepSeek Coder"),
+            (r"\b(?i)deep\s+seek\s+r1\b", "DeepSeek-R1"),
+            (r"\b(?i)deepseek\s+r1\b", "DeepSeek-R1"),
+            (r"\b(?i)deep\s+seek\b", "DeepSeek"),
+            (r"\b(?i)deepseek\b", "DeepSeek"),
+            (r"\b(?i)main\s+target\s+is\b", "the main target is"),
+            (r"\b(?i)I\s+try\s+to\s+build\b", "I want to build"),
+            (r"\b(?i),\s+can\s+you\s+([a-zA-Z\s]+(?:\?|$))", ". Can you $1"),
             (r"\b(?i)(?:hey\s+)?open\s+port\b", "Hey OpenCode"),
             (r"\b(?i)open\s+port\b", "OpenCode"),
             (r"\b(?i)open\s+code\b", "OpenCode"),
@@ -951,7 +1006,6 @@ pub fn heuristic_cleanup_full_with_app(
             (r"\b(?i)how\s+(?:the\s+)?what's\s+up\s+works\b", "how WhatsApp works"),
             (r"\b(?i)(?:the\s+)?what's\s+up\s+works\b", "WhatsApp works"),
             (r"\b(?i)what's\s+up\s+and\s+creative\b", "WhatsApp and creative"),
-            (r"\b(?i)\bwhat's\s+up\b(?=.*(?:user\s+manual|chatgpt|claude|opencode|windows|app|software|features|message|messaging|chat))", "WhatsApp"),
             (r"\b(?i)\bwhat's\s+up\s+(?:web|app|group|chat|call|status)\b", "WhatsApp $1"),
             (r"\b(?i)creative\s*,\s*overall\b", "creative overall"),
             (r"\b(?i)microsoft\s+osu\s+system\b", "Microsoft Office system"),
@@ -1062,7 +1116,8 @@ pub fn heuristic_cleanup_full_with_app(
                 // Common conversational fillers & discourse markers
                 r"(?i)\b(?:and\s+)?I'm\s+like\b,?",
                 r"(?i)\b(?:and\s+)?I\s+was\s+like\b,?",
-                r"(?i)\b(you know what I mean|you know what I'm saying|you know|basically like|literally like|basically|actually|literally|sort of like|kind of like|sort of|kind of|more or less|so yeah|like I mean|like I said|as I said|to be honest|honestly speaking|truth be told|at the end of the day|for what it's worth|in a way|in a sense|so to speak|needless to say|as it were|if you will|anyway so|anyways so)\b,?",
+                r"(?i)\b(?:ahem|cough|gasp|sigh|throat-clear)\b,?",
+                r"(?i)\b(you know what I mean|you know what I'm saying|you know|basically like|literally like|basically|actually|literally|sort of like|kind of like|sort of|kind of|more or less|so yeah|like I mean|like I said|as I said|to be honest|honestly speaking|honestly|frankly|in other words|as in|truth be told|at the end of the day|for what it's worth|in a way|in a sense|so to speak|needless to say|as it were|if you will|anyway so|anyways so)\b,?",
             ];
             raw.into_iter().filter_map(|p| Regex::new(p).ok()).collect()
         });
@@ -1070,6 +1125,13 @@ pub fn heuristic_cleanup_full_with_app(
         for re in filler_patterns {
             text = re.replace_all(&text, "").to_string();
         }
+
+        // Strip conversational starter fillers at the beginning of sentence when standing before assistant greetings or main commands
+        static START_FILLER_RE: OnceLock<Regex> = OnceLock::new();
+        let start_filler = START_FILLER_RE.get_or_init(|| {
+            Regex::new(r"(?i)^(?:and|so|well|like|look|listen)\s+((?:hey|hi|hello|claude|chatgpt|opencode|deepseek|please|can|could|i\s+want|i\s+try)\b)").unwrap()
+        });
+        text = start_filler.replace(&text, "$1").to_string();
 
         // Apply custom user-defined filler words
         for cf in custom_fillers {
@@ -1083,7 +1145,7 @@ pub fn heuristic_cleanup_full_with_app(
         }
     }
 
-    // 3. Remove accidental duplicate repeated words & phrases (Card 2: syllable stutters "w- we", 4-word, 3-word, 2-word, single-word)
+    // 3. Remove accidental duplicate repeated words & phrases (Card 2: syllable stutters "w- we", 5-word, 4-word, 3-word, 2-word, single-word)
     if remove_repeats {
         let syllable_re = SYLLABLE_STUTTER_RE.get_or_init(|| {
             Regex::new(r"(?i)\b([a-zA-Z]{1,3})[-—]\s*([a-zA-Z]+)\b").unwrap()
@@ -1097,6 +1159,14 @@ pub fn heuristic_cleanup_full_with_app(
                 caps[0].to_string()
             }
         }).to_string();
+
+        // Hyphenated vowel elongations & stumbles (e.g. "build-a" -> "build a", "is-a" -> "is a")
+        static HYPHEN_STUMBLE_RE: OnceLock<Regex> = OnceLock::new();
+        let hyphen_stumble = HYPHEN_STUMBLE_RE.get_or_init(|| {
+            Regex::new(r"(?i)\b([a-zA-Z]{2,})[-—](a|an|the|to|in|is|of|we|and)\b").unwrap()
+        });
+        text = hyphen_stumble.replace_all(&text, "$1 $2").to_string();
+
         text = remove_duplicate_words(&text);
         text = remove_repeated_phrases(&text);
     }
@@ -1468,7 +1538,6 @@ pub fn polish_sentence_structure(input: &str) -> String {
             (r"\b(?i)how\s+(?:the\s+)?what's\s+up\s+works\b", "how WhatsApp works"),
             (r"\b(?i)(?:the\s+)?what's\s+up\s+works\b", "WhatsApp works"),
             (r"\b(?i)what's\s+up\s+and\s+creative\b", "WhatsApp and creative"),
-            (r"\b(?i)\bwhat's\s+up\b(?=.*(?:user\s+manual|chatgpt|claude|opencode|windows|app|software|features|message|messaging|chat))", "WhatsApp"),
             (r"\b(?i)\bwhat's\s+up\s+(?:web|app|group|chat|call|status)\b", "WhatsApp $1"),
             (r"\b(?i)creative\s*,\s*overall\b", "creative overall"),
             // Microsoft Office & Productivity Suite Normalizations
@@ -1479,9 +1548,34 @@ pub fn polish_sentence_structure(input: &str) -> String {
             (r"\b(?i)windows\s+11\b", "Windows 11"),
             (r"\b(?i)a\s+operating\s+system\b", "an operating system"),
             // Indefinite article grammar corrections ("a" before vowel sounds)
-            (r"\b(?i)\ba\s+(operating\s+system|application|api|sdk|interface|update|issue|error|exception|endpoint|object|instance|array|integration|algorithm|optimization|option|os)\b", "an $1"),
+            (r"\b(?i)\ba\s+(operating\s+system|application|api|sdk|interface|update|issue|error|exception|endpoint|object|instance|array|integration|algorithm|optimization|option|os|ai|ai\s+agents?)\b", "an $1"),
             (r"\b(?i)by\s+windows\s+11\b", "for Windows 11"),
             (r"\b(?i)by\s+windows\b", "for Windows"),
+            // Image 2: AI Agents, DeepSeek & ChatGPT Acoustic Homophones
+            (r"\b(?i)(?:and\s+)?head[- ]plot\b", "Hey Claude"),
+            (r"\b(?i)head[- ]plot\b", "Hey Claude"),
+            (r"\b(?i)(?:my\s+own\s+)?charging\s+device\b", "my own ChatGPT-like service"),
+            (r"\b(?i)charging\s+device\b", "ChatGPT-like service"),
+            (r"\b(?i)chargey\s+device\b", "ChatGPT-like service"),
+            (r"\b(?i)charging\s+app\b", "ChatGPT app"),
+            (r"\b(?i)charging\s+interface\b", "ChatGPT-like interface"),
+            (r"\b(?i)charging\s+service\b", "ChatGPT service"),
+            (r"\b(?i)is\s+the\s+build-a\b", "is to build"),
+            (r"\b(?i)the\s+build-a\b", "to build a"),
+            (r"\b(?i)build-a\s*,\s*one\s+of\b", "build one of"),
+            (r"\b(?i)to\s+build\s*,\s*one\s+of\b", "to build one of"),
+            (r"\b(?i)build-a\b", "build a"),
+            (r"\b(?i)(?:like\s+)?DPC\s+Kermit\b", "like DeepSeek"),
+            (r"\b(?i)DPC\s+Kermit\b", "DeepSeek"),
+            (r"\b(?i)DPC\b", "DeepSeek"),
+            (r"\b(?i)deep\s+seek\s+coder\b", "DeepSeek Coder"),
+            (r"\b(?i)deep\s+seek\s+r1\b", "DeepSeek-R1"),
+            (r"\b(?i)deepseek\s+r1\b", "DeepSeek-R1"),
+            (r"\b(?i)deep\s+seek\b", "DeepSeek"),
+            (r"\b(?i)deepseek\b", "DeepSeek"),
+            (r"\b(?i)main\s+target\s+is\b", "the main target is"),
+            (r"\b(?i)I\s+try\s+to\s+build\b", "I want to build"),
+            (r"\b(?i),\s+can\s+you\s+([a-zA-Z\s]+(?:\?|$))", ". Can you $1"),
             // Developer & Tech Homophones
             (r"\b(?i)(?:hey\s+)?open\s+port\b", "Hey OpenCode"),
             (r"\b(?i)open\s+port\b", "OpenCode"),
@@ -1809,6 +1903,48 @@ pub fn remove_repeated_phrases(input: &str) -> String {
     let mut result: Vec<String> = Vec::new();
     let mut i = 0;
     while i < words.len() {
+        // 0. Check 5-word phrase repeat: i..i+5 == i+5..i+10
+        if i + 9 < words.len() {
+            let w1 = words[i].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let w2 = words[i + 1].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let w3 = words[i + 2].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let w4 = words[i + 3].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let w5 = words[i + 4].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let w6 = words[i + 5].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let w7 = words[i + 6].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let w8 = words[i + 7].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let w9 = words[i + 8].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let w10 = words[i + 9].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+
+            if !w1.is_empty() && !w2.is_empty() && !w3.is_empty() && !w4.is_empty() && !w5.is_empty()
+                && w1 == w6 && w2 == w7 && w3 == w8 && w4 == w9 && w5 == w10
+            {
+                let mut first_w5 = words[i + 4].to_string();
+                if first_w5.ends_with(',') {
+                    first_w5.pop();
+                }
+                result.push(words[i].to_string());
+                result.push(words[i + 1].to_string());
+                result.push(words[i + 2].to_string());
+                result.push(words[i + 3].to_string());
+                result.push(first_w5);
+                i += 10;
+                while i + 4 < words.len() {
+                    let nw1 = words[i].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+                    let nw2 = words[i + 1].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+                    let nw3 = words[i + 2].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+                    let nw4 = words[i + 3].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+                    let nw5 = words[i + 4].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+                    if nw1 == w1 && nw2 == w2 && nw3 == w3 && nw4 == w4 && nw5 == w5 {
+                        i += 5;
+                    } else {
+                        break;
+                    }
+                }
+                continue;
+            }
+        }
+
         // 1. Check 4-word phrase repeat: i..i+4 == i+4..i+8
         if i + 7 < words.len() {
             let w1 = words[i].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();

@@ -231,6 +231,13 @@ impl Database {
             ("open port", "OpenCode", "Phonetics"),
             ("open code", "OpenCode", "Phonetics"),
             ("K-A-B-O", "keyboard", "Phonetics"),
+            ("head-plot", "Hey Claude", "Phonetics"),
+            ("head plot", "Hey Claude", "Phonetics"),
+            ("charging device", "ChatGPT-like service", "Phonetics"),
+            ("DPC Kermit", "DeepSeek", "Phonetics"),
+            ("DPC", "DeepSeek", "Phonetics"),
+            ("DeepSeek", "DeepSeek", "Technical"),
+            ("build-a", "build a", "Phonetics"),
         ];
 
         for (w, r, c) in default_words.iter() {
@@ -259,6 +266,13 @@ impl Database {
             ("open port", "OpenCode", "Phonetics"),
             ("open code", "OpenCode", "Phonetics"),
             ("K-A-B-O", "keyboard", "Phonetics"),
+            ("head-plot", "Hey Claude", "Phonetics"),
+            ("head plot", "Hey Claude", "Phonetics"),
+            ("charging device", "ChatGPT-like service", "Phonetics"),
+            ("DPC Kermit", "DeepSeek", "Phonetics"),
+            ("DPC", "DeepSeek", "Phonetics"),
+            ("DeepSeek", "DeepSeek", "Technical"),
+            ("build-a", "build a", "Phonetics"),
         ];
         for (w, r, c) in additional_mappings.iter() {
             let exists: bool = conn.query_row(

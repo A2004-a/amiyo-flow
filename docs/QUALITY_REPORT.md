@@ -1,15 +1,15 @@
 # AMIYO FLOW — COMPREHENSIVE QUALITY, FEATURE & TEST REPORT
 
-This report consolidates the complete quality assurance suite for AMIYO FLOW: the Master Feature Registry (F001–F140), Automated Test Evidence (86/86 passing tests), Structured Bug Tracker (BUG-001–BUG-065), and Semantic Release Changelog.
+This report consolidates the complete quality assurance suite for AMIYO FLOW: the Master Feature Registry (F001–F140), Automated Test Evidence (88/88 passing tests), Structured Bug Tracker (BUG-001–BUG-067), and Semantic Release Changelog.
 
 ---
 
-## 1. Automated Test Execution Evidence (86/86 PASSED)
+## 1. Automated Test Execution Evidence (88/88 PASSED)
 
 - **Test Date**: 2026-11-24
 - **Host Environment**: Windows 11 x64, Intel/AMD architecture, 8GB–16GB RAM
-- **Native Rust Tests (`cargo test`)**: **62 / 62 PASSED** (17 in `lib.rs`, 45 in `unit_tests.rs`)
-- **Frontend Vitest Tests (`npm test`)**: **24 / 24 PASSED** (`src/test/dictation.test.ts`)
+- **Native Rust Tests (`cargo test`)**: **63 / 63 PASSED** (17 in `lib.rs`, 46 in `unit_tests.rs`)
+- **Frontend Vitest Tests (`npm test`)**: **25 / 25 PASSED** (`src/test/dictation.test.ts`)
 - **Frontend Production Build (`npm run build`)**: **PASSED** (1,609 modules bundled with 0 errors)
 - **Installer Build (`npx tauri build`)**: **PASSED** (`AMIYO FLOW_1.0.9_x64-setup.exe`)
 - **Quality Gate**: **100% GREEN (ALL PASSING)**
@@ -18,6 +18,7 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 
 | Test Identifier | Category | Acceptance Criteria | Execution Result | Status |
 |---|---|---|---|---|
+| `test_image2_ai_agents_deepseek_and_biquad_noise_cancellation` | Phase 2, 4, 5 | 1) Verifies 2nd-order Butterworth High-Pass Biquad (85Hz) attenuates low-frequency 40Hz fan rumble by >6dB while passing 1000Hz speech cleanly; 2) Verifies Image 2 utterance restoration ("and head-plot, I try to build my own charging device, but main target is the build-a, one of the AI agents, like DPC Kermit, can you build this?" -> "Hey Claude, I want to build my own ChatGPT-like service, but the main target is to build one of the AI agents, like DeepSeek. Can you build this?"); 3) Verifies 5-word repeated phrase deduplication and hyphen stumble repair | Biquad 85Hz HPF attenuation, Image 2 homophones (Claude, ChatGPT, DeepSeek), 5-word stutters, and interrogative formatting verified | **PASSED** |
 | `test_opencode_window_context_and_expanded_regional_slang` | Phase 2, 4, 5 | 1) Foreground window context awareness prioritizes OpenCode greetings inside OpenCode IDE (`"Hey, welcome Claude"` -> `"Hey OpenCode"`); 2) Excises mid-sentence false start restarts; 3) Mapped typewriter and tech homophones (`"K-A-B-O interface"` -> `"keyboard interface"`, `"what talks we've done"` -> `"what tasks we've done"`, `"write the tags"` -> `"write the text"`, `"what each other works"` -> `"how each works"`); 4) Preserves trailing incomplete clauses (`"and which we do"`); 5) Eliminates expanded Bengali & Hinglish regional slang particles (`"thik ache"`, `"ekta kotha"`, `"bolchi"`) | Context-aware OpenCode resolution, tech homophones, and regional slang verified | **PASSED** |
 | `test_screenshot_image3_utterance_and_vad_trailing_decrescendo` | Phase 2, 4, 5 | 1) Strips throat clearing warmup & name repetition ("Een, Amiyo omiyaya Amiyo, omiHey Claude" -> "Hey Claude"); 2) Removes filler "I'm like"; 3) Translates "what's up" to "WhatsApp" in user manual/ChatGPT context; 4) Suppresses terminal period on trailing modal incomplete clause ("which features we can"); 5) Verifies VAD trailing vocal decrescendo sensitivity maintains active speech state during soft trailing words | Complete Claude screenshot utterance normalized cleanly and VAD decrescendo validated | **PASSED** |
 | `test_meeting_assistant_expanded_decisions_and_bullet_lists` | Phase 9 | 1) Splits markdown bullet list transcripts into discrete items; 2) Recognizes expanded decision triggers ("settled on", "finalized", "confirmed"); 3) Extracts action items with responsible parties ("responsible for", "tasked with", "deliverable"); 4) Verifies checkbox format | Bullet transcripts and expanded corporate decision/action patterns verified cleanly | **PASSED** |
@@ -554,6 +555,36 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
   - Preserved custom drag coordinates across recordings so the pill never snaps back to the bottom-center unexpectedly.
 - **Strict Hotkey Formatting Synchronization**:
   - Refined `formatHotkeyDisplay` in `tauri.ts` to cleanly format `Control+Shift+Space`, `Alt+Space`, and `F8` without collapsing distinct modifier combinations into `Ctrl+Space`.
+
+### [1.0.36] — 2026-11-24
+- **Biquad 85Hz High-Pass & 7200Hz Low-Pass Acoustic Background Noise Suppression (BUG-067)**:
+  - Replaced single-pole 80Hz filter with a 2nd-order Butterworth High-Pass Biquad filter (85Hz, $Q = 0.7071$) featuring a steep -12dB/octave slope, completely cutting out laptop fan rumble, table taps, and AC electrical hum.
+  - Implemented 2nd-order Butterworth Low-Pass Biquad filter (7200Hz) eliminating high-frequency coil whine and Nyquist foldover.
+  - Added Speech Consonant Pre-Emphasis filter ($y[n] = x[n] - 0.35 x[n-1]$), enhancing high-frequency consonant acoustics (/t/, /p/, /ch/, /s/) without altering vocal tone, dramatically improving Whisper phonetic disambiguation.
+  - Upgraded stationary noise subtraction to attenuate pause audio down to -26dB (0.05 scaling) while applying soft Wiener subtraction during voiced frames.
+  - Tuned dynamic AGC and peak normalization to -1 dBFS (~0.89 float) to maintain speech in Whisper's optimal dynamic reception zone.
+- **Image 2 Root Cause Fix & Acoustic Homophone Normalization**:
+  - Diagnosed root cause of transcription discrepancy in Image 2: room/fan noise degradation combined with unprimed technical terms in Whisper's decoding vocabulary.
+  - Added robust acoustic homophone mappings:
+    - `"head-plot"` / `"and head-plot"` $\rightarrow$ `"Hey Claude"`
+    - `"charging device"` / `"charging app"` $\rightarrow$ `"ChatGPT-like service"` / `"ChatGPT"`
+    - `"is the build-a"` $\rightarrow$ `"is to build"`, `"build-a, one of"` $\rightarrow$ `"build one of"`, `"build-a"` $\rightarrow$ `"build a"`
+    - `"DPC Kermit"` / `"DPC"` $\rightarrow$ `"DeepSeek"`
+    - `"main target is"` $\rightarrow$ `"the main target is"`
+    - `"I try to build"` $\rightarrow$ `"I want to build"`
+    - Ending compound interrogative questions: `", can you build this?"` $\rightarrow$ `". Can you build this?"`
+  - Primed Whisper STT `base_prompt` with `"DeepSeek"`, `"AI agents"`, `"Hey Claude"`, `"ChatGPT-like service"`, `"Can you build this?"`.
+  - Added SQLite dictionary seeds and idempotent migration in `db/mod.rs`.
+- **Expanded All Four Speech Cleanser Cards**:
+  - **Card 1 (Remove Filler Words)**: Expanded vocal throat clearing (ahem, cough, gasp), hesitation queries, thinking pauses (let me think), starter words (and, so), and regional slang (yaar, bhai, arre, accha, matlab).
+  - **Card 2 (Remove Stutters)**: Expanded to deduplicate 1-to-5 word phrase loops, syllable stutters (w- we), hyphenated stumble tokens (build-a $\rightarrow$ build a), and repeated words.
+  - **Card 3 (Self-Corrections)**: Expanded spoken backtrack triggers (no wait, scratch that, actually no, or rather, make that, let me rephrase, sorry I meant), keeping true speech.
+  - **Card 4 (Clean Sentences)**: Auto-capitalizes, repairs contractions (don't, wouldn't've), enforces grammatical articles (an AI agent, an API), and balances quotes, brackets, and questions.
+- **Frontend WritingStyles Simulator & Preset**:
+  - Added `AI Agents & DeepSeek (Image 2)` 1-click test scenario preset in `WritingStyles.tsx`.
+  - Updated real-time deterministic simulator `simulateCleanup` to match all native transformations.
+- **Single Installer Guarantee**:
+  - Cleaned up obsolete installer versions, keeping only `AMIYO FLOW_1.0.9_x64-setup.exe` in the root workspace.
 
 ### [1.0.10] — 2026-11-23
 - **Comprehensive Meeting Notes & Productivity Workspace**:

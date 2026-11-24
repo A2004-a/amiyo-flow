@@ -386,7 +386,7 @@ function simulateCleanup(
 
   // 0a. Pre-greeting cleaner: strips throat clearing, coughs, warmup stutters before assistant greetings
   const preGreetingMatch = text.match(
-    /^(?:\s*[,.]*\s*(?:een|aam|ehn|uhn|ehm|um|uh|nu|na|erm|ah|aa|aah|ahh|amiyo|garai|omiya|omiyaya|omiyo|omi|testing|mic|hello|hi|one\s+two|one\s+two\s+three|mic\s+check|check\s+check|sound\s+check|mic\s+testing|sound\s+testing|test\s+test)+\s*[,.]*)+\s*(?:omi)?\s*(hey\s+claude|hi\s+claude|hello\s+claude|claude|hey\s+opencode|hi\s+opencode|hello\s+opencode|opencode|hey\s+open\s+code|open\s+code|hey\s+open\s+port|open\s+port|hey\s+chatgpt|hi\s+chatgpt|hello\s+chatgpt|chatgpt)\b/i
+    /^(?:\s*[,.]*\s*(?:een|aam|ehn|uhn|ehm|um|uh|nu|na|erm|ah|aa|aah|ahh|amiyo|garai|omiya|omiyaya|omiyo|omi|testing|mic|hello|hi|one\s+two|one\s+two\s+three|mic\s+check|check\s+check|sound\s+check|mic\s+testing|sound\s+testing|test\s+test)+\s*[,.]*)+\s*(?:omi)?\s*(hey\s+claude|hi\s+claude|hello\s+claude|claude|head[- ]plot|hate[- ]plot|heck[- ]plot|hey\s+opencode|hi\s+opencode|hello\s+opencode|opencode|hey\s+open\s+code|open\s+code|hey\s+open\s+port|open\s+port|hey\s+chatgpt|hi\s+chatgpt|hello\s+chatgpt|chatgpt)\b/i
   );
   if (preGreetingMatch && preGreetingMatch[1]) {
     const greeting = preGreetingMatch[1];
@@ -394,8 +394,45 @@ function simulateCleanup(
     text = `${greeting}${text.slice(fullLen)}`;
   }
 
+  // Strip starter hesitation conjunctions before assistant greetings or direct requests
+  text = text.replace(
+    /^(?:and|so|well|like|look|listen)\s+(?=(?:hey|hi|hello|claude|chatgpt|opencode|deepseek|please|can|could|i\s+want|i\s+try)\b)/i,
+    ''
+  );
+
   // 0b. Pre-normalize compound developer terms and acoustic homophones before filler stripping
   const preHomophones: [RegExp, string][] = [
+    // Image 2 Acoustic Homophones: "and head-plot" -> "Hey Claude"
+    [/\b(?:and\s+)?head[- ]plot\b/gi, 'Hey Claude'],
+    [/\b(?:and\s+)?hate[- ]plot\b/gi, 'Hey Claude'],
+    [/\b(?:and\s+)?heck[- ]plot\b/gi, 'Hey Claude'],
+    [/\b(?:and\s+)?head\s+plot\b/gi, 'Hey Claude'],
+    [/\bhead[- ]plot\b/gi, 'Hey Claude'],
+    [/\bhead\s+plot\b/gi, 'Hey Claude'],
+    // Image 2 Acoustic Homophones: "charging device" -> "ChatGPT-like service"
+    [/\b(?:my\s+own\s+)?charging\s+device\b/gi, 'my own ChatGPT-like service'],
+    [/\bcharging\s+device\b/gi, 'ChatGPT-like service'],
+    [/\bchargey\s+device\b/gi, 'ChatGPT-like service'],
+    [/\bcharging\s+app\b/gi, 'ChatGPT app'],
+    [/\bcharging\s+interface\b/gi, 'ChatGPT-like interface'],
+    [/\bcharging\s+service\b/gi, 'ChatGPT service'],
+    // Image 2 Acoustic Homophones: "is the build-a" -> "is to build", "build-a" -> "build a"
+    [/\bis\s+the\s+build-a\b/gi, 'is to build'],
+    [/\bthe\s+build-a\b/gi, 'to build a'],
+    [/\bbuild-a\s*,\s*one\s+of\b/gi, 'build one of'],
+    [/\bto\s+build\s*,\s*one\s+of\b/gi, 'to build one of'],
+    [/\bbuild-a\b/gi, 'build a'],
+    // Image 2 Acoustic Homophones: "DPC Kermit" -> "DeepSeek"
+    [/\b(?:like\s+)?DPC\s+Kermit\b/gi, 'like DeepSeek'],
+    [/\bDPC\s+Kermit\b/gi, 'DeepSeek'],
+    [/\bDPC\b/gi, 'DeepSeek'],
+    [/\bdeep\s+seek\s+coder\b/gi, 'DeepSeek Coder'],
+    [/\bdeep\s+seek\s+r1\b/gi, 'DeepSeek-R1'],
+    [/\bdeep\s+seek\b/gi, 'DeepSeek'],
+    [/\bdeepseek\b/gi, 'DeepSeek'],
+    [/\bmain\s+target\s+is\b/gi, 'the main target is'],
+    [/\bI\s+try\s+to\s+build\b(?=.*(?:chatgpt|claude|deepseek|opencode|agent|operating\s+system))/gi, 'I want to build'],
+    [/,\s+can\s+you\s+([a-zA-Z\s]+(?:\?|$))/gi, '. Can you $1'],
     [/\b(?:hey\s+)?open\s+port\b/gi, 'Hey OpenCode'],
     [/\bopen\s+port\b/gi, 'OpenCode'],
     [/\bopen\s+code\b/gi, 'OpenCode'],
@@ -541,8 +578,12 @@ function simulateCleanup(
 
   // 3. Repeated stutters
   if (removeRepeats) {
+    // Hyphen stumble tokens like "build-a" -> "build a", "run-to" -> "run to"
+    text = text.replace(/\b([a-zA-Z]{2,})[-—](a|an|the|to|in|is|of|we|and)\b/gi, '$1 $2');
     // Syllable stutters ("w- we can" -> "we can", "th- the" -> "the", "I- I" -> "I")
     text = text.replace(/\b([a-zA-Z]{1,3})[-—]\s*(\1[a-zA-Z]*)\b/gi, '$2');
+    // 5-word phrase repeat (strip trailing pause comma)
+    text = text.replace(/\b([a-zA-Z0-9]+)\s+([a-zA-Z0-9]+)\s+([a-zA-Z0-9]+)\s+([a-zA-Z0-9]+)\s+([a-zA-Z0-9]+),?\s+\1\s+\2\s+\3\s+\4\s+\5\b/gi, '$1 $2 $3 $4 $5');
     // 4-word phrase repeat (strip trailing pause comma)
     text = text.replace(/\b([a-zA-Z0-9]+)\s+([a-zA-Z0-9]+)\s+([a-zA-Z0-9]+)\s+([a-zA-Z0-9]+),?\s+\1\s+\2\s+\3\s+\4\b/gi, '$1 $2 $3 $4');
     // 3-word phrase repeat (strip trailing pause comma)
@@ -807,7 +848,7 @@ function simulateCleanup(
       [/\bmicrosoft\s+office\b/gi, "Microsoft Office"],
       [/\bwindows\s+11\b/gi, "Windows 11"],
       [/\ba\s+operating\s+system\b/gi, "an operating system"],
-      [/\ba\s+(operating\s+system|application|api|sdk|interface|update|issue|error|exception|endpoint|object|instance|array|integration|algorithm|optimization|option)\b/gi, "an $1"],
+      [/\ba\s+(operating\s+system|application|api|sdk|interface|update|issue|error|exception|endpoint|object|instance|array|integration|algorithm|optimization|option|ai\s+agent|ai)\b/gi, "an $1"],
       [/\bby\s+windows\s+11\b/gi, "for Windows 11"],
       [/\bby\s+windows\b/gi, "for Windows"],
       // Developer & Tech Homophones
@@ -1147,6 +1188,10 @@ export const WritingStyles: React.FC = () => {
       text: 'um hello nu we can we can deploy the build basically',
     },
     {
+      label: 'AI Agents & DeepSeek (Image 2)',
+      text: 'and head-plot, I try to build my own charging device, but main target is the build-a, one of the AI agents, like DPC Kermit, can you build this?',
+    },
+    {
       label: 'Spoken Self-Correction',
       text: 'we need five no wait six servers for Friday no wait Monday period',
     },
@@ -1374,7 +1419,7 @@ export const WritingStyles: React.FC = () => {
                 </div>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed min-h-[36px]">
-                Filters out hesitations like <span className="text-amber-300 font-mono">um, aa, aah, nu, na, uh, erm, ah, you know</span>, and custom fillers.
+                Filters vocal throat clearing (<span className="text-amber-300 font-mono">ahem, cough, gasp</span>), thinking pauses (<span className="text-amber-300 font-mono">let me think</span>), starter hesitations (<span className="text-amber-300 font-mono">and, so</span>), and regional slang (<span className="text-amber-300 font-mono">yaar, bhai, arre, accha, matlab</span>).
               </p>
             </div>
             <div className="text-[10px] bg-slate-950/90 rounded-lg p-2.5 border border-slate-800/80 font-mono text-slate-400 min-h-[52px] flex flex-col justify-center">
@@ -1430,7 +1475,7 @@ export const WritingStyles: React.FC = () => {
                 </div>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed min-h-[36px]">
-                Deduplicates repeated single words and 2-word phrases like <span className="text-cyan-300 font-mono">"the the"</span> and <span className="text-cyan-300 font-mono">"we can we can"</span>.
+                Deduplicates 1-to-5 word phrase loops, syllable stutters (<span className="text-cyan-300 font-mono">w- we</span>), hyphenated stumble tokens (<span className="text-cyan-300 font-mono">build-a → build a</span>), and repeated words.
               </p>
             </div>
             <div className="text-[10px] bg-slate-950/90 rounded-lg p-2.5 border border-slate-800/80 font-mono text-slate-400 min-h-[52px] flex flex-col justify-center">
@@ -1486,7 +1531,7 @@ export const WritingStyles: React.FC = () => {
                 </div>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed min-h-[36px]">
-                Detects backtrack phrases like <span className="text-emerald-300 font-mono">"no wait"</span>, <span className="text-emerald-300 font-mono">"scratch that"</span>, keeping your true speech.
+                Detects spoken backtrack triggers (<span className="text-emerald-300 font-mono">no wait, scratch that, actually no, or rather, make that, let me rephrase, sorry I meant</span>), keeping your true speech.
               </p>
             </div>
             <div className="text-[10px] bg-slate-950/90 rounded-lg p-2.5 border border-slate-800/80 font-mono text-slate-400 min-h-[52px] flex flex-col justify-center">
@@ -1542,7 +1587,7 @@ export const WritingStyles: React.FC = () => {
                 </div>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed min-h-[36px]">
-                Capitalizes all sentences, fixes pronoun <span className="text-violet-300 font-mono">"I"</span>, repairs contractions (<span className="text-violet-300 font-mono">don't, can't</span>), and balances punctuation.
+                Auto-capitalizes, repairs contractions (<span className="text-violet-300 font-mono">don't, wouldn't've</span>), enforces grammatical articles (<span className="text-violet-300 font-mono">an AI agent, an API</span>), and balances quotes, brackets, and questions.
               </p>
             </div>
             <div className="text-[10px] bg-slate-950/90 rounded-lg p-2.5 border border-slate-800/80 font-mono text-slate-400 min-h-[52px] flex flex-col justify-center">

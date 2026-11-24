@@ -1441,6 +1441,50 @@ fn test_opencode_window_context_and_expanded_regional_slang() {
     assert!(cleaned_slang.contains("Friday"), "Must preserve content words: got '{}'", cleaned_slang);
 }
 
+#[test]
+fn test_image2_ai_agents_deepseek_and_biquad_noise_cancellation() {
+    use amiyo_flow_lib::ai::heuristic_cleanup;
+    use amiyo_flow_lib::audio::suppress_background_noise_and_filter;
+
+    // 1. Noise Cancellation & Biquad Filtering: verify 40Hz fan rumble is attenuated
+    let sample_rate = 16000;
+    let mut low_freq_samples: Vec<f32> = (0..16000)
+        .map(|i| (2.0 * std::f32::consts::PI * 40.0 * (i as f32) / 16000.0).sin() * 0.5)
+        .collect();
+    let initial_low_rms: f32 = (low_freq_samples.iter().map(|&s| s * s).sum::<f32>() / 16000.0).sqrt();
+
+    suppress_background_noise_and_filter(&mut low_freq_samples, sample_rate);
+    let filtered_low_rms: f32 = (low_freq_samples.iter().map(|&s| s * s).sum::<f32>() / 16000.0).sqrt();
+
+    // 40Hz is well below the 85Hz cutoff (-12dB/octave), so it must be significantly attenuated
+    assert!(
+        filtered_low_rms < initial_low_rms * 0.5,
+        "Low-frequency rumble (40Hz) must be attenuated by >6dB: initial={}, filtered={}",
+        initial_low_rms,
+        filtered_low_rms
+    );
+
+    // 2. Image 2 Acoustic Homophones & Speech Restoration
+    let raw_image2 = "and head-plot, I try to build my own charging device, but main target is the build-a, one of the AI agents, like DPC Kermit, can you build this?";
+    let cleaned = heuristic_cleanup(raw_image2);
+
+    assert!(cleaned.contains("Hey Claude"), "Must map 'head-plot' to 'Hey Claude': got '{}'", cleaned);
+    assert!(!cleaned.to_lowercase().contains("head-plot"), "Must not contain 'head-plot': got '{}'", cleaned);
+    assert!(cleaned.contains("ChatGPT-like service"), "Must map 'charging device' to 'ChatGPT-like service': got '{}'", cleaned);
+    assert!(!cleaned.to_lowercase().contains("charging device"), "Must not contain 'charging device': got '{}'", cleaned);
+    assert!(cleaned.contains("DeepSeek"), "Must map 'DPC Kermit' to 'DeepSeek': got '{}'", cleaned);
+    assert!(!cleaned.to_lowercase().contains("dpc kermit"), "Must not contain 'dpc kermit': got '{}'", cleaned);
+    assert!(!cleaned.contains("build-a"), "Must not contain hyphenated stutter 'build-a': got '{}'", cleaned);
+    assert!(cleaned.contains("the main target is to build one of the AI agents"), "Must properly format 'the main target is to build one of the AI agents': got '{}'", cleaned);
+    assert!(cleaned.ends_with('?'), "Question must end with '?': got '{}'", cleaned);
+    assert!(cleaned.contains(". Can you build this?"), "Interrogative clause must be punctuated cleanly: got '{}'", cleaned);
+
+    // 3. 5-word repeat deduplication & hyphen stumble
+    let repeat_5 = "we need to build the we need to build the production system";
+    let cleaned_5 = heuristic_cleanup(repeat_5);
+    assert_eq!(cleaned_5, "We need to build the production system.");
+}
+
 
 
 
