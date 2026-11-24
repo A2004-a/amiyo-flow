@@ -30,6 +30,7 @@ pub struct VoiceActivityDetector {
     consecutive_silence_ms: u64,
     accumulated_speech_ms: u64,
     has_detected_speech: bool,
+    speech_hangover_remaining_ms: u64,
 }
 
 impl VoiceActivityDetector {
@@ -41,6 +42,7 @@ impl VoiceActivityDetector {
             consecutive_silence_ms: 0,
             accumulated_speech_ms: 0,
             has_detected_speech: false,
+            speech_hangover_remaining_ms: 0,
         }
     }
 
@@ -86,22 +88,37 @@ impl VoiceActivityDetector {
             return (self.has_detected_speech, false);
         }
 
-        let threshold = (self.noise_energy_floor * self.config.energy_threshold_ratio).max(0.001);
-        let is_speech = energy > threshold && (zcr > self.config.zcr_speech_threshold || energy > threshold * 1.8);
+        let threshold = (self.noise_energy_floor * self.config.energy_threshold_ratio).max(0.0008);
+        // Robust voice detection: voiced vowels have low ZCR (0.015 - 0.05) and high energy.
+        // Unvoiced fricatives (s, sh, f) have high ZCR. We accept voice across all vocal registers.
+        let is_speech = energy > threshold && (zcr >= 0.008 || energy > threshold * 1.4);
 
-        let frame_duration_ms = ((samples.len() as f64 / self.config.sample_rate as f64) * 1000.0) as u64;
+        let frame_duration_ms = if self.config.sample_rate > 0 {
+            ((samples.len() as f64 / self.config.sample_rate as f64) * 1000.0).round() as u64
+        } else {
+            30
+        };
+
+        const SPEECH_HANGOVER_MS: u64 = 400; // 400ms speech hangover protects natural inter-word breathing pauses
 
         if is_speech {
             self.accumulated_speech_ms += frame_duration_ms;
-            // Require at least 300ms of sustained/accumulated speech before auto-stop becomes eligible
-            if self.accumulated_speech_ms >= 300 {
+            // Require at least 240ms of accumulated speech before auto-stop becomes eligible
+            if self.accumulated_speech_ms >= 240 {
                 self.has_detected_speech = true;
             }
             self.consecutive_silence_ms = 0;
+            self.speech_hangover_remaining_ms = SPEECH_HANGOVER_MS;
         } else {
-            // Adaptively drift noise floor slowly if silence persists, clamping energy spikes (e.g. keyboard clicks)
-            self.noise_energy_floor = self.noise_energy_floor * 0.95 + energy.min(0.015) * 0.05;
-            self.consecutive_silence_ms += frame_duration_ms;
+            if self.speech_hangover_remaining_ms > 0 {
+                // Within speech hangover window: bridge breathing gap without accumulating silence
+                self.speech_hangover_remaining_ms = self.speech_hangover_remaining_ms.saturating_sub(frame_duration_ms);
+            } else {
+                // Genuine sustained silence beyond hangover: accumulate towards cutoff
+                self.consecutive_silence_ms += frame_duration_ms;
+                // Adaptively drift noise floor slowly if silence persists, clamping energy spikes (e.g. keyboard clicks)
+                self.noise_energy_floor = self.noise_energy_floor * 0.96 + energy.min(0.015) * 0.04;
+            }
         }
 
         let should_auto_stop = self.has_detected_speech
@@ -115,6 +132,7 @@ impl VoiceActivityDetector {
         self.consecutive_silence_ms = 0;
         self.accumulated_speech_ms = 0;
         self.has_detected_speech = false;
+        self.speech_hangover_remaining_ms = 0;
         self.noise_energy_floor = 0.0001;
     }
 }
@@ -161,9 +179,15 @@ mod tests {
             assert!(is_speech, "High-energy alternating wave should be detected as speech");
         }
 
-        // 3. Followed by silence exceeding cutoff
+        // 3. Short pause within hangover (e.g. 5 frames * 30ms = 150ms < 400ms hangover)
+        for _ in 0..5 {
+            let (_, should_stop) = vad.process_frame(&silence_frame);
+            assert!(!should_stop, "Speech hangover should prevent auto-stop during short breathing pause");
+        }
+
+        // 4. Followed by sustained silence exceeding hangover + cutoff (20 frames * 30ms = 600ms > 400ms + 100ms)
         let mut auto_stopped = false;
-        for _ in 0..10 { // 10 * 30ms = 300ms > 100ms cutoff
+        for _ in 0..20 {
             let (_, should_stop) = vad.process_frame(&silence_frame);
             if should_stop {
                 auto_stopped = true;

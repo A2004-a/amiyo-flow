@@ -275,9 +275,9 @@ fn test_voice_activity_detection() {
         assert!(is_speech, "High energy wave should trigger speech classification");
     }
 
-    // Continuous silence leading to auto-stop cutoff
+    // Continuous silence leading to auto-stop cutoff (20 frames * 30ms = 600ms > 400ms hangover + 100ms cutoff)
     let mut stopped = false;
-    for _ in 0..10 {
+    for _ in 0..20 {
         let (_, auto_stop) = vad.process_frame(&silence);
         if auto_stop {
             stopped = true;
@@ -1067,6 +1067,121 @@ fn test_speech_cleanser_image1_features_and_custom_fillers() {
     assert!(no_sentence_clean.contains("it works"));
     assert!(no_sentence_clean.contains("dont worry"));
 }
+
+#[test]
+fn test_vad_48khz_sample_rate_timing_and_hangover() {
+    use amiyo_flow_lib::audio::vad::{VadConfig, VoiceActivityDetector};
+
+    // 48000 Hz configuration
+    let mut vad = VoiceActivityDetector::new(VadConfig {
+        sample_rate: 48000,
+        frame_size_ms: 30,
+        silence_cutoff_ms: 2500,
+        ..Default::default()
+    });
+
+    // 1. Calibrate 10 frames of silence (1440 samples = 30ms at 48kHz)
+    let silence_frame = vec![0i16; 1440];
+    for _ in 0..10 {
+        vad.process_frame(&silence_frame);
+    }
+
+    // 2. Synthesize speech frames at 48kHz (10 frames = 300ms)
+    let mut speech_frame = Vec::with_capacity(1440);
+    for i in 0..1440 {
+        let val = if i % 8 < 4 { 16000i16 } else { -16000i16 };
+        speech_frame.push(val);
+    }
+    for _ in 0..10 {
+        let (is_speech, _) = vad.process_frame(&speech_frame);
+        assert!(is_speech, "Speech frame at 48kHz must be recognized");
+    }
+
+    // 3. Natural inter-word pause of 300ms (10 frames of 30ms)
+    // Must NOT trigger auto-stop due to 400ms speech hangover
+    for _ in 0..10 {
+        let (_, should_stop) = vad.process_frame(&silence_frame);
+        assert!(!should_stop, "Inter-word pause within 400ms hangover must not trigger premature cutoff");
+    }
+
+    // 4. Speech resumes: hangover resets
+    for _ in 0..5 {
+        let (is_speech, _) = vad.process_frame(&speech_frame);
+        assert!(is_speech);
+    }
+
+    // 5. User stops speaking: requires 400ms hangover + 2500ms silence = 2900ms (~97 frames of 30ms)
+    let mut stopped = false;
+    let mut frames_until_stop = 0;
+    for _ in 0..110 {
+        frames_until_stop += 1;
+        let (_, should_stop) = vad.process_frame(&silence_frame);
+        if should_stop {
+            stopped = true;
+            break;
+        }
+    }
+
+    assert!(stopped, "VAD must auto-stop after 2.5s sustained silence");
+    // At 30ms per frame, 2900ms is ~96-98 frames. It must NOT trigger at < 80 frames (which was the premature cutoff bug)!
+    assert!(frames_until_stop >= 83, "Cutoff must not trigger prematurely before full 2.5s pause");
+}
+
+#[test]
+fn test_incomplete_clause_modal_verbs_protection() {
+    use amiyo_flow_lib::ai::{heuristic_cleanup, is_incomplete_sentence};
+
+    // Modal auxiliaries
+    assert!(is_incomplete_sentence("which features we can"));
+    assert!(is_incomplete_sentence("we could"));
+    assert!(is_incomplete_sentence("they will"));
+    assert!(is_incomplete_sentence("we would"));
+    assert!(is_incomplete_sentence("you should"));
+
+    // Auxiliaries & copulas
+    assert!(is_incomplete_sentence("they are"));
+    assert!(is_incomplete_sentence("we were"));
+    assert!(is_incomplete_sentence("it is"));
+    assert!(is_incomplete_sentence("we have"));
+
+    // Intent verbs
+    assert!(is_incomplete_sentence("I want"));
+    assert!(is_incomplete_sentence("we need"));
+    assert!(is_incomplete_sentence("trying"));
+
+    // Ensure no terminal period is appended to incomplete sentences
+    let incomplete = heuristic_cleanup("which features we can");
+    assert!(!incomplete.ends_with('.'), "Incomplete sentence must not have a terminal period appended");
+    assert!(incomplete.contains("Which features we can"));
+}
+
+#[test]
+fn test_screenshot_utterance_claude_whatsapp_and_irritation_cleanup() {
+    use amiyo_flow_lib::ai::heuristic_cleanup;
+
+    // Exact transcribed text from user's Claude screenshot:
+    let raw = "Een, Amiyo omiyaya Amiyo, omiHey Claude, my name is Amiyo Garai and I try to visit ChatGPT, I'm like, what's up and creative, overall, for this user manual and how the what's up works and which features we can";
+
+    let cleaned = heuristic_cleanup(raw);
+
+    // 1. Pre-greeting throat clear & name stutter stripped cleanly
+    assert!(cleaned.starts_with("Hey Claude, my name is Amiyo Garai"), "Should strip 'Een, Amiyo omiyaya Amiyo, omi' before greeting");
+    assert!(!cleaned.contains("Een"));
+    assert!(!cleaned.contains("omiyaya"));
+    assert!(!cleaned.contains("omiHey"));
+
+    // 2. Informal conversational filler "I'm like," removed
+    assert!(!cleaned.contains("I'm like"));
+
+    // 3. WhatsApp acoustic homophones corrected
+    assert!(cleaned.contains("WhatsApp and creative") || cleaned.contains("WhatsApp"), "Should correct 'what's up and creative' to WhatsApp");
+    assert!(cleaned.contains("how WhatsApp works"), "Should correct 'how the what's up works' to 'how WhatsApp works'");
+
+    // 4. Incomplete clause preserved without terminal period
+    assert!(cleaned.ends_with("which features we can"), "Should end cleanly on incomplete verb phrase without terminal period");
+    assert!(!cleaned.ends_with('.'));
+}
+
 
 
 

@@ -91,13 +91,21 @@ function isIncompleteSentence(sentence: string): boolean {
   const incompleteConnectors = [
     'and', 'or', 'but', 'nor', 'yet', 'so',
     'because', 'although', 'though', 'since', 'unless', 'while', 'whereas',
-    'if', 'whether', 'as', 'that', 'after', 'before', 'until', 'till',
+    'if', 'whether', 'as', 'that', 'after', 'before', 'until', 'till', 'whenever', 'wherever',
     'to', 'for', 'with', 'of', 'in', 'on', 'at', 'by', 'from', 'into',
     'about', 'between', 'through', 'without', 'under', 'over', 'around', 'onto',
     'towards', 'toward', 'upon', 'within', 'amid', 'amidst', 'versus', 'vs',
-    'regarding', 'concerning',
+    'regarding', 'concerning', 'via',
     'which', 'where', 'who', 'whom', 'whose', 'what', 'when', 'why', 'how',
-    'like', 'including', 'then', 'also', 'plus', 'such'
+    'this', 'that', 'these', 'those', 'my', 'your', 'his', 'her', 'our', 'their', 'its',
+    'the', 'a', 'an', 'some', 'any', 'every', 'each', 'either', 'neither', 'all', 'both',
+    'more', 'most', 'few', 'fewer', 'many', 'much',
+    'can', 'could', 'will', 'would', 'shall', 'should', 'may', 'might', 'must', 'ought',
+    'is', 'are', 'was', 'were', 'am', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did',
+    'want', 'wants', 'wanted', 'need', 'needs', 'needed', 'try', 'tries', 'tried', 'trying',
+    'going', 'gonna', 'plan', 'planning', 'hope', 'hoping', 'mean', 'meant', 'means',
+    'started', 'starting', 'begin', 'began',
+    'like', 'including', 'then', 'also', 'plus', 'such', 'overall', 'well'
   ];
 
   return incompleteConnectors.includes(lastWord);
@@ -368,6 +376,16 @@ function simulateCleanup(
   // 0. Spoken in-line editing commands ("change Friday to Saturday", "change all 2 to 4")
   text = applySpokenEditCommands(text);
 
+  // 0a. Pre-greeting cleaner: strips throat clearing, coughs, warmup stutters before assistant greetings
+  const preGreetingMatch = text.match(
+    /^(?:\s*[,.]*\s*(?:een|aam|ehn|uhn|ehm|um|uh|nu|na|erm|ah|aa|aah|ahh|amiyo|omiya|omiyaya|omiyo|omi|testing|mic|hello|hi|one\s+two|one\s+two\s+three)+\s*[,.]*)+\s*(?:omi)?\s*(hey\s+claude|hi\s+claude|hello\s+claude|claude|hey\s+chatgpt|hi\s+chatgpt|hello\s+chatgpt|chatgpt)\b/i
+  );
+  if (preGreetingMatch && preGreetingMatch[1]) {
+    const greeting = preGreetingMatch[1];
+    const fullLen = preGreetingMatch[0].length;
+    text = `${greeting}${text.slice(fullLen)}`;
+  }
+
   // 0b. Pre-normalize compound developer terms and acoustic homophones before filler stripping
   const preHomophones: [RegExp, string][] = [
     [/\bdock\s+er\b/gi, 'Docker'],
@@ -386,6 +404,23 @@ function simulateCleanup(
     [/\bpower\s+point\b/gi, 'PowerPoint'],
     [/\b(?:ex\s+cel|ex\s+cell)\b/gi, 'Excel'],
     [/\bout\s+look\b/gi, 'Outlook'],
+    [/\bhow\s+(?:the\s+)?what's\s+up\s+works\b/gi, 'how WhatsApp works'],
+    [/\b(?:the\s+)?what's\s+up\s+works\b/gi, 'WhatsApp works'],
+    [/\bwhat's\s+up\s+and\s+creative\b/gi, 'WhatsApp and creative'],
+    [/\bwhat's\s+up\b(?=.*(?:user\s+manual|chatgpt|claude|windows|app|software|features|message|messaging|chat))/gi, 'WhatsApp'],
+    [/\bwhat's\s+up\s+(?:web|app|group|chat|call|status)\b/gi, 'WhatsApp $1'],
+    [/\bmicrosoft\s+osu\s+system\b/gi, 'Microsoft Office system'],
+    [/\bmicrosoft\s+osu\b/gi, 'Microsoft Office'],
+    [/\bosu\s+system\b/gi, 'Office system'],
+    [/\btake\s+claude\b/gi, 'Hey Claude'],
+    [/\bomi\s*hey\s+claude\b/gi, 'Hey Claude'],
+    [/\bomi\s*claude\b/gi, 'Claude'],
+    [/\blike\s+a\s+mail\s*,\s*like\s+win\b/gi, 'like Mail, like Word'],
+    [/\blike\s+mail\s*,\s*like\s+win\b/gi, 'like Mail, like Word'],
+    [/\blike\s+a\s+mail\s*,\s*like\s+word\b/gi, 'like Mail, like Word'],
+    [/\blike\s+win\s*,\s*what\s+else\s+is\s+there\b/gi, 'like Word, what else is there'],
+    [/\blike\s+win\b(?=.*(?:powerpoint|excel|office|microsoft))/gi, 'like Word'],
+    [/\bby\s+windows\s+11\b/gi, 'for Windows 11'],
   ];
   for (const [re, repl] of preHomophones) {
     text = text.replace(re, repl);
@@ -448,9 +483,12 @@ function simulateCleanup(
     // Regional slang particles
     text = text.replace(/\b(?:bhai|accha|matlab|na\s+re|arrey|arre|yaar|toh)\b,?/gi, '');
     // Hesitation syllables & combined stutter tokens
-    text = text.replace(/\b(?:um\s+aa|aa\s+um|um\s+uh|uh\s+um|er\s+um|um\s+er|aa\s+nu|nu\s+aa)\b,?/gi, '');
+    text = text.replace(/\b(?:um\s+aa|aa\s+um|um\s+uh|uh\s+um|er\s+um|um\s+er|aa\s+nu|nu\s+aa|nu\s+na|na\s+nu|nu\s+nu|na\s+na)\b,?/gi, '');
+    text = text.replace(/\b(?:een|aam|ehm|ehn|uhn|omiyaya)\b,?/gi, '');
     text = text.replace(/\b(um+|uh+|erm+|ah+|aa+|aah+|ahh+|nu+|na+|umm+|uhh+|er+|hmm+|uhm+|em+|ohh+|ooh+|huh+|heh+)\b,?/gi, '');
     // Common conversational fillers
+    text = text.replace(/\b(?:and\s+)?I'm\s+like\b,?/gi, '');
+    text = text.replace(/\b(?:and\s+)?I\s+was\s+like\b,?/gi, '');
     text = text.replace(/\b(you know what I mean|you know what I'm saying|you know|basically|actually|literally|sort of|kind of|so yeah|like I mean|to be honest|honestly speaking)\b,?/gi, '');
     for (const cf of customFillers) {
       const trimmed = cf.trim();
@@ -698,6 +736,14 @@ function simulateCleanup(
       [/\btake\s+claud\b/gi, "Hey Claude"],
       [/\ban\s+i-claudia\b/gi, "in Claude"],
       [/\bi\s+claudia\b/gi, "in Claude"],
+      [/\bomi\s*hey\s+claude\b/gi, "Hey Claude"],
+      [/\bomi\s*claude\b/gi, "Claude"],
+      // WhatsApp acoustic homophones
+      [/\bhow\s+(?:the\s+)?what's\s+up\s+works\b/gi, "how WhatsApp works"],
+      [/\b(?:the\s+)?what's\s+up\s+works\b/gi, "WhatsApp works"],
+      [/\bwhat's\s+up\s+and\s+creative\b/gi, "WhatsApp and creative"],
+      [/\bwhat's\s+up\b(?=.*(?:user\s+manual|chatgpt|claude|windows|app|software|features|message|messaging|chat))/gi, "WhatsApp"],
+      [/\bwhat's\s+up\s+(?:web|app|group|chat|call|status)\b/gi, "WhatsApp $1"],
       // Microsoft Office & Productivity Suite Normalizations
       [/\bmicrosoft\s+osu\s+system\b/gi, "Microsoft Office system"],
       [/\bmicrosoft\s+osu\b/gi, "Microsoft Office"],

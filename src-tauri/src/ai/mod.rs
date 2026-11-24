@@ -613,16 +613,27 @@ pub fn is_incomplete_sentence(sentence: &str) -> bool {
         "and", "or", "but", "nor", "yet", "so",
         // Subordinating conjunctions / causal / conditional
         "because", "although", "though", "since", "unless", "while", "whereas",
-        "if", "whether", "as", "that", "after", "before", "until", "till",
+        "if", "whether", "as", "that", "after", "before", "until", "till", "whenever", "wherever",
         // Prepositions
         "to", "for", "with", "of", "in", "on", "at", "by", "from", "into",
         "about", "between", "through", "without", "under", "over", "around", "onto",
         "towards", "toward", "upon", "within", "amid", "amidst", "versus", "vs",
-        "regarding", "concerning",
-        // Relative pronouns / adverbs
+        "regarding", "concerning", "via",
+        // Relative pronouns / adverbs / determiners
         "which", "where", "who", "whom", "whose", "what", "when", "why", "how",
+        "this", "that", "these", "those", "my", "your", "his", "her", "our", "their", "its",
+        "the", "a", "an", "some", "any", "every", "each", "either", "neither", "all", "both",
+        "more", "most", "few", "fewer", "many", "much",
+        // Modal auxiliary verbs (crucial: protects utterances ending on modal auxiliary like "which features we can")
+        "can", "could", "will", "would", "shall", "should", "may", "might", "must", "ought",
+        // Copulas and auxiliary verbs
+        "is", "are", "was", "were", "am", "be", "been", "being", "have", "has", "had", "do", "does", "did",
+        // Intent, state & progressive verbs
+        "want", "wants", "wanted", "need", "needs", "needed", "try", "tries", "tried", "trying",
+        "going", "gonna", "plan", "planning", "hope", "hoping", "mean", "meant", "means",
+        "started", "starting", "begin", "began",
         // Continuations / particles
-        "like", "including", "then", "also", "plus", "such",
+        "like", "including", "then", "also", "plus", "such", "overall", "well",
     ];
 
     INCOMPLETE_CONNECTORS.contains(&last_word.as_str())
@@ -796,6 +807,16 @@ pub fn heuristic_cleanup_full(
     // 0. Spoken in-line editing commands ("change Friday to Saturday", "change all 2 to 4", "replace X with Y")
     text = apply_spoken_edit_commands(&text);
 
+    // 0a. Pre-greeting cleaner: strips throat clearing, coughs, warmup stutters before assistant greetings
+    let pre_greeting_re = Regex::new(
+        r"(?i)^(?:\s*[,.]*\s*(?:een|aam|ehn|uhn|ehm|um|uh|nu|na|erm|ah|aa|aah|ahh|amiyo|omiya|omiyaya|omiyo|omi|testing|mic|hello|hi|one\s+two|one\s+two\s+three)+\s*[,.]*)+\s*(?:omi)?\s*(hey\s+claude|hi\s+claude|hello\s+claude|claude|hey\s+chatgpt|hi\s+chatgpt|hello\s+chatgpt|chatgpt)\b"
+    ).unwrap();
+    if let Some(caps) = pre_greeting_re.captures(&text) {
+        let greeting = caps.get(1).unwrap().as_str();
+        let full_len = caps.get(0).unwrap().as_str().len();
+        text = format!("{}{}", greeting, &text[full_len..]);
+    }
+
     // 0b. Pre-normalize compound developer terms and acoustic homophones before filler stripping
     let pre_homophones = [
         (r"\b(?i)dock\s+er\b", "Docker"),
@@ -814,6 +835,23 @@ pub fn heuristic_cleanup_full(
         (r"\b(?i)power\s+point\b", "PowerPoint"),
         (r"\b(?i)(?:ex\s+cel|ex\s+cell)\b", "Excel"),
         (r"\b(?i)out\s+look\b", "Outlook"),
+        (r"\b(?i)how\s+(?:the\s+)?what's\s+up\s+works\b", "how WhatsApp works"),
+        (r"\b(?i)(?:the\s+)?what's\s+up\s+works\b", "WhatsApp works"),
+        (r"\b(?i)what's\s+up\s+and\s+creative\b", "WhatsApp and creative"),
+        (r"\b(?i)\bwhat's\s+up\b(?=.*(?:user\s+manual|chatgpt|claude|windows|app|software|features|message|messaging|chat))", "WhatsApp"),
+        (r"\b(?i)\bwhat's\s+up\s+(?:web|app|group|chat|call|status)\b", "WhatsApp $1"),
+        (r"\b(?i)microsoft\s+osu\s+system\b", "Microsoft Office system"),
+        (r"\b(?i)microsoft\s+osu\b", "Microsoft Office"),
+        (r"\b(?i)osu\s+system\b", "Office system"),
+        (r"\b(?i)take\s+claude\b", "Hey Claude"),
+        (r"\b(?i)omi\s*hey\s+claude\b", "Hey Claude"),
+        (r"\b(?i)omi\s*claude\b", "Claude"),
+        (r"\b(?i)like\s+a\s+mail\s*,\s*like\s+win\b", "like Mail, like Word"),
+        (r"\b(?i)like\s+mail\s*,\s*like\s+win\b", "like Mail, like Word"),
+        (r"\b(?i)like\s+a\s+mail\s*,\s*like\s+word\b", "like Mail, like Word"),
+        (r"\b(?i)like\s+win\s*,\s*what\s+else\s+is\s+there\b", "like Word, what else is there"),
+        (r"\b(?i)like\s+win\b(?=.*(?:powerpoint|excel|office|microsoft))", "like Word"),
+        (r"\b(?i)by\s+windows\s+11\b", "for Windows 11"),
     ];
     for (pat, repl) in pre_homophones {
         if let Ok(re) = Regex::new(pat) {
@@ -892,9 +930,12 @@ pub fn heuristic_cleanup_full(
             // Regional slang particles (Hinglish/Bengali/South Asian conversational particles)
             r"(?i)\b(?:bhai|accha|matlab|na\s+re|arrey|arre|yaar|toh)\b,?",
             // Hesitation syllables & combined stutter tokens
-            r"(?i)\b(?:um\s+aa|aa\s+um|um\s+uh|uh\s+um|er\s+um|um\s+er|aa\s+nu|nu\s+aa)\b,?",
+            r"(?i)\b(?:um\s+aa|aa\s+um|um\s+uh|uh\s+um|er\s+um|um\s+er|aa\s+nu|nu\s+aa|nu\s+na|na\s+nu|nu\s+nu|na\s+na)\b,?",
+            r"(?i)\b(?:een|aam|ehm|ehn|uhn|omiyaya)\b,?",
             r"(?i)\b(um+|uh+|erm+|ah+|aa+|aah+|ahh+|nu+|na+|umm+|uhh+|er+|hmm+|uhm+|em+|ohh+|ooh+|huh+|heh+)\b,?",
             // Common conversational fillers
+            r"(?i)\b(?:and\s+)?I'm\s+like\b,?",
+            r"(?i)\b(?:and\s+)?I\s+was\s+like\b,?",
             r"(?i)\b(you know what I mean|you know what I'm saying|you know|basically|actually|literally|sort of|kind of|so yeah|like I mean|to be honest|honestly speaking)\b,?",
         ];
 
@@ -1257,6 +1298,14 @@ pub fn polish_sentence_structure(input: &str) -> String {
         (r"\b(?i)take\s+claud\b", "Hey Claude"),
         (r"\b(?i)an\s+i-claudia\b", "in Claude"),
         (r"\b(?i)i\s+claudia\b", "in Claude"),
+        (r"\b(?i)omi\s*hey\s+claude\b", "Hey Claude"),
+        (r"\b(?i)omi\s*claude\b", "Claude"),
+        // WhatsApp acoustic homophones
+        (r"\b(?i)how\s+(?:the\s+)?what's\s+up\s+works\b", "how WhatsApp works"),
+        (r"\b(?i)(?:the\s+)?what's\s+up\s+works\b", "WhatsApp works"),
+        (r"\b(?i)what's\s+up\s+and\s+creative\b", "WhatsApp and creative"),
+        (r"\b(?i)\bwhat's\s+up\b(?=.*(?:user\s+manual|chatgpt|claude|windows|app|software|features|message|messaging|chat))", "WhatsApp"),
+        (r"\b(?i)\bwhat's\s+up\s+(?:web|app|group|chat|call|status)\b", "WhatsApp $1"),
         // Microsoft Office & Productivity Suite Normalizations
         (r"\b(?i)microsoft\s+osu\s+system\b", "Microsoft Office system"),
         (r"\b(?i)microsoft\s+osu\b", "Microsoft Office"),
