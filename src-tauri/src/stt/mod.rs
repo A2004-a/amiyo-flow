@@ -330,7 +330,7 @@ def transcribe():
     if clean_model.endswith(".bin"):
         clean_model = clean_model[:-4]
 
-    base_prompt = "Amiyo Garai, AMIYO FLOW, Hey Claude, ChatGPT, interface, operating system, Windows, Python, TypeScript, API, REA"
+    base_prompt = "Hello friend, hello friends and ChatGPT. My name is Amiyo Garai, creator of AMIYO FLOW. Hey Claude, I want to build a ChatGPT-like interface. Operating system desktop software on Windows using Python, TypeScript, Rust, and REA API."
     initial_prompt = (base_prompt + ", " + prompt.strip()) if prompt and prompt.strip() else base_prompt
 
     try:
@@ -438,7 +438,7 @@ for line in sys.stdin:
             if lang in ("auto", "", "None"):
                 lang = None
             prompt = req.get("prompt")
-            base_prompt = "Amiyo Garai, AMIYO FLOW, Hey Claude, ChatGPT, interface, operating system, Windows, Python, TypeScript, API, REA"
+            base_prompt = "Hello friend, hello friends and ChatGPT. My name is Amiyo Garai, creator of AMIYO FLOW. Hey Claude, I want to build a ChatGPT-like interface. Operating system desktop software on Windows using Python, TypeScript, Rust, and REA API."
             if prompt and isinstance(prompt, str) and prompt.strip():
                 initial_prompt = base_prompt + ", " + prompt.strip()
             else:

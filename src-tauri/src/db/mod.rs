@@ -196,6 +196,12 @@ impl Database {
         // Seed default dictionary words
         let default_words = [
             ("Amiyo", "Amiyo", "Names"),
+            ("Amiyo Garai", "Amiyo Garai", "Names"),
+            ("ChatGPT", "ChatGPT", "Technical"),
+            ("Zumio Gari", "Amiyo Garai", "Phonetics"),
+            ("Zumio", "Amiyo", "Phonetics"),
+            ("cellocegivity", "and ChatGPT", "Phonetics"),
+            ("cegivity", "ChatGPT", "Phonetics"),
             ("omiya", "Amiyo", "Phonetics"),
             ("omiyo", "Amiyo", "Phonetics"),
             ("amio", "Amiyo", "Phonetics"),

@@ -83,7 +83,7 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 
 ---
 
-## 3. Bug Tracker & Resolution Log (BUG-001–BUG-048)
+## 3. Bug Tracker & Resolution Log (BUG-001–BUG-049)
 
 | Bug ID | Severity | Module | Description | Root Cause | Fix Strategy | Status |
 |--------|----------|--------|-------------|------------|--------------|--------|
@@ -135,10 +135,32 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 | BUG-046 | High | Text Injection | False terminal period appended to incomplete sentences and boundary stutter on dictation continuation | Sentence formatter blindly appended `.` or `?` even on dangling conjunctions ("and", "because", "so", "to", "with"); resuming dictation capitalized mid-sentence continuation and doubled boundary words ("and and") | Implemented `is_incomplete_sentence` suppressing periods on trailing connectors, implemented stateful clause stitcher deduplicating boundary stutters, preserving lowercase continuation words, prepending continuation space, and corrected "where is ends" -> "where it ends" | FIXED |
 | BUG-047 | High | Writing Styles | AI Prompt style prepended intrusive `"Instructions: "` prefix to every dictation | Hardcoded `format!("Instructions: {}", text)` in `apply_style_formatting` forced `"Instructions: "` prefix even when users just wanted clean voice-to-text in LLM chats | Removed `"Instructions: "` prefix in `apply_style_formatting` for AI Prompt mode, preserving clean text trimming | FIXED |
 | BUG-048 | Critical | Speech-to-Text | Faster-whisper dropping mid-sentence words and misrecognizing "ChatGPT" as "chargey video" / "Hey Claude" as "heck lot" | 1) `vad_filter=True` inside Python faster-whisper chopped natural speech during brief conversational pauses; 2) Lack of `initial_prompt` primed acoustic decoder caused common tech/creator terms to degrade phonetically | Set `vad_filter=False` inside faster-whisper daemon/script (native Rust audio engine already manages utterance bounds) cutting latency by ~200ms; wired `initial_prompt` with contextual vocabulary ("Amiyo Garai", "ChatGPT", "Hey Claude", "interface", etc.) and added phonetic acoustic normalizations | FIXED |
+| BUG-049 | High | Speech-to-Text & Polish | Acoustic misrecognition of greetings ("hello friend and chatgpt" -> "Hello, friends, cellocegivity") and creator name ("My name is Amiyo Garai" -> "My name is Zumio Gari") | 1) Whisper initial prompt lacked natural conversational greeting and self-introduction sentence framing; 2) Rapid spoken English / Bengali accent caused "and ChatGPT" to decode as homophone "cellocegivity" and "Amiyo Garai" as "Zumio Gari" | Upgraded Whisper initial prompt to full natural conversational sentence ("Hello friend, hello friends and ChatGPT. My name is Amiyo Garai, creator of AMIYO FLOW..."); mapped acoustic homophones ("cellocegivity", "friends, cellocegivity", "friend and cellocegivity" -> "and ChatGPT" / "friends and ChatGPT"); mapped phonetic creator variants ("Zumio Gari", "Zumio Garai", "Zomio Gari", "Zumiyo", "Zumiya" -> "Amiyo Garai" / "Amiyo"); seeded default dictionary with these pairs | FIXED |
 
 ---
 
 ## 4. Semantic Version Changelog
+
+### [1.0.18] — 2026-11-24
+- **Natural Conversational Greeting & Phonetic Name Auto-Correction (BUG-049)**:
+  - **Full Conversational Whisper Initial Prompt**: Upgraded STT initial prompt in `src-tauri/src/stt/mod.rs` from a keyword list to a complete, realistic conversational sample: `"Hello friend, hello friends and ChatGPT. My name is Amiyo Garai, creator of AMIYO FLOW. Hey Claude, I want to build a ChatGPT-like interface. Operating system desktop software on Windows using Python, TypeScript, Rust, and REA API."` Strongly conditions Whisper attention heads on conversational greetings and creator identity.
+  - **Acoustic Homophone Normalization for "and ChatGPT"**:
+    - `"friends, cellocegivity"` / `"friends and cellocegivity"` $\rightarrow$ `"friends and ChatGPT"`
+    - `"friend, cellocegivity"` / `"friend and cellocegivity"` $\rightarrow$ `"friend and ChatGPT"`
+    - `"and cellocegivity"` / `"cellocegivity"` / `"cello cegivity"` $\rightarrow$ `"and ChatGPT"`
+    - `"cegivity"` $\rightarrow$ `"ChatGPT"`
+    - `"hello friends, chatgpt"` / `"hello friend, chatgpt"` $\rightarrow$ `"Hello friends and ChatGPT"` / `"Hello friend and ChatGPT"`
+    - Acoustic homophones: `"chat gpt"`, `"chat gbt"`, `"chat g p t"`, `"chat jpt"`, `"check gpt"`, `"chot gpt"`, `"chatt gpt"`, `"set gpt"`, `"said gpt"`, `"shatgpt"`, `"c g p t"` $\rightarrow$ `"ChatGPT"`
+  - **Phonetic Creator Name Normalization**:
+    - `"My name is Zumio Gari"` / `"my name is zumio gari"` $\rightarrow$ `"My name is Amiyo Garai"`
+    - `"Zumio Gari"` / `"zumio gari"` / `"zumio garai"` $\rightarrow$ `"Amiyo Garai"`
+    - `"Zomio Gari"` / `"zomio gari"` / `"zomio garai"` $\rightarrow$ `"Amiyo Garai"`
+    - `"Zumiyo Gari"` / `"zumiya gari"` / `"zomiya gari"` $\rightarrow$ `"Amiyo Garai"`
+    - `"Amiyo Gari"` / `"amiya gari"` / `"omiya gari"` / `"omiyo gari"` $\rightarrow$ `"Amiyo Garai"`
+    - Isolated phonetic tokens: `"zumio"`, `"zomio"`, `"zumiyo"`, `"zumiya"`, `"zomiya"`, `"zumeo"`, `"zomeo"` $\rightarrow$ `"Amiyo"`
+  - **SQLite Dictionary Defaults & Frontend Interactive Preset**:
+    - Seeded default dictionary with `"Amiyo Garai"`, `"ChatGPT"`, `"Zumio Gari"`, `"Zumio"`, `"cellocegivity"`, and `"cegivity"`.
+    - Added `"Hello Friend & ChatGPT"` 1-click test scenario preset in `WritingStyles.tsx`.
 
 ### [1.0.17] — 2026-11-24
 - **Context-Primed Speech-to-Text & Mid-Sentence Cutoff Elimination (BUG-047 & BUG-048)**:

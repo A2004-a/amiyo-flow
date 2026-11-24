@@ -759,6 +759,16 @@ fn test_chatgpt_interface_and_claude_phonetic_recognition() {
     let prompt_styled = apply_style_formatting("I want to build a ChatGPT-like interface", "AI Prompt", "");
     assert_eq!(prompt_styled, "I want to build a ChatGPT-like interface");
     assert!(!prompt_styled.contains("Instructions:"));
+
+    // 5. Verify "Hello, friends, cellocegivity. My name is Zumio Gari and what are you doing this time?"
+    let hello_res = heuristic_cleanup("Hello, friends, cellocegivity. My name is Zumio Gari and what are you doing this time?");
+    assert!(hello_res.contains("friends and ChatGPT") || hello_res.contains("friend and ChatGPT"));
+    assert!(hello_res.contains("My name is Amiyo Garai"));
+    assert!(hello_res.contains("what are you doing this time?"));
+
+    // 6. Verify "hello friend and chatgpt" and "cello cegivity"
+    assert!(heuristic_cleanup("hello friend and cellocegivity").contains("friend and ChatGPT"));
+    assert!(heuristic_cleanup("hello friends, chatgpt").contains("Hello friends and ChatGPT"));
 }
 
 
