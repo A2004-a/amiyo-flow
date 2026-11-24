@@ -1,6 +1,6 @@
 [package]
 name = "amiyo-flow"
-version = "1.0.8"
+version = "1.0.9"
 description = "Universal AI Voice Dictation Desktop Application"
 authors = ["Amiyo Garai"]
 edition = "2021"
