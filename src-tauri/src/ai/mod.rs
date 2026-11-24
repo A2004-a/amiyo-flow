@@ -827,6 +827,24 @@ static POLISH_INTRO_TRANSITIONS: OnceLock<Vec<(Regex, &'static str)>> = OnceLock
 static POLISH_SENT_RE: OnceLock<Regex> = OnceLock::new();
 static POLISH_EMAIL_FIX: OnceLock<Regex> = OnceLock::new();
 
+/// Strips mid-sentence abandoned false start greetings and restarts:
+/// e.g. "Hey, welcome Claude, my name is Amiyo Garai, and I try to Hey, I'm Claude, my name is Amiyo Garai..."
+/// -> "Hey, I'm Claude, my name is Amiyo Garai..."
+pub fn strip_mid_sentence_regreeting_restart(input: &str) -> String {
+    static RESTART_RE: OnceLock<Regex> = OnceLock::new();
+    let restart_re = RESTART_RE.get_or_init(|| {
+        Regex::new(
+            r"(?i)^.*?\b(?:and\s+I\s+try\s+to|and\s+I\s+want\s+to|and\s+I|so\s+I|but\s+I|and\s+then|then|wait|no\s+wait)\s+((?:hey|hi|hello|welcome)\b.*)$"
+        ).unwrap()
+    });
+    if let Some(caps) = restart_re.captures(input) {
+        if let Some(restarted) = caps.get(1) {
+            return restarted.as_str().trim().to_string();
+        }
+    }
+    input.to_string()
+}
+
 /// Local Deterministic Heuristic Normalizer with full modular control including smart sentence polishing
 pub fn heuristic_cleanup_full(
     input: &str,
@@ -838,13 +856,16 @@ pub fn heuristic_cleanup_full(
 ) -> String {
     let mut text = input.to_string();
 
+    // -1. Strip mid-sentence false start greeting restarts (e.g. "Hey, welcome Claude... and I try to Hey, I'm Claude...")
+    text = strip_mid_sentence_regreeting_restart(&text);
+
     // 0. Spoken in-line editing commands ("change Friday to Saturday", "change all 2 to 4", "replace X with Y")
     text = apply_spoken_edit_commands(&text);
 
     // 0a. Pre-greeting cleaner: strips throat clearing, coughs, warmup stutters before assistant greetings
     let pre_greeting_re = PRE_GREETING_RE.get_or_init(|| {
         Regex::new(
-            r"(?i)^(?:\s*[,.]*\s*(?:een|aam|ehn|uhn|ehm|um|uh|nu|na|erm|ah|aa|aah|ahh|amiyo|omiya|omiyaya|omiyo|omi|testing|mic|hello|hi|one\s+two|one\s+two\s+three)+\s*[,.]*)+\s*(?:omi)?\s*(hey\s+claude|hi\s+claude|hello\s+claude|claude|hey\s+chatgpt|hi\s+chatgpt|hello\s+chatgpt|chatgpt)\b"
+            r"(?i)^(?:\s*[,.]*\s*(?:een|aam|ehn|uhn|ehm|um|uh|nu|na|erm|ah|aa|aah|ahh|amiyo|omiya|omiyaya|omiyo|omi|testing|mic|hello|hi|one\s+two|one\s+two\s+three)+\s*[,.]*)+\s*(?:omi)?\s*(hey\s+claude|hi\s+claude|hello\s+claude|claude|hey\s+opencode|hi\s+opencode|hello\s+opencode|opencode|hey\s+open\s+code|open\s+code|hey\s+chatgpt|hi\s+chatgpt|hello\s+chatgpt|chatgpt)\b"
         ).unwrap()
     });
     if let Some(caps) = pre_greeting_re.captures(&text) {
@@ -856,6 +877,30 @@ pub fn heuristic_cleanup_full(
     // 0b. Pre-normalize compound developer terms and acoustic homophones before filler stripping
     let pre_homophones = PRE_HOMOPHONES.get_or_init(|| {
         let raw = [
+            (r"\b(?i)(?:hey\s+)?open\s+port\b", "Hey OpenCode"),
+            (r"\b(?i)open\s+port\b", "OpenCode"),
+            (r"\b(?i)open\s+code\b", "OpenCode"),
+            (r"\b(?i)open-code\b", "OpenCode"),
+            (r"\b(?i)(?:hey\s+)?open\s+(?:cord|court|cot|coat|cold|card)\b", "Hey OpenCode"),
+            (r"\b(?i)hey\s*,\s*welcome\s+claude\b", "Hey OpenCode"),
+            (r"\b(?i)welcome\s+claude\b", "OpenCode"),
+            (r"\b(?i)hey\s*,\s*i'm\s+claude\b", "Hey OpenCode"),
+            (r"\b(?i)hey\s+i'm\s+claude\b", "Hey OpenCode"),
+            (r"\b(?i)i'm\s+claude\s*,\s*my\s+name\s+is\b", "Hey OpenCode, my name is"),
+            (r"\b(?i)opencode\b", "OpenCode"),
+            (r"\b(?i)i'm\s+a\s+child\s+of\s+built-in\s+system\b", "I try to build a system"),
+            (r"\b(?i)a\s+child\s+of\s+built-in\s+system\b", "built-in system"),
+            (r"\b(?i)child\s+of\s+built\b", "build"),
+            (r"\b(?i)(?:k-a-b-o|k\s+a\s+b\s+o|kabo|kaybo)\s+interface\b", "keyboard interface"),
+            (r"\b(?i)(?:k-a-b-o|k\s+a\s+b\s+o)\b", "keyboard"),
+            (r"\b(?i)(?:what|which)\s+talks\s+we've\s+done\b", "what tasks we've done"),
+            (r"\b(?i)talks\s+we've\s+done\b", "tasks we've done"),
+            (r"\b(?i)what\s+each\s+other\s+works\b", "how each works"),
+            (r"\b(?i)write\s+the\s+tags\s+and\s+anything\b", "write the text and anything"),
+            (r"\b(?i)write\s+the\s+tags\b", "write the text"),
+            (r"\b(?i)a\s+word-like\s+app\b", "a Word-like app"),
+            (r"\b(?i)word-like\s+app\b", "Word-like app"),
+            (r"\b(?i)word\s+like\s+app\b", "Word-like app"),
             (r"\b(?i)dock\s+er\b", "Docker"),
             (r"\b(?i)(?:next\s+js|nextjs)\b", "Next.js"),
             (r"\b(?i)(?:node\s+js|nodejs)\b", "Node.js"),
@@ -1403,6 +1448,30 @@ pub fn polish_sentence_structure(input: &str) -> String {
             (r"\b(?i)by\s+windows\s+11\b", "for Windows 11"),
             (r"\b(?i)by\s+windows\b", "for Windows"),
             // Developer & Tech Homophones
+            (r"\b(?i)(?:hey\s+)?open\s+port\b", "Hey OpenCode"),
+            (r"\b(?i)open\s+port\b", "OpenCode"),
+            (r"\b(?i)open\s+code\b", "OpenCode"),
+            (r"\b(?i)open-code\b", "OpenCode"),
+            (r"\b(?i)(?:hey\s+)?open\s+(?:cord|court|cot|coat|cold|card)\b", "Hey OpenCode"),
+            (r"\b(?i)hey\s*,\s*welcome\s+claude\b", "Hey OpenCode"),
+            (r"\b(?i)welcome\s+claude\b", "OpenCode"),
+            (r"\b(?i)hey\s*,\s*i'm\s+claude\b", "Hey OpenCode"),
+            (r"\b(?i)hey\s+i'm\s+claude\b", "Hey OpenCode"),
+            (r"\b(?i)i'm\s+claude\s*,\s*my\s+name\s+is\b", "Hey OpenCode, my name is"),
+            (r"\b(?i)opencode\b", "OpenCode"),
+            (r"\b(?i)i'm\s+a\s+child\s+of\s+built-in\s+system\b", "I try to build a system"),
+            (r"\b(?i)a\s+child\s+of\s+built-in\s+system\b", "built-in system"),
+            (r"\b(?i)child\s+of\s+built\b", "build"),
+            (r"\b(?i)(?:k-a-b-o|k\s+a\s+b\s+o|kabo|kaybo)\s+interface\b", "keyboard interface"),
+            (r"\b(?i)(?:k-a-b-o|k\s+a\s+b\s+o)\b", "keyboard"),
+            (r"\b(?i)(?:what|which)\s+talks\s+we've\s+done\b", "what tasks we've done"),
+            (r"\b(?i)talks\s+we've\s+done\b", "tasks we've done"),
+            (r"\b(?i)what\s+each\s+other\s+works\b", "how each works"),
+            (r"\b(?i)write\s+the\s+tags\s+and\s+anything\b", "write the text and anything"),
+            (r"\b(?i)write\s+the\s+tags\b", "write the text"),
+            (r"\b(?i)a\s+word-like\s+app\b", "a Word-like app"),
+            (r"\b(?i)word-like\s+app\b", "Word-like app"),
+            (r"\b(?i)word\s+like\s+app\b", "Word-like app"),
             (r"\b(?i)pool\s+requests?\b", "pull request"),
             (r"\b(?i)front\s+end\b", "frontend"),
             (r"\b(?i)back\s+end\b", "backend"),

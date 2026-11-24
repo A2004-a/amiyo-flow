@@ -533,14 +533,16 @@ pub mod win_impl {
         let old_clipboard = get_clipboard_text();
         let set_ok = set_clipboard_text(text);
         if set_ok {
-            sleep(Duration::from_millis(50));
+            sleep(Duration::from_millis(30));
             simulate_ctrl_v();
-            // Allow target application (Chromium/Electron/Claude) sufficient time to read clipboard before restoring
-            sleep(Duration::from_millis(restore_delay_ms.max(1200)));
-
-            if let Some(ref prev) = old_clipboard {
-                set_clipboard_text(prev);
-            }
+            // Restore clipboard in background thread after target application (Chromium/Electron) reads it
+            let delay = restore_delay_ms.max(800);
+            std::thread::spawn(move || {
+                sleep(Duration::from_millis(delay));
+                if let Some(ref prev) = old_clipboard {
+                    set_clipboard_text(prev);
+                }
+            });
         } else {
             // Seamlessly fall back to direct SendInput Unicode injection
             send_unicode_text(text);

@@ -373,12 +373,20 @@ function simulateCleanup(
     return text;
   }
 
+  // -1. Mid-sentence regreeting restart stripper
+  const restartMatch = text.match(
+    /^.*?\b(?:and\s+I\s+try\s+to|and\s+I\s+want\s+to|and\s+I|so\s+I|but\s+I|and\s+then|then|wait|no\s+wait)\s+((?:hey|hi|hello|welcome)\b.*)$/i
+  );
+  if (restartMatch && restartMatch[1]) {
+    text = restartMatch[1].trim();
+  }
+
   // 0. Spoken in-line editing commands ("change Friday to Saturday", "change all 2 to 4")
   text = applySpokenEditCommands(text);
 
   // 0a. Pre-greeting cleaner: strips throat clearing, coughs, warmup stutters before assistant greetings
   const preGreetingMatch = text.match(
-    /^(?:\s*[,.]*\s*(?:een|aam|ehn|uhn|ehm|um|uh|nu|na|erm|ah|aa|aah|ahh|amiyo|omiya|omiyaya|omiyo|omi|testing|mic|hello|hi|one\s+two|one\s+two\s+three)+\s*[,.]*)+\s*(?:omi)?\s*(hey\s+claude|hi\s+claude|hello\s+claude|claude|hey\s+chatgpt|hi\s+chatgpt|hello\s+chatgpt|chatgpt)\b/i
+    /^(?:\s*[,.]*\s*(?:een|aam|ehn|uhn|ehm|um|uh|nu|na|erm|ah|aa|aah|ahh|amiyo|omiya|omiyaya|omiyo|omi|testing|mic|hello|hi|one\s+two|one\s+two\s+three)+\s*[,.]*)+\s*(?:omi)?\s*(hey\s+claude|hi\s+claude|hello\s+claude|claude|hey\s+opencode|hi\s+opencode|hello\s+opencode|opencode|hey\s+open\s+code|open\s+code|hey\s+chatgpt|hi\s+chatgpt|hello\s+chatgpt|chatgpt)\b/i
   );
   if (preGreetingMatch && preGreetingMatch[1]) {
     const greeting = preGreetingMatch[1];
@@ -388,6 +396,30 @@ function simulateCleanup(
 
   // 0b. Pre-normalize compound developer terms and acoustic homophones before filler stripping
   const preHomophones: [RegExp, string][] = [
+    [/\b(?:hey\s+)?open\s+port\b/gi, 'Hey OpenCode'],
+    [/\bopen\s+port\b/gi, 'OpenCode'],
+    [/\bopen\s+code\b/gi, 'OpenCode'],
+    [/\bopen-code\b/gi, 'OpenCode'],
+    [/\b(?:hey\s+)?open\s+(?:cord|court|cot|coat|cold|card)\b/gi, 'Hey OpenCode'],
+    [/\bhey\s*,\s*welcome\s+claude\b/gi, 'Hey OpenCode'],
+    [/\bwelcome\s+claude\b/gi, 'OpenCode'],
+    [/\bhey\s*,\s*i'm\s+claude\b/gi, 'Hey OpenCode'],
+    [/\bhey\s+i'm\s+claude\b/gi, 'Hey OpenCode'],
+    [/\bi'm\s+claude\s*,\s*my\s+name\s+is\b/gi, 'Hey OpenCode, my name is'],
+    [/\bopencode\b/gi, 'OpenCode'],
+    [/\bi'm\s+a\s+child\s+of\s+built-in\s+system\b/gi, 'I try to build a system'],
+    [/\ba\s+child\s+of\s+built-in\s+system\b/gi, 'built-in system'],
+    [/\bchild\s+of\s+built\b/gi, 'build'],
+    [/\b(?:k-a-b-o|k\s+a\s+b\s+o|kabo|kaybo)\s+interface\b/gi, 'keyboard interface'],
+    [/\b(?:k-a-b-o|k\s+a\s+b\s+o)\b/gi, 'keyboard'],
+    [/\b(?:what|which)\s+talks\s+we've\s+done\b/gi, "what tasks we've done"],
+    [/\btalks\s+we've\s+done\b/gi, "tasks we've done"],
+    [/\bwhat\s+each\s+other\s+works\b/gi, 'how each works'],
+    [/\bwrite\s+the\s+tags\s+and\s+anything\b/gi, 'write the text and anything'],
+    [/\bwrite\s+the\s+tags\b/gi, 'write the text'],
+    [/\ba\s+word-like\s+app\b/gi, 'a Word-like app'],
+    [/\bword-like\s+app\b/gi, 'Word-like app'],
+    [/\bword\s+like\s+app\b/gi, 'Word-like app'],
     [/\bdock\s+er\b/gi, 'Docker'],
     [/\b(?:next\s+js|nextjs)\b/gi, 'Next.js'],
     [/\b(?:node\s+js|nodejs)\b/gi, 'Node.js'],
@@ -1149,6 +1181,10 @@ export const WritingStyles: React.FC = () => {
     {
       label: 'Time, Math & Tech Polish',
       text: 'the meeting with rea team is at five thirty PM to review the api with 2 plus 2 equals 4',
+    },
+    {
+      label: 'OpenCode & Mid-Sentence Restart',
+      text: "Hey open port, my name is Amiyo Garai, and I try to Hey OpenCode, my name is Amiyo Garai, I try to build a system like a typewriter, so K-A-B-O interface, and what talks we've done",
     },
     {
       label: 'Custom Word Cleanser',

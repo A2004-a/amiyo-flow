@@ -296,11 +296,21 @@ async fn finalize_recording_internal(
     let dictionary = state.db.get_dictionary().unwrap_or_default();
     let snippets = state.db.get_snippets().unwrap_or_default();
 
-    let dict_prompt = dictionary
+    let mut dict_terms = dictionary
         .iter()
-        .map(|d| d.word.as_str())
-        .collect::<Vec<_>>()
-        .join(", ");
+        .map(|d| d.word.clone())
+        .collect::<Vec<_>>();
+
+    // If target app or window title contains "opencode", inject OpenCode vocabulary into dict_prompt
+    let target_lower = format!("{} {}", target_app, target_title).to_lowercase();
+    if target_lower.contains("opencode") {
+        dict_terms.push("OpenCode".to_string());
+        dict_terms.push("Hey OpenCode".to_string());
+        dict_terms.push("keyboard interface".to_string());
+        dict_terms.push("Word-like app".to_string());
+    }
+
+    let dict_prompt = dict_terms.join(", ");
 
     let router_config = if let Some(json_str) = state.db.get_setting("ai_router_config") {
         serde_json::from_str::<ai::router::AiRouterConfig>(&json_str).unwrap_or_default()

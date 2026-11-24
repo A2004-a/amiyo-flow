@@ -227,6 +227,10 @@ impl Database {
             ("GraphQL", "GraphQL", "Technical"),
             ("PostgreSQL", "PostgreSQL", "Technical"),
             ("TypeScript", "TypeScript", "Technical"),
+            ("OpenCode", "OpenCode", "Technical"),
+            ("open port", "OpenCode", "Phonetics"),
+            ("open code", "OpenCode", "Phonetics"),
+            ("K-A-B-O", "keyboard", "Phonetics"),
         ];
 
         for (w, r, c) in default_words.iter() {
@@ -251,6 +255,10 @@ impl Database {
             ("Docker", "Docker", "Technical"),
             ("Next.js", "Next.js", "Technical"),
             ("Windows 11", "Windows 11", "Technical"),
+            ("OpenCode", "OpenCode", "Technical"),
+            ("open port", "OpenCode", "Phonetics"),
+            ("open code", "OpenCode", "Phonetics"),
+            ("K-A-B-O", "keyboard", "Phonetics"),
         ];
         for (w, r, c) in additional_mappings.iter() {
             let exists: bool = conn.query_row(

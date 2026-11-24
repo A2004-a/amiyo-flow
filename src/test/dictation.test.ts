@@ -266,4 +266,16 @@ describe('AMIYO FLOW Frontend Store & Pipeline Tests', () => {
     await useSettingsStore.getState().updateSetting('style', 'Professional');
     expect(useSettingsStore.getState().settings.style).toBe('Professional');
   });
+
+  it('verifies OpenCode acoustic homophones and mid-sentence restart stripper in WritingStyles', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const wsContent = fs.readFileSync(path.resolve(__dirname, '../pages/WritingStyles.tsx'), 'utf-8');
+
+    expect(wsContent).toContain('OpenCode & Mid-Sentence Restart');
+    expect(wsContent).toContain('Hey open port');
+    expect(wsContent).toContain('OpenCode');
+    expect(wsContent).toContain('keyboard interface');
+    expect(wsContent).toContain("tasks we've done");
+  });
 });

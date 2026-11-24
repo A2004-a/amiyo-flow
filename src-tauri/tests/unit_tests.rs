@@ -1294,6 +1294,44 @@ fn test_vad_onset_early_speech_protection_and_style_commands() {
     assert!(b3.to_lowercase().contains("please prioritize this at your earliest convenience"));
 }
 
+#[test]
+fn test_opencode_acoustic_homophones_restart_and_audio_trimming() {
+    use amiyo_flow_lib::ai::heuristic_cleanup;
+    use amiyo_flow_lib::audio::trim_trailing_and_leading_silence;
+
+    // 1. OpenCode Homophones: "Hey open port" -> "Hey OpenCode", "open code" -> "OpenCode"
+    let c1 = heuristic_cleanup("Hey open port, my name is Amiyo Garai");
+    assert!(c1.contains("Hey OpenCode"), "Must convert 'Hey open port' to 'Hey OpenCode': got '{}'", c1);
+
+    let c2 = heuristic_cleanup("I am working inside open code editor");
+    assert!(c2.contains("OpenCode"), "Must convert 'open code' to 'OpenCode': got '{}'", c2);
+
+    // 2. Typewriter and tech homophones:
+    let c3 = heuristic_cleanup("I'm a child of built-in system like a typewriter, so K-A-B-O interface, what talks we've done, what each other works");
+    assert!(c3.contains("built-in system") || c3.contains("build a system"));
+    assert!(c3.contains("keyboard interface"));
+    assert!(c3.contains("what tasks we've done"));
+    assert!(c3.contains("how each works"));
+
+    // 3. Mid-Sentence Greeting Restart Stripping
+    let restart_raw = "Hey, welcome Claude, my name is Amiyo Garai, and I try to Hey OpenCode, my name is Amiyo Garai, I try to build a Word-like app for documents";
+    let c4 = heuristic_cleanup(restart_raw);
+    assert!(!c4.contains("Hey, welcome Claude"), "Must strip mid-sentence false start greeting");
+    assert!(c4.starts_with("Hey OpenCode, my name is Amiyo Garai"));
+    assert!(c4.contains("Word-like app"));
+
+    // 4. Audio Trimming of Trailing and Leading Dead Silence
+    let sample_rate = 16000;
+    let mut audio = vec![0.0f32; 16000]; // 1 second leading silence
+    audio.extend(vec![0.25f32; 16000]);   // 1 second voice speech
+    audio.extend(vec![0.0f32; 32000]);    // 2 seconds trailing silence
+    assert_eq!(audio.len(), 64000);
+
+    let trimmed = trim_trailing_and_leading_silence(&audio, sample_rate);
+    assert!(trimmed.len() < audio.len(), "Trimmed audio must be shorter than original");
+    assert!(trimmed.len() <= 32000, "Must strip dead leading and trailing silence: got {} samples", trimmed.len());
+}
+
 
 
 
