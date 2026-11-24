@@ -187,17 +187,28 @@ function simulateCleanup(
   // 1. Spoken self corrections
   if (removeCorrections) {
     const clauseMatch = text.match(
-      /(?:^|[.!?\n]\s*)(?:.+?)[,\s]+(?:no no wait|no no no|no no|no wait|scratch that|sorry I meant|actually no|wait no|no sorry|sorry no|oops I meant|or rather|correction|let me rephrase|strike that|I mean)[,\s]+(.+)/i
+      /(?:^|[.!?\n]\s*)(?:.+?)[,\s]+(wait let me start over|let me start over|start over|scratch all that|actually what I meant was|correction please|I mean to say|no no wait|no no no|no no|no wait|scratch that|sorry I meant|actually no|wait no|no sorry|sorry no|oops I meant|or rather|correction|let me rephrase|strike that|I mean)[,\s]+(.+)/i
     );
-    if (clauseMatch && clauseMatch[1]) {
-      const repl = clauseMatch[1].trim();
+    if (clauseMatch && clauseMatch[2]) {
+      const trigger = (clauseMatch[1] || '').toLowerCase();
+      const repl = clauseMatch[2].trim();
       const matchIndex = clauseMatch.index ?? 0;
       const before = text.slice(0, matchIndex).trim();
-      const pivotResolved = resolvePivotBacktrack(before, repl);
-      if (pivotResolved) {
-        text = pivotResolved;
-      } else {
+
+      const isFullRestart = trigger.includes("start over")
+        || trigger.includes("scratch all that")
+        || trigger.includes("delete all that")
+        || trigger.includes("clear that");
+
+      if (isFullRestart) {
         text = repl;
+      } else {
+        const pivotResolved = resolvePivotBacktrack(before, repl);
+        if (pivotResolved) {
+          text = pivotResolved;
+        } else {
+          text = repl;
+        }
       }
     } else {
       const bareNoMatch = text.match(/(?:,\s*no[,\s]+|\s+no[,\s]+)(.+)/i);
@@ -215,8 +226,9 @@ function simulateCleanup(
   // 2. Filler words
   if (removeFillers) {
     text = text.replace(/\b(?:no no wait|no no no|no no)\b,?/gi, '');
+    text = text.replace(/\b(?:um\s+uh|uh\s+um|er\s+um|um\s+er)\b,?/gi, '');
     text = text.replace(/\b(um+|uh+|erm+|ah+|nu+|na+|umm+|uhh+|er+|hmm+)\b,?/gi, '');
-    text = text.replace(/\b(you know|basically|actually|literally|sort of|kind of|so yeah|like I mean)\b,?/gi, '');
+    text = text.replace(/\b(you know what I mean|you know what I'm saying|you know|basically|actually|literally|sort of|kind of|so yeah|like I mean)\b,?/gi, '');
     for (const cf of customFillers) {
       const trimmed = cf.trim();
       if (trimmed) {
@@ -228,10 +240,10 @@ function simulateCleanup(
 
   // 3. Repeated stutters
   if (removeRepeats) {
-    // 2-word phrase repeat
-    text = text.replace(/\b([a-zA-Z0-9]+)\s+([a-zA-Z0-9]+)\s+\1\s+\2\b/gi, '$1 $2');
-    // single word repeat
-    text = text.replace(/\b([a-zA-Z0-9]+)\s+\1\b/gi, '$1');
+    // 2-word phrase repeat (strip trailing pause comma)
+    text = text.replace(/\b([a-zA-Z0-9]+)\s+([a-zA-Z0-9]+),?\s+\1\s+\2\b/gi, '$1 $2');
+    // single word repeat (strip trailing pause comma)
+    text = text.replace(/\b([a-zA-Z0-9]+),?\s+\1\b/gi, '$1');
   }
 
   // 4. Verbal punctuation, numbers, percentages, currency, quotes
@@ -277,9 +289,50 @@ function simulateCleanup(
     .replace(/\bnumber\s+three\b/gi, '#3')
     .replace(/\bnumber\s+four\b/gi, '#4')
     .replace(/\bnumber\s+five\b/gi, '#5')
+    // Spoken time formatting
+    .replace(/\b(?:twelve|12)\s+thirty\s+(AM|PM)\b/gi, '12:30 $1')
+    .replace(/\b(?:eleven|11)\s+thirty\s+(AM|PM)\b/gi, '11:30 $1')
+    .replace(/\b(?:ten|10)\s+thirty\s+(AM|PM)\b/gi, '10:30 $1')
+    .replace(/\b(?:nine|9)\s+thirty\s+(AM|PM)\b/gi, '9:30 $1')
+    .replace(/\b(?:eight|8)\s+thirty\s+(AM|PM)\b/gi, '8:30 $1')
+    .replace(/\b(?:seven|7)\s+thirty\s+(AM|PM)\b/gi, '7:30 $1')
+    .replace(/\b(?:six|6)\s+thirty\s+(AM|PM)\b/gi, '6:30 $1')
+    .replace(/\b(?:five|5)\s+thirty\s+(AM|PM)\b/gi, '5:30 $1')
+    .replace(/\b(?:four|4)\s+thirty\s+(AM|PM)\b/gi, '4:30 $1')
+    .replace(/\b(?:three|3)\s+thirty\s+(AM|PM)\b/gi, '3:30 $1')
+    .replace(/\b(?:two|2)\s+thirty\s+(AM|PM)\b/gi, '2:30 $1')
+    .replace(/\b(?:one|1)\s+thirty\s+(AM|PM)\b/gi, '1:30 $1')
+    .replace(/\btwelve\s+(AM|PM)\b/gi, '12 $1')
+    .replace(/\beleven\s+(AM|PM)\b/gi, '11 $1')
+    .replace(/\bten\s+(AM|PM)\b/gi, '10 $1')
+    .replace(/\bnine\s+(AM|PM)\b/gi, '9 $1')
+    .replace(/\beight\s+(AM|PM)\b/gi, '8 $1')
+    .replace(/\bseven\s+(AM|PM)\b/gi, '7 $1')
+    .replace(/\bsix\s+(AM|PM)\b/gi, '6 $1')
+    .replace(/\bfive\s+(AM|PM)\b/gi, '5 $1')
+    .replace(/\bfour\s+(AM|PM)\b/gi, '4 $1')
+    .replace(/\bthree\s+(AM|PM)\b/gi, '3 $1')
+    .replace(/\btwo\s+(AM|PM)\b/gi, '2 $1')
+    .replace(/\bone\s+(AM|PM)\b/gi, '1 $1')
+    .replace(/\b([0-9]+)\s+o'?clock\b/gi, '$1:00')
+    // Spoken large numbers
+    .replace(/\b(?:one|1)\s+thousand\b/gi, '1,000')
+    .replace(/\b(?:two|2)\s+thousand\b/gi, '2,000')
+    .replace(/\b(?:five|5)\s+thousand\b/gi, '5,000')
+    .replace(/\b(?:ten|10)\s+thousand\b/gi, '10,000')
+    .replace(/\b(?:one|1)\s+million\b/gi, '1 million')
+    .replace(/\b(?:two|2)\s+million\b/gi, '2 million')
+    // Spoken math operations
+    .replace(/\b([0-9]+)\s+plus\s+([0-9]+)\b/gi, '$1 + $2')
+    .replace(/\b([0-9]+)\s+minus\s+([0-9]+)\b/gi, '$1 - $2')
+    .replace(/\b([0-9]+)\s+equals\s+([0-9]+)\b/gi, '$1 = $2')
+    // Spoken quotes & brackets
     .replace(/\bopen\s+quotes?\s+(.+?)\s+close\s+quotes?\b/gi, '"$1"')
     .replace(/\bopen\s+paren(?:thesis)?\s+(.+?)\s+close\s+paren(?:thesis)?\b/gi, '($1)')
     .replace(/\bopen\s+bracket\s+(.+?)\s+close\s+bracket\b/gi, '[$1]');
+
+  // Clean duplicate commas and comma-period
+  text = text.replace(/,\s*,+/g, ',').replace(/,\s*\./g, '.');
 
   // Spaces before punctuation
   text = text.replace(/\s+([,\.?!;:])/g, '$1');
@@ -328,7 +381,46 @@ function simulateCleanup(
       [/\binfront\b/gi, "in front"],
       [/\bnevermind\b/gi, "never mind"],
       [/\bsaterday\b/gi, "Saturday"],
+      [/\bwensday\b/gi, "Wednesday"],
+      [/\bthrusday\b/gi, "Thursday"],
+      [/\bhowd\b/gi, "how'd"],
+      [/\bwhyd\b/gi, "why'd"],
+      [/\bwhered\b/gi, "where'd"],
+      [/\bwhatd\b/gi, "what'd"],
+      [/\bwhod\b/gi, "who'd"],
+      [/\bwholl\b/gi, "who'll"],
+      [/\bwhatll\b/gi, "what'll"],
+      [/\bthatll\b/gi, "that'll"],
+      [/\bhowll\b/gi, "how'll"],
+      [/\bitll\b/gi, "it'll"],
+      [/\bcmon\b/gi, "c'mon"],
+      // Developer & Tech Normalization
       [/\bchatgpt\b/gi, "ChatGPT"],
+      [/\bclaude\b/gi, "Claude"],
+      [/\bgemini\b/gi, "Gemini"],
+      [/\bjavascript\b/gi, "JavaScript"],
+      [/\btypescript\b/gi, "TypeScript"],
+      [/\bgithub\b/gi, "GitHub"],
+      [/\byoutube\b/gi, "YouTube"],
+      [/\bvscode\b/gi, "VS Code"],
+      [/\bvs\s+code\b/gi, "VS Code"],
+      [/\bapi\b/gi, "API"],
+      [/\bapis\b/gi, "APIs"],
+      [/\bsdk\b/gi, "SDK"],
+      [/\bsdks\b/gi, "SDKs"],
+      [/\bui\b/gi, "UI"],
+      [/\bux\b/gi, "UX"],
+      [/\burl\b/gi, "URL"],
+      [/\burls\b/gi, "URLs"],
+      [/\bjson\b/gi, "JSON"],
+      [/\bhtml\b/gi, "HTML"],
+      [/\bcss\b/gi, "CSS"],
+      [/\bsql\b/gi, "SQL"],
+      [/\bsqlite\b/gi, "SQLite"],
+      [/\btauri\b/gi, "Tauri"],
+      [/\brea\b/gi, "REA"],
+      [/\bpr\b/gi, "PR"],
+      [/\bprs\b/gi, "PRs"],
     ];
     for (const [re, repl] of contractions) {
       text = text.replace(re, repl);
@@ -356,7 +448,8 @@ function simulateCleanup(
   // Paragraph formatting and capitalization (smart question mark / period)
   if (text.length > 0) {
     const lines = text.split('\n').map((line) => {
-      const trimmed = line.trim();
+      let trimmed = line.trim();
+      trimmed = trimmed.replace(/^[,\s;:.-]+/, '');
       if (!trimmed) return '';
       let cap = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
       if (isInterrogativeSentence(cap)) {
@@ -463,6 +556,10 @@ export const WritingStyles: React.FC = () => {
     {
       label: 'Pivot Phrase Backtrack',
       text: 'i try to build chatgpt like application using rea no chatgpt like application',
+    },
+    {
+      label: 'Time, Math & Tech Polish',
+      text: 'the meeting with rea team is at five thirty PM to review the api with 2 plus 2 equals 4',
     },
     {
       label: 'Custom Word Cleanser',

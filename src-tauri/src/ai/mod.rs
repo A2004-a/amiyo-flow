@@ -704,15 +704,23 @@ pub fn heuristic_cleanup_full(
     // 1. Spoken self-corrections ("no wait...", "scratch that...", "I mean...", "actually no...", "no no...", pivot backtracks)
     if remove_corrections {
         let self_correction_regex = Regex::new(
-            r"(?i)\b(?:no no wait|no no no|no no|no wait|scratch that|sorry I meant|actually no|wait no|no sorry|sorry no|oops I meant|or rather|correction|let me rephrase|strike that|I mean)[,\s]+(.+)"
+            r"(?i)\b(?:wait let me start over|let me start over|start over|scratch all that|actually what I meant was|correction please|I mean to say|no no wait|no no no|no no|no wait|scratch that|sorry I meant|actually no|wait no|no sorry|sorry no|oops I meant|or rather|correction|let me rephrase|strike that|I mean)[,\s]+(.+)"
         ).unwrap();
 
         if let Some(caps) = self_correction_regex.captures(&text) {
             let replacement = caps.get(1).unwrap().as_str().trim();
             let full_match = self_correction_regex.find(&text).unwrap();
+            let trigger = text[full_match.start()..full_match.start() + caps.get(0).unwrap().as_str().len() - replacement.len()].to_lowercase();
             let before = text[..full_match.start()].trim();
 
-            if let Some(pivot_resolved) = resolve_pivot_backtrack(before, replacement) {
+            let is_full_restart = trigger.contains("start over")
+                || trigger.contains("scratch all that")
+                || trigger.contains("delete all that")
+                || trigger.contains("clear that");
+
+            if is_full_restart {
+                text = replacement.to_string();
+            } else if let Some(pivot_resolved) = resolve_pivot_backtrack(before, replacement) {
                 text = pivot_resolved;
             } else {
                 let before_words: Vec<&str> = before.split_whitespace().collect();
@@ -749,8 +757,9 @@ pub fn heuristic_cleanup_full(
     if remove_fillers {
         let filler_patterns = [
             r"(?i)\b(?:no no wait|no no no|no no)\b,?",
+            r"(?i)\b(?:um\s+uh|uh\s+um|er\s+um|um\s+er)\b,?",
             r"(?i)\b(um+|uh+|erm+|ah+|nu+|na+|umm+|uhh+|er+|hmm+)\b,?",
-            r"(?i)\b(you know|basically|actually|literally|sort of|kind of|so yeah|like I mean)\b,?",
+            r"(?i)\b(you know what I mean|you know what I'm saying|you know|basically|actually|literally|sort of|kind of|so yeah|like I mean)\b,?",
         ];
 
         for pat in filler_patterns {
@@ -838,6 +847,43 @@ pub fn heuristic_cleanup_full(
         (r"(?i)\bnumber\s+eight\b", "#8"),
         (r"(?i)\bnumber\s+nine\b", "#9"),
         (r"(?i)\bnumber\s+ten\b", "#10"),
+        // Spoken time formatting ("five thirty PM" -> "5:30 PM", "ten AM" -> "10:00 AM", etc.)
+        (r"(?i)\b(?:twelve|12)\s+thirty\s+(AM|PM)\b", "12:30 $1"),
+        (r"(?i)\b(?:eleven|11)\s+thirty\s+(AM|PM)\b", "11:30 $1"),
+        (r"(?i)\b(?:ten|10)\s+thirty\s+(AM|PM)\b", "10:30 $1"),
+        (r"(?i)\b(?:nine|9)\s+thirty\s+(AM|PM)\b", "9:30 $1"),
+        (r"(?i)\b(?:eight|8)\s+thirty\s+(AM|PM)\b", "8:30 $1"),
+        (r"(?i)\b(?:seven|7)\s+thirty\s+(AM|PM)\b", "7:30 $1"),
+        (r"(?i)\b(?:six|6)\s+thirty\s+(AM|PM)\b", "6:30 $1"),
+        (r"(?i)\b(?:five|5)\s+thirty\s+(AM|PM)\b", "5:30 $1"),
+        (r"(?i)\b(?:four|4)\s+thirty\s+(AM|PM)\b", "4:30 $1"),
+        (r"(?i)\b(?:three|3)\s+thirty\s+(AM|PM)\b", "3:30 $1"),
+        (r"(?i)\b(?:two|2)\s+thirty\s+(AM|PM)\b", "2:30 $1"),
+        (r"(?i)\b(?:one|1)\s+thirty\s+(AM|PM)\b", "1:30 $1"),
+        (r"(?i)\btwelve\s+(AM|PM)\b", "12 $1"),
+        (r"(?i)\beleven\s+(AM|PM)\b", "11 $1"),
+        (r"(?i)\bten\s+(AM|PM)\b", "10 $1"),
+        (r"(?i)\bnine\s+(AM|PM)\b", "9 $1"),
+        (r"(?i)\beight\s+(AM|PM)\b", "8 $1"),
+        (r"(?i)\bseven\s+(AM|PM)\b", "7 $1"),
+        (r"(?i)\bsix\s+(AM|PM)\b", "6 $1"),
+        (r"(?i)\bfive\s+(AM|PM)\b", "5 $1"),
+        (r"(?i)\bfour\s+(AM|PM)\b", "4 $1"),
+        (r"(?i)\bthree\s+(AM|PM)\b", "3 $1"),
+        (r"(?i)\btwo\s+(AM|PM)\b", "2 $1"),
+        (r"(?i)\bone\s+(AM|PM)\b", "1 $1"),
+        (r"(?i)\b([0-9]+)\s+o'?clock\b", "$1:00"),
+        // Spoken large numbers
+        (r"(?i)\b(?:one|1)\s+thousand\b", "1,000"),
+        (r"(?i)\b(?:two|2)\s+thousand\b", "2,000"),
+        (r"(?i)\b(?:five|5)\s+thousand\b", "5,000"),
+        (r"(?i)\b(?:ten|10)\s+thousand\b", "10,000"),
+        (r"(?i)\b(?:one|1)\s+million\b", "1 million"),
+        (r"(?i)\b(?:two|2)\s+million\b", "2 million"),
+        // Spoken math operations
+        (r"\b([0-9]+)\s+plus\s+([0-9]+)\b", "$1 + $2"),
+        (r"\b([0-9]+)\s+minus\s+([0-9]+)\b", "$1 - $2"),
+        (r"\b([0-9]+)\s+equals\s+([0-9]+)\b", "$1 = $2"),
     ];
 
     for (pat, repl) in punct_patterns {
@@ -855,6 +901,14 @@ pub fn heuristic_cleanup_full(
 
     let bracket_re = Regex::new(r#"(?i)\bopen\s+bracket\s+(.+?)\s+close\s+bracket\b"#).unwrap();
     text = bracket_re.replace_all(&text, "[$1]").to_string();
+
+    // Clean up duplicate commas or comma followed by period
+    if let Ok(dup_commas) = Regex::new(r",\s*,+") {
+        text = dup_commas.replace_all(&text, ",").to_string();
+    }
+    if let Ok(comma_period) = Regex::new(r",\s*\.") {
+        text = comma_period.replace_all(&text, ".").to_string();
+    }
 
     // Clean up spaces before punctuation
     if let Ok(space_punct) = Regex::new(r"\s+([,\.?!;:])") {
@@ -880,7 +934,9 @@ pub fn heuristic_cleanup_full(
     if !text.is_empty() {
         let mut lines = Vec::new();
         for line in text.split('\n') {
-            let trimmed = line.trim();
+            let mut trimmed = line.trim();
+            // Trim leading punctuation left behind by removed fillers (e.g. ", we can deploy" -> "we can deploy")
+            trimmed = trimmed.trim_start_matches(|c: char| c == ',' || c == ';' || c == ':' || c == '.' || c == '-' || c == ' ');
             if trimmed.is_empty() {
                 lines.push(String::new());
                 continue;
@@ -959,7 +1015,47 @@ pub fn polish_sentence_structure(input: &str) -> String {
         (r"\b(?i)infront\b", "in front"),
         (r"\b(?i)nevermind\b", "never mind"),
         (r"\b(?i)saterday\b", "Saturday"),
+        (r"\b(?i)wensday\b", "Wednesday"),
+        (r"\b(?i)thrusday\b", "Thursday"),
+        // Additional spoken contractions
+        (r"\b(?i)howd\b", "how'd"),
+        (r"\b(?i)whyd\b", "why'd"),
+        (r"\b(?i)whered\b", "where'd"),
+        (r"\b(?i)whatd\b", "what'd"),
+        (r"\b(?i)whod\b", "who'd"),
+        (r"\b(?i)wholl\b", "who'll"),
+        (r"\b(?i)whatll\b", "what'll"),
+        (r"\b(?i)thatll\b", "that'll"),
+        (r"\b(?i)howll\b", "how'll"),
+        (r"\b(?i)itll\b", "it'll"),
+        (r"\b(?i)cmon\b", "c'mon"),
+        // Developer & Tech Term Normalization
         (r"\b(?i)chatgpt\b", "ChatGPT"),
+        (r"\b(?i)claude\b", "Claude"),
+        (r"\b(?i)gemini\b", "Gemini"),
+        (r"\b(?i)javascript\b", "JavaScript"),
+        (r"\b(?i)typescript\b", "TypeScript"),
+        (r"\b(?i)github\b", "GitHub"),
+        (r"\b(?i)youtube\b", "YouTube"),
+        (r"\b(?i)vscode\b", "VS Code"),
+        (r"\b(?i)vs\s+code\b", "VS Code"),
+        (r"\b(?i)api\b", "API"),
+        (r"\b(?i)apis\b", "APIs"),
+        (r"\b(?i)sdk\b", "SDK"),
+        (r"\b(?i)sdks\b", "SDKs"),
+        (r"\b(?i)ui\b", "UI"),
+        (r"\b(?i)ux\b", "UX"),
+        (r"\b(?i)url\b", "URL"),
+        (r"\b(?i)urls\b", "URLs"),
+        (r"\b(?i)json\b", "JSON"),
+        (r"\b(?i)html\b", "HTML"),
+        (r"\b(?i)css\b", "CSS"),
+        (r"\b(?i)sql\b", "SQL"),
+        (r"\b(?i)sqlite\b", "SQLite"),
+        (r"\b(?i)tauri\b", "Tauri"),
+        (r"\b(?i)rea\b", "REA"),
+        (r"\b(?i)pr\b", "PR"),
+        (r"\b(?i)prs\b", "PRs"),
     ];
     for (pat, repl) in contraction_replacements {
         if let Ok(re) = Regex::new(pat) {
@@ -1011,14 +1107,14 @@ pub fn heuristic_cleanup(input: &str) -> String {
     heuristic_cleanup_with_options(input, true, true, true)
 }
 
-/// Deduplicates adjacent repeated words ("the the" -> "the")
+/// Deduplicates adjacent repeated words ("the the" -> "the", "we, we" -> "we")
 pub fn remove_duplicate_words(input: &str) -> String {
     let words: Vec<&str> = input.split_whitespace().collect();
     if words.is_empty() {
         return String::new();
     }
 
-    let mut result = Vec::with_capacity(words.len());
+    let mut result: Vec<String> = Vec::with_capacity(words.len());
     let mut prev_word = "";
 
     for word in words {
@@ -1026,22 +1122,29 @@ pub fn remove_duplicate_words(input: &str) -> String {
         let clean_prev = prev_word.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
 
         if clean_word.is_empty() || clean_word != clean_prev {
-            result.push(word);
+            result.push(word.to_string());
             prev_word = word;
+        } else {
+            // Strip trailing pause comma from previous word upon deduplication
+            if let Some(last) = result.last_mut() {
+                if last.ends_with(',') {
+                    last.pop();
+                }
+            }
         }
     }
 
     result.join(" ")
 }
 
-/// Deduplicates adjacent repeated 2-word phrases ("we can we can" -> "we can")
+/// Deduplicates adjacent repeated 2-word phrases ("we can we can" -> "we can", "we can, we can" -> "we can")
 pub fn remove_repeated_phrases(input: &str) -> String {
     let words: Vec<&str> = input.split_whitespace().collect();
     if words.len() < 4 {
         return input.to_string();
     }
 
-    let mut result = Vec::new();
+    let mut result: Vec<String> = Vec::new();
     let mut i = 0;
     while i < words.len() {
         if i + 3 < words.len() {
@@ -1051,8 +1154,12 @@ pub fn remove_repeated_phrases(input: &str) -> String {
             let w4 = words[i + 3].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
 
             if !w1.is_empty() && !w2.is_empty() && w1 == w3 && w2 == w4 {
-                result.push(words[i]);
-                result.push(words[i + 1]);
+                let mut first_w2 = words[i + 1].to_string();
+                if first_w2.ends_with(',') {
+                    first_w2.pop();
+                }
+                result.push(words[i].to_string());
+                result.push(first_w2);
                 i += 4;
                 while i + 1 < words.len() {
                     let next_w1 = words[i].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
@@ -1066,7 +1173,7 @@ pub fn remove_repeated_phrases(input: &str) -> String {
                 continue;
             }
         }
-        result.push(words[i]);
+        result.push(words[i].to_string());
         i += 1;
     }
 

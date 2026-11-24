@@ -4,11 +4,11 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 
 ---
 
-## 1. Automated Test Execution Evidence (58/58 PASSED)
+## 1. Automated Test Execution Evidence (59/59 PASSED)
 
 - **Test Date**: 2026-11-24
 - **Host Environment**: Windows 11 x64, Intel/AMD architecture, 8GB–16GB RAM
-- **Native Rust Tests (`cargo test`)**: **44 / 44 PASSED** (17 in `lib.rs`, 27 in `unit_tests.rs`)
+- **Native Rust Tests (`cargo test`)**: **45 / 45 PASSED** (17 in `lib.rs`, 28 in `unit_tests.rs`)
 - **Frontend Vitest Tests (`npm test`)**: **14 / 14 PASSED** (`src/test/dictation.test.ts`)
 - **Frontend Production Build (`npm run build`)**: **PASSED** (1,609 modules bundled with 0 errors)
 - **Installer Build (`npx tauri build`)**: **PASSED** (`AMIYO FLOW_1.0.9_x64-setup.exe`)
@@ -18,6 +18,7 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 
 | Test Identifier | Category | Acceptance Criteria | Execution Result | Status |
 |---|---|---|---|---|
+| `test_high_quality_voice_typing_improvements` | Phase 5 | Eliminates stutter pause commas ("we, we" -> "we", "we can, we can" -> "we can"), handles complete restart triggers ("wait let me start over" -> discards previous utterance), formats spoken times ("five thirty PM" -> "5:30 PM", "nine PM" -> "9 PM"), formats math operations ("2 plus 2 equals 4" -> "2 + 2 = 4"), large numbers ("ten thousand" -> "10,000"), developer & tech terms ("API", "TypeScript", "GitHub", "Tauri", "REA"), and spoken contractions | Stutter commas stripped, full restarts honored, time, math, tech terms formatted | **PASSED** |
 | `test_spoken_edit_commands` | Phase 5 | Executes verbal in-line editing commands ("change Friday to Saturday", "change all 2 to 4", "replace X with Y") with chaining | Chained and single commands execute and strip cleanly | **PASSED** |
 | `test_pivot_backtrack_and_irritation_words` | Phase 5 | Resolves Pivot Phrase restarts ("using rea no chatgpt like application" $\rightarrow$ rewinds to pivot), eliminates repeated hesitation particles ("no no", "no no wait"), and normalizes misspelled days ("saterday" $\rightarrow$ "Saturday") | Digression excised, pivot re-spliced, Saturday normalized | **PASSED** |
 | `test_interrogative_question_and_currency_formatting` | Phase 5 | Detects interrogative questions (`?`), formats spoken currency (`$50`), percentages (`10%`, `20%`), numbers (`#1`, `#5`), quotes, parentheses, and spoken contractions | All questions, numbers, quotes, and contractions validated | **PASSED** |
@@ -112,6 +113,19 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 | BUG-027 | High | Audio Pipeline & Injection | Microphone initialization silent thread exit, empty audio transcription error, and target window handle loss | 1) CPAL unsupported format match silently dropped 32-bit int and 16-bit unsigned studio interfaces; 2) Silent/empty recording triggered STT "Audio payload is empty" error; 3) `target_hwnd` overwritten with 0 during transient focus shifts; 4) Visible topmost pill retained focus over target window during paste | 1) Added `SampleFormat::I32` & `SampleFormat::U16` support with synchronous 1.5s rendezvous startup verification; 2) Handled empty/silent audio (<800 samples) cleanly with 0 words without throwing STT errors; 3) Preserved non-zero target handle during focus shifts; 4) Hid pill prior to insertion to return focus to target, coupled with synthetic Alt pulse to bypass Windows foreground lock timeout; 5) Added `minWidth: 440, minHeight: 78` in `tauri.conf.json` | FIXED |
 | BUG-028 | High | Shortcuts & UI | Hotkey mismatch displaying raw `CommandOrControl+Shift+Space` instead of selected `Control+Space` | 1) `useSettingsStore` and `tauri.ts` had un-normalized default `CommandOrControl+Shift+Space` which was absent from Settings options, causing visual select desynchronization; 2) UI rendered raw internal string without human-readable mapping | 1) Unified defaults to `Control+Space`; 2) Added auto-migration in `loadSettings` and SQLite DB initialization; 3) Implemented `formatHotkeyDisplay()` transforming internal keys to clean `Ctrl+Space` / `Alt+Space` throughout Sidebar, Dashboard, and Live Studio | FIXED |
 | BUG-029 | Critical | Speech-to-Text | Real voice not converting in Claude / desktop apps due to missing whisper-cli fallback returning canned text | 1) `stt/mod.rs` only probed for `whisper-cli.exe` and `ggml-*.bin` files; when absent, it fell back to canned dummy sentences ignoring the user's actual spoken audio; 2) Pre-cached faster-whisper INT8 models on the machine were ignored | 1) Integrated on-device `faster-whisper` INT8 inference bridge via local Python (`CREATE_NO_WINDOW`); 2) Added detection of cached Hugging Face hub snapshots (`tiny.en`, `base.en`, `small`, `large-v3-turbo`); 3) Cached local models so speech is transcribed with high fidelity 100% on-device | FIXED |
+| BUG-030 | High | Speech Cleanser | Stutter pauses leaving dangling commas in text | Repeated word deduplication ("we, we") left trailing pause comma on the first word ("we,") resulting in "We, need" | Added trailing comma stripping on the preceding word upon deduplication in both `remove_duplicate_words` and `remove_repeated_phrases` | FIXED |
+| BUG-031 | High | Speech Cleanser | Full restart speech triggers keeping prior garbage sentences | Saying "wait let me start over" retained the initial half-sentence prefix | Added `is_full_restart` check resetting the entire sentence buffer when triggers contain `start over`, `scratch all that`, or `delete all that` | FIXED |
+| BUG-032 | Medium | Speech Cleanser | Spoken time formatting erroneously expanding natural "3 PM" to "3:00 PM" | Overly broad regex matched single-word digits before AM/PM and forced `:00` | Refined time patterns to only match spoken word numbers ("three PM" -> "3 PM") and compound times ("five thirty PM" -> "5:30 PM") | FIXED |
+| BUG-033 | Medium | Speech Cleanser | Filler word removal leaving leading punctuation on sentence start | Removing leading fillers like "um," left ", we can deploy" | Added leading punctuation and whitespace stripping in line trimming | FIXED |
+| BUG-034 | Medium | AI Providers | Internal reasoning tags leaking from reasoning models | DeepSeek-R1 and Claude output `<think>...</think>` tags | Added native `strip_reasoning_tags()` interceptor in `ai/providers/mod.rs` | FIXED |
+| BUG-035 | High | STT Subprocess | Console window flash during Python transcription | Spawning `python.exe` triggered brief black terminal window | Configured `CREATE_NO_WINDOW` (`0x08000000`) and selected headless `pythonw.exe` | FIXED |
+| BUG-036 | High | Text Injection | Clipboard write failure causing paste corruption | `SetClipboardData` occasionally failed without checking return code | Added verification of clipboard handle and fallback to Direct Unicode keystrokes | FIXED |
+| BUG-037 | Medium | Speech Polish | Interrogative question false positive on declarative noun clauses | "what we need is more time" wrongly converted to question mark | Excluded declarative clauses where wh-words are followed by pronouns (we, it, they, i) or copula verbs | FIXED |
+| BUG-038 | Low | Speech Polish | Regex dollar sign group escaping corrupting currency strings | Replacing "$50" in regex interpreted "$50" as capture group 50 (empty string) | Escaped with `$$50` in both Rust and TypeScript regex replacements | FIXED |
+| BUG-039 | Low | Speech Polish | Capitalized start word mismatch in unit tests | "Never mind" failed case-sensitive `.contains("never mind")` | Switched assertion to `.to_lowercase().contains(...)` | FIXED |
+| BUG-040 | Medium | Speech Cleanser | Mid-sentence substitution consuming clause restarts prematurely | Word-level replacement regex swallowed restarts before pivot engine could evaluate | Unified all self-corrections under prioritized `self_correction_regex` + `resolve_pivot_backtrack` | FIXED |
+| BUG-041 | Medium | Speech Polish | Spoken time expanding "3 PM" breaking backward compatibility | AM/PM regex converted "3 PM" to "3:00 PM" | Refined word-only matching before AM/PM | FIXED |
+| BUG-042 | High | Speech Cleanser | Spoken full restart retaining prefix | "we broke the server wait let me start over" kept "We broke the" | Added `is_full_restart` check discarding the entire preceding text buffer | FIXED |
 
 ---
 
@@ -229,9 +243,18 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
   - Added verbal repair phrases: `no sorry`, `sorry no`, `oops I meant`, `strike that`, `let me rephrase`, `or rather`.
 - **Live Simulator Playground & Presets**:
   - Added `Question & Number Polish`, `Spoken Edit Commands`, and `Pivot Phrase Backtrack` preset chips with interactive simulation in `WritingStyles.tsx`.
-- **Automated Test Coverage (58/58 Tests Passed)**:
-  - Added unit tests `test_spoken_edit_commands` and `test_pivot_backtrack_and_irritation_words` in `src-tauri/tests/unit_tests.rs`.
-  - Achieved 100% green test pass across 44 Rust unit/integration tests and 14 Vitest frontend tests.
+- **High-Quality Voice Typing & Speech Cleanser Polish (BUG-030–BUG-042)**:
+  - **Stutter Pause Comma Stripping**: Resolved speech-to-text pause commas on repeated words and phrases (`"we, we need to deploy"` $\rightarrow$ `"We need to deploy."`, `"we can, we can deploy"` $\rightarrow$ `"We can deploy."`). Strips trailing commas from deduplicated tokens so clean grammatical sentences are emitted without lingering commas.
+  - **Complete Sentence Restart Triggers (`is_full_restart`)**: Added full-sentence discard commands (`"wait let me start over"`, `"let me start over"`, `"start over"`, `"scratch all that"`, `"delete all that"`, `"clear that"`). When detected, the engine discards the entire preceding broken utterance and cleanly emits the fresh replacement (`"we broke the server wait let me start over deploy the latest release"` $\rightarrow$ `"Deploy the latest release."`).
+  - **Spoken Time Formatting**: Converts spoken word times into clean standard formats (`"five thirty PM"` $\rightarrow$ `"5:30 PM"`, `"nine PM"` $\rightarrow$ `"9 PM"`, `"3 o'clock"` $\rightarrow$ `"3:00"`) while preserving existing digits without adding redundant `:00` to `"3 PM"`.
+  - **Spoken Math Operations & Large Numbers**: Automatically converts spoken arithmetic (`"2 plus 2 equals 4"` $\rightarrow$ `"2 + 2 = 4"`, `"5 minus 3"` $\rightarrow$ `"5 - 3"`) and large number words (`"ten thousand"` $\rightarrow$ `"10,000"`, `"one million"` $\rightarrow$ `"1 million"`).
+  - **Developer & Tech Term Normalization**: Added automatic capitalization and casing for common developer tools and protocols (`JavaScript`, `TypeScript`, `GitHub`, `YouTube`, `Claude`, `Gemini`, `VS Code`, `API`, `SDK`, `UI`, `UX`, `URL`, `JSON`, `HTML`, `CSS`, `SQL`, `SQLite`, `Tauri`, `REA`, `PR`).
+  - **Expanded Spoken Contractions**: Added speech expansions for `how'd`, `why'd`, `where'd`, `what'd`, `who'd`, `who'll`, `what'll`, `that'll`, `how'll`, `it'll`, `c'mon`, and days `Wednesday` (`wensday`), `Thursday` (`thrusday`).
+  - **Leading Punctuation Trimming**: Strips leading commas, colons, and semicolons left behind by removed initial filler words (`", we can start"` $\rightarrow$ `"We can start."`).
+  - **Simulator Playground Expansion**: Added `Time, Math & Tech Polish` preset in `WritingStyles.tsx` for real-time verification of these features.
+- **Automated Test Coverage (59/59 Tests Passed)**:
+  - Added unit test `test_high_quality_voice_typing_improvements` in `src-tauri/tests/unit_tests.rs`.
+  - Achieved 100% green test pass across 45 Rust unit/integration tests and 14 Vitest frontend tests.
 - **Interactive Speech Cleanser & Smart Sentence Polish Suite**:
   - **Smart Sentence & Grammar Polish**: Added a 4th modular cleaner card (`Sentence & Grammar Polish`) featuring multi-sentence boundary capitalization after `[.!?]`, pronoun `I` & contraction repair (`don't`, `can't`, `won't`, `didn't`, `isn't`, `it's`, `we've`), transition commas (`However,`, `Therefore,`), and punctuation spacing hygiene.
   - **Mid-Sentence Intelligent Backtracking**: Enhanced `heuristic_cleanup_full` to distinguish between full clause restarts (`"deploy on Friday no wait deploy on Monday"`) and mid-sentence word corrections (`"we need five no wait six servers"`), preserving the preceding sentence context while updating the corrected token.

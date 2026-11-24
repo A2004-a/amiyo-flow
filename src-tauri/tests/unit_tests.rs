@@ -564,4 +564,48 @@ fn test_pivot_backtrack_and_irritation_words() {
     assert!(irr2.contains("Saturday"));
 }
 
+#[test]
+fn test_high_quality_voice_typing_improvements() {
+    use amiyo_flow_lib::ai::heuristic_cleanup;
+
+    // 1. Stutter comma removal from repeated words and phrases
+    let st1 = heuristic_cleanup("we, we need to deploy");
+    assert_eq!(st1, "We need to deploy.");
+
+    let st2 = heuristic_cleanup("we can, we can deploy");
+    assert_eq!(st2, "We can deploy.");
+
+    // 2. Leading punctuation removal left by removed fillers
+    let lp = heuristic_cleanup(", we can start");
+    assert_eq!(lp, "We can start.");
+
+    // 3. Spoken time formatting
+    let t1 = heuristic_cleanup("the meeting is at five thirty PM");
+    assert_eq!(t1, "The meeting is at 5:30 PM.");
+
+    let t2 = heuristic_cleanup("let's meet at nine PM");
+    assert_eq!(t2, "Let's meet at 9 PM.");
+
+    // 4. Spoken math operations
+    let m1 = heuristic_cleanup("what is 2 plus 2 equals 4");
+    assert_eq!(m1, "What is 2 + 2 = 4?");
+
+    // 5. Large numbers
+    let num = heuristic_cleanup("we reached ten thousand users");
+    assert_eq!(num, "We reached 10,000 users.");
+
+    // 6. Developer & Tech terms normalization
+    let dev = heuristic_cleanup("i built an api using typescript for github and tauri with rea");
+    assert!(dev.contains("API"));
+    assert!(dev.contains("TypeScript"));
+    assert!(dev.contains("GitHub"));
+    assert!(dev.contains("Tauri"));
+    assert!(dev.contains("REA"));
+
+    // 7. Start over backtrack
+    let so = heuristic_cleanup("we broke the server wait let me start over deploy the latest release");
+    assert_eq!(so, "Deploy the latest release.");
+}
+
+
 
