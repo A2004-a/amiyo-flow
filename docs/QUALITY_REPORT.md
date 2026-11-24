@@ -158,6 +158,10 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 ## 4. Semantic Version Changelog
 
 ### [1.0.25] — 2026-11-24
+- **Unified Production Installer & Official App Logo Icon Pack**:
+  - Generated multi-resolution Windows ICO (`icon.ico`), macOS ICNS (`icon.icns`), PNG icons (`32x32.png`, `64x64.png`, `128x128.png`, `icon.png`), and Store/app logos directly from `dist/logo.svg`.
+  - Rebuilt the NSIS installer via `npx tauri build`, embedding the official AMIYO FLOW logo directly into the installer executable header, setup wizard, desktop shortcuts, uninstaller, and tray icon.
+  - Purged older setup executables (`1.0.0` and `1.0.8`), maintaining exclusively the single unified latest installer `AMIYO FLOW_1.0.9_x64-setup.exe` (4.41 MiB) in the project root.
 - **400ms VAD Speech Hangover & Natural Pause Protection (BUG-056)**:
   - Implemented an ITU-grade 400ms speech hangover mechanism in `VoiceActivityDetector` (`src-tauri/src/audio/vad.rs`). Natural inter-word breathing gaps (200ms–350ms) are absorbed by the hangover without ticking down the silence timer.
   - Aligned hardware sample rate clock timing (48kHz / 44.1kHz), ensuring a 2.5s silence cutoff provides full, comfortable 2.5 to 3.0 seconds of wall-clock thinking time before hands-free auto-stop.
