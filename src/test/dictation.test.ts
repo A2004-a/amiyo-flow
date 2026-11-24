@@ -172,4 +172,16 @@ describe('AMIYO FLOW Frontend Store & Pipeline Tests', () => {
     await useSettingsStore.getState().updateSetting('continuation_stitching', 'true');
     expect(useSettingsStore.getState().settings.continuation_stitching).toBe('true');
   });
+
+  it('verifies irritation words and developer tech settings persistence', async () => {
+    await useSettingsStore.getState().updateSetting('remove_filler_words', 'true');
+    expect(useSettingsStore.getState().settings.remove_filler_words).toBe('true');
+
+    await useSettingsStore.getState().updateSetting('clean_sentences', 'true');
+    expect(useSettingsStore.getState().settings.clean_sentences).toBe('true');
+
+    const result = await api.transcribeAndClean('Take Claude, we need a API and a SDK', 'Casual', 'general');
+    expect(typeof result).toBe('string');
+    expect(result.length).toBeGreaterThan(0);
+  });
 });

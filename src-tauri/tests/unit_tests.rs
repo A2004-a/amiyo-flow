@@ -929,6 +929,46 @@ fn test_office_osu_word_to_win_and_irritate_words_removal() {
     assert!(!cleaned.contains("what else is there, like what"));
 }
 
+#[test]
+fn test_expanded_irritation_words_and_developer_homophones() {
+    use amiyo_flow_lib::ai::heuristic_cleanup;
+
+    // 1. Verify indefinite article correction for tech terms
+    let t1 = heuristic_cleanup("we need a API and a SDK for the project");
+    assert!(t1.contains("an API and an SDK"));
+
+    // 2. Verify developer homophones: pool request -> pull request, next js -> Next.js, dock er -> Docker
+    let t2 = heuristic_cleanup("create a pool request with next js and dock er");
+    assert!(t2.contains("pull request"));
+    assert!(t2.contains("Next.js"));
+    assert!(t2.contains("Docker"));
+
+    // 3. Verify search-for-words irritation removal: how do you say, let me think, and stuff like that
+    let t3 = heuristic_cleanup("we can build, how do you say, let me think we can build with Next.js and stuff like that");
+    assert!(!t3.contains("how do you say"));
+    assert!(!t3.contains("let me think"));
+    assert!(!t3.contains("and stuff like that"));
+
+    // 4. Verify stutter word deduplication: that that -> that, and and -> and
+    let t4 = heuristic_cleanup("we know that that is true and and we can deploy");
+    assert!(t4.contains("that is true and we can deploy"));
+    assert!(!t4.contains("that that"));
+    assert!(!t4.contains("and and"));
+
+    // 5. Verify conjunction pause comma cleanup
+    let t5 = heuristic_cleanup("we have Next.js and, we can deploy to Docker");
+    assert!(t5.contains("and we can deploy"));
+    assert!(!t5.contains("and, we"));
+
+    // 6. Verify Gemini/ChatGPT acoustic phonetic recognition
+    let t6 = heuristic_cleanup("Hello, friends, cellocegivity. My name is Zumio Gari and what are you doing this time?");
+    assert!(t6.contains("friends and ChatGPT"));
+    assert!(t6.contains("Amiyo Garai"));
+    assert!(!t6.contains("cellocegivity"));
+    assert!(!t6.contains("Zumio Gari"));
+}
+
+
 
 
 

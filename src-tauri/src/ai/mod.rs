@@ -774,6 +774,31 @@ pub fn heuristic_cleanup_full(
     // 0. Spoken in-line editing commands ("change Friday to Saturday", "change all 2 to 4", "replace X with Y")
     text = apply_spoken_edit_commands(&text);
 
+    // 0b. Pre-normalize compound developer terms and acoustic homophones before filler stripping
+    let pre_homophones = [
+        (r"\b(?i)dock\s+er\b", "Docker"),
+        (r"\b(?i)(?:next\s+js|nextjs)\b", "Next.js"),
+        (r"\b(?i)(?:node\s+js|nodejs)\b", "Node.js"),
+        (r"\b(?i)(?:react\s+js|reactjs)\b", "React"),
+        (r"\b(?i)git\s+hub\b", "GitHub"),
+        (r"\b(?i)you\s+tube\b", "YouTube"),
+        (r"\b(?i)(?:pie\s+thon|py\s+thon)\b", "Python"),
+        (r"\b(?i)pool\s+requests?\b", "pull request"),
+        (r"\b(?i)front\s+end\b", "frontend"),
+        (r"\b(?i)back\s+end\b", "backend"),
+        (r"\b(?i)full\s+stack\b", "full-stack"),
+        (r"\b(?i)open\s+source\b", "open-source"),
+        (r"\b(?i)micro\s+soft\b", "Microsoft"),
+        (r"\b(?i)power\s+point\b", "PowerPoint"),
+        (r"\b(?i)(?:ex\s+cel|ex\s+cell)\b", "Excel"),
+        (r"\b(?i)out\s+look\b", "Outlook"),
+    ];
+    for (pat, repl) in pre_homophones {
+        if let Ok(re) = Regex::new(pat) {
+            text = re.replace_all(&text, repl).to_string();
+        }
+    }
+
     // 1. Spoken self-corrections ("no wait...", "scratch that...", "I mean...", "actually no...", "no no...", pivot backtracks)
     if remove_corrections {
         let self_correction_regex = Regex::new(
@@ -829,8 +854,15 @@ pub fn heuristic_cleanup_full(
     // 2. Remove verbal filler words (hesitations, e.g. um, uh, nu, na, erm, no no, etc.)
     if remove_fillers {
         let filler_patterns = [
+            // Search-for-words & hesitation phrases
             r"(?i)\b(?:what\s+else\s+is\s+there\s*,\s*like\s+what|what\s+else\s+is\s+there|like\s+what\s+is\s+there)\b,?",
-            r"(?i)\bload\s*,\s*plug\s*,\s*closely\b,?",
+            r"(?i)\b(?:how\s+do\s+you\s+say|how\s+can\s+I\s+say|how\s+to\s+say|what\s+do\s+you\s+call\s+it|what\s+is\s+it\s+called|what's\s+it\s+called|what\s+was\s+it)\b,?",
+            // Pause & thinking hesitations
+            r"(?i)\b(?:let's\s+see|let\s+me\s+see|let\s+me\s+think|lemme\s+see)\b,?",
+            r"(?i)\b(?:wait\s+a\s+minute|wait\s+a\s+second|wait\s+a\s+sec|wait\s+wait\s+wait|wait\s+wait|hold\s+on\s+a\s+second|hold\s+on\s+a\s+sec|hold\s+on)\b,?",
+            // Vagueness tails
+            r"(?i)\b(?:and\s+stuff\s+like\s+that|and\s+all\s+that\s+stuff|and\s+all\s+that|or\s+something\s+like\s+that|or\s+something)\b,?",
+            r"(?i)\bload\s*,?\s*plug\s*,?\s*closely\b,?",
             r"(?i)\b(?:no no wait|no no no|no no)\b,?",
             r"(?i)\b(?:um\s+aa|aa\s+um|um\s+uh|uh\s+um|er\s+um|um\s+er|aa\s+nu|nu\s+aa)\b,?",
             r"(?i)\b(um+|uh+|erm+|ah+|aa+|aah+|ahh+|nu+|na+|umm+|uhh+|er+|hmm+|uhm+|em+|ohh+)\b,?",
@@ -983,6 +1015,19 @@ pub fn heuristic_cleanup_full(
     }
     if let Ok(comma_period) = Regex::new(r",\s*\.") {
         text = comma_period.replace_all(&text, ".").to_string();
+    }
+    if let Ok(period_comma) = Regex::new(r"\.\s*,") {
+        text = period_comma.replace_all(&text, ".").to_string();
+    }
+
+    // Clean up pause commas immediately following conjunctions (e.g. "and, we can" -> "and we can")
+    if let Ok(conj_comma) = Regex::new(r"(?i)\b(and|but|so|or),\s+([a-zA-Z])") {
+        text = conj_comma.replace_all(&text, "$1 $2").to_string();
+    }
+
+    // Clean up pause commas around conjunctions (e.g. ", and," -> ", and")
+    if let Ok(dup_conj_comma) = Regex::new(r"(?i),\s*(and|or|but|so)\s*,") {
+        text = dup_conj_comma.replace_all(&text, ", $1").to_string();
     }
 
     // Clean up spaces before punctuation
@@ -1163,8 +1208,28 @@ pub fn polish_sentence_structure(input: &str) -> String {
         (r"\b(?i)microsoft\s+office\b", "Microsoft Office"),
         (r"\b(?i)windows\s+11\b", "Windows 11"),
         (r"\b(?i)a\s+operating\s+system\b", "an operating system"),
+        // Indefinite article grammar corrections ("a" before vowel sounds)
+        (r"\b(?i)\ba\s+(operating\s+system|application|api|sdk|interface|update|issue|error|exception|endpoint|object|instance|array|integration|algorithm|optimization|option)\b", "an $1"),
         (r"\b(?i)by\s+windows\s+11\b", "for Windows 11"),
         (r"\b(?i)by\s+windows\b", "for Windows"),
+        // Developer & Tech Homophones
+        (r"\b(?i)pool\s+requests?\b", "pull request"),
+        (r"\b(?i)front\s+end\b", "frontend"),
+        (r"\b(?i)back\s+end\b", "backend"),
+        (r"\b(?i)full\s+stack\b", "full-stack"),
+        (r"\b(?i)open\s+source\b", "open-source"),
+        (r"\b(?i)(?:pie\s+thon|py\s+thon)\b", "Python"),
+        (r"\b(?i)dock\s+er\b", "Docker"),
+        (r"\b(?i)git\s+hub\b", "GitHub"),
+        (r"\b(?i)you\s+tube\b", "YouTube"),
+        (r"\b(?i)(?:next\s+js|nextjs)\b", "Next.js"),
+        (r"\b(?i)(?:node\s+js|nodejs)\b", "Node.js"),
+        (r"\b(?i)(?:react\s+js|reactjs)\b", "React"),
+        (r"\b(?i)(?:cloud\s+flare|cloud\s+flayer)\b", "Cloudflare"),
+        (r"\b(?i)micro\s+soft\b", "Microsoft"),
+        (r"\b(?i)power\s+point\b", "PowerPoint"),
+        (r"\b(?i)(?:ex\s+cel|ex\s+cell)\b", "Excel"),
+        (r"\b(?i)out\s+look\b", "Outlook"),
         // "Word to win" / "like win" in Office Context
         (r"\b(?i)like\s+a\s+mail\s*,\s*like\s+win\b", "like Mail, like Word"),
         (r"\b(?i)like\s+mail\s*,\s*like\s+win\b", "like Mail, like Word"),
@@ -1285,6 +1350,14 @@ pub fn polish_sentence_structure(input: &str) -> String {
         (r"\b(?i)where\s+is\s+ended\b", "where it ended"),
         (r"\b(?i)and\s+and\b", "and"),
         (r"\b(?i)this\s+this\b", "this"),
+        (r"\b(?i)that\s+that\b", "that"),
+        (r"\b(?i)in\s+in\b", "in"),
+        (r"\b(?i)to\s+to\b", "to"),
+        (r"\b(?i)for\s+for\b", "for"),
+        (r"\b(?i)with\s+with\b", "with"),
+        (r"\b(?i)is\s+is\b", "is"),
+        (r"\b(?i)we\s+we\b", "we"),
+        (r"\b(?i)the\s+the\b", "the"),
     ];
     for (pat, repl) in contraction_replacements {
         if let Ok(re) = Regex::new(pat) {

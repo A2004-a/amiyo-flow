@@ -207,6 +207,11 @@ impl Database {
             ("Take Claude", "Hey Claude", "Phonetics"),
             ("PowerPoint", "PowerPoint", "Technical"),
             ("Excel", "Excel", "Technical"),
+            ("Word", "Word", "Technical"),
+            ("Claude", "Claude", "Technical"),
+            ("Gemini", "Gemini", "Technical"),
+            ("Docker", "Docker", "Technical"),
+            ("Next.js", "Next.js", "Technical"),
             ("Windows 11", "Windows 11", "Technical"),
             ("omiya", "Amiyo", "Phonetics"),
             ("omiyo", "Amiyo", "Phonetics"),
@@ -240,6 +245,11 @@ impl Database {
             ("Take Claude", "Hey Claude", "Phonetics"),
             ("PowerPoint", "PowerPoint", "Technical"),
             ("Excel", "Excel", "Technical"),
+            ("Word", "Word", "Technical"),
+            ("Claude", "Claude", "Technical"),
+            ("Gemini", "Gemini", "Technical"),
+            ("Docker", "Docker", "Technical"),
+            ("Next.js", "Next.js", "Technical"),
             ("Windows 11", "Windows 11", "Technical"),
         ];
         for (w, r, c) in additional_mappings.iter() {

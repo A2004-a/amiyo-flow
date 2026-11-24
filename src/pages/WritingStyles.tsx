@@ -366,6 +366,29 @@ function simulateCleanup(
   // 0. Spoken in-line editing commands ("change Friday to Saturday", "change all 2 to 4")
   text = applySpokenEditCommands(text);
 
+  // 0b. Pre-normalize compound developer terms and acoustic homophones before filler stripping
+  const preHomophones: [RegExp, string][] = [
+    [/\bdock\s+er\b/gi, 'Docker'],
+    [/\b(?:next\s+js|nextjs)\b/gi, 'Next.js'],
+    [/\b(?:node\s+js|nodejs)\b/gi, 'Node.js'],
+    [/\b(?:react\s+js|reactjs)\b/gi, 'React'],
+    [/\bgit\s+hub\b/gi, 'GitHub'],
+    [/\byou\s+tube\b/gi, 'YouTube'],
+    [/\b(?:pie\s+thon|py\s+thon)\b/gi, 'Python'],
+    [/\bpool\s+requests?\b/gi, 'pull request'],
+    [/\bfront\s+end\b/gi, 'frontend'],
+    [/\bback\s+end\b/gi, 'backend'],
+    [/\bfull\s+stack\b/gi, 'full-stack'],
+    [/\bopen\s+source\b/gi, 'open-source'],
+    [/\bmicro\s+soft\b/gi, 'Microsoft'],
+    [/\bpower\s+point\b/gi, 'PowerPoint'],
+    [/\b(?:ex\s+cel|ex\s+cell)\b/gi, 'Excel'],
+    [/\bout\s+look\b/gi, 'Outlook'],
+  ];
+  for (const [re, repl] of preHomophones) {
+    text = text.replace(re, repl);
+  }
+
   // 1. Spoken self corrections
   if (removeCorrections) {
     const clauseMatch = text.match(
@@ -408,7 +431,11 @@ function simulateCleanup(
   // 2. Filler words
   if (removeFillers) {
     text = text.replace(/\b(?:what\s+else\s+is\s+there\s*,\s*like\s+what|what\s+else\s+is\s+there|like\s+what\s+is\s+there)\b,?/gi, '');
-    text = text.replace(/\bload\s*,\s*plug\s*,\s*closely\b,?/gi, '');
+    text = text.replace(/\b(?:how\s+do\s+you\s+say|how\s+can\s+I\s+say|how\s+to\s+say|what\s+do\s+you\s+call\s+it|what\s+is\s+it\s+called|what's\s+it\s+called|what\s+was\s+it)\b,?/gi, '');
+    text = text.replace(/\b(?:let's\s+see|let\s+me\s+see|let\s+me\s+think|lemme\s+see)\b,?/gi, '');
+    text = text.replace(/\b(?:wait\s+a\s+minute|wait\s+a\s+second|wait\s+a\s+sec|wait\s+wait\s+wait|wait\s+wait|hold\s+on\s+a\s+second|hold\s+on\s+a\s+sec|hold\s+on)\b,?/gi, '');
+    text = text.replace(/\b(?:and\s+stuff\s+like\s+that|and\s+all\s+that\s+stuff|and\s+all\s+that|or\s+something\s+like\s+that|or\s+something)\b,?/gi, '');
+    text = text.replace(/\bload\s*,?\s*plug\s*,?\s*closely\b,?/gi, '');
     text = text.replace(/\b(?:no no wait|no no no|no no)\b,?/gi, '');
     text = text.replace(/\b(?:um\s+aa|aa\s+um|um\s+uh|uh\s+um|er\s+um|um\s+er|aa\s+nu|nu\s+aa)\b,?/gi, '');
     text = text.replace(/\b(um+|uh+|erm+|ah+|aa+|aah+|ahh+|nu+|na+|umm+|uhh+|er+|hmm+|uhm+|em+|ohh+)\b,?/gi, '');
@@ -517,6 +544,12 @@ function simulateCleanup(
 
   // Clean duplicate commas and comma-period
   text = text.replace(/,\s*,+/g, ',').replace(/,\s*\./g, '.');
+
+  // Clean up pause commas immediately following conjunctions (e.g. "and, we can" -> "and we can")
+  text = text.replace(/\b(and|but|so|or),\s+([a-zA-Z])/gi, '$1 $2');
+
+  // Clean up pause commas around conjunctions (e.g. ", and," -> ", and")
+  text = text.replace(/,\s*(and|or|but|so)\s*,/gi, ', $1');
 
   // Spaces before punctuation
   text = text.replace(/\s+([,\.?!;:])/g, '$1');
@@ -631,8 +664,27 @@ function simulateCleanup(
       [/\bmicrosoft\s+office\b/gi, "Microsoft Office"],
       [/\bwindows\s+11\b/gi, "Windows 11"],
       [/\ba\s+operating\s+system\b/gi, "an operating system"],
+      [/\ba\s+(operating\s+system|application|api|sdk|interface|update|issue|error|exception|endpoint|object|instance|array|integration|algorithm|optimization|option)\b/gi, "an $1"],
       [/\bby\s+windows\s+11\b/gi, "for Windows 11"],
       [/\bby\s+windows\b/gi, "for Windows"],
+      // Developer & Tech Homophones
+      [/\bpool\s+requests?\b/gi, "pull request"],
+      [/\bfront\s+end\b/gi, "frontend"],
+      [/\bback\s+end\b/gi, "backend"],
+      [/\bfull\s+stack\b/gi, "full-stack"],
+      [/\bopen\s+source\b/gi, "open-source"],
+      [/\b(?:pie\s+thon|py\s+thon)\b/gi, "Python"],
+      [/\bdock\s+er\b/gi, "Docker"],
+      [/\bgit\s+hub\b/gi, "GitHub"],
+      [/\byou\s+tube\b/gi, "YouTube"],
+      [/\b(?:next\s+js|nextjs)\b/gi, "Next.js"],
+      [/\b(?:node\s+js|nodejs)\b/gi, "Node.js"],
+      [/\b(?:react\s+js|reactjs)\b/gi, "React"],
+      [/\b(?:cloud\s+flare|cloud\s+flayer)\b/gi, "Cloudflare"],
+      [/\bmicro\s+soft\b/gi, "Microsoft"],
+      [/\bpower\s+point\b/gi, "PowerPoint"],
+      [/\b(?:ex\s+cel|ex\s+cell)\b/gi, "Excel"],
+      [/\bout\s+look\b/gi, "Outlook"],
       // "Word to win" / "like win" in Office Context
       [/\blike\s+a\s+mail\s*,\s*like\s+win\b/gi, "like Mail, like Word"],
       [/\blike\s+mail\s*,\s*like\s+win\b/gi, "like Mail, like Word"],
@@ -751,6 +803,14 @@ function simulateCleanup(
       [/\bwhere\s+is\s+ended\b/gi, "where it ended"],
       [/\band\s+and\b/gi, "and"],
       [/\bthis\s+this\b/gi, "this"],
+      [/\bthat\s+that\b/gi, "that"],
+      [/\bin\s+in\b/gi, "in"],
+      [/\bto\s+to\b/gi, "to"],
+      [/\bfor\s+for\b/gi, "for"],
+      [/\bwith\s+with\b/gi, "with"],
+      [/\bis\s+is\b/gi, "is"],
+      [/\bwe\s+we\b/gi, "we"],
+      [/\bthe\s+the\b/gi, "the"],
     ];
     for (const [re, repl] of contractions) {
       text = text.replace(re, repl);
@@ -942,6 +1002,10 @@ export const WritingStyles: React.FC = () => {
     {
       label: 'Office & Productivity: Word, Excel, PowerPoint',
       text: 'Take Claude, my name is Amiyo Garai and I try to build a operating system by Windows 11 and try to build like a file manager and systems and others, load, plug, closely and build a Microsoft OSU system like a mail, like win, what else is there, like what PowerPoint excel system',
+    },
+    {
+      label: 'Irritation Words & Tech Normalization',
+      text: 'Take Claude, we need a API and a SDK for pool request, how do you say, let me think we can build with next js and dock er and stuff like that',
     },
   ];
 
