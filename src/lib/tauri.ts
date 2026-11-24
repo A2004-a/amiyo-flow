@@ -200,6 +200,28 @@ export const api = {
     };
   },
 
+  stopRecordingOnly: async (): Promise<{
+    success: boolean;
+    raw_text: string;
+    cleaned_text: string;
+    duration_ms: number;
+    word_count: number;
+    target_app: string;
+    error?: string;
+  }> => {
+    if (isTauri()) return invoke('stop_recording_only');
+    const raw = 'Meeting discussion: team reviewed status and agreed on next milestones.';
+    const cleaned = 'Meeting discussion: team reviewed status and agreed on next milestones.';
+    return {
+      success: true,
+      raw_text: raw,
+      cleaned_text: cleaned,
+      duration_ms: 3000,
+      word_count: 10,
+      target_app: 'amiyo-flow',
+    };
+  },
+
   cancelRecording: async (): Promise<void> => {
     if (isTauri()) return invoke('cancel_recording');
   },
@@ -617,11 +639,7 @@ export const onNavigate = (callback: (page: string) => void): (() => void) => {
 };
 
 export const formatHotkeyDisplay = (key?: string): string => {
-  if (
-    !key ||
-    key === 'CommandOrControl+Shift+Space' ||
-    key.includes('CommandOrControl+Shift+Space')
-  ) {
+  if (!key) {
     return 'Ctrl+Space';
   }
   return key

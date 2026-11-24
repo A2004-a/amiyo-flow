@@ -107,6 +107,16 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 
 ## 4. Semantic Version Changelog
 
+### [1.0.14] — 2026-11-24
+- **Hardened Win32 Clipboard Verification (BUG-036)**:
+  - Verified `SetClipboardData` handle return in `src-tauri/src/input/mod.rs` to ensure clipboard write actually succeeds before calling `simulate_ctrl_v()`.
+  - If Windows clipboard locking or memory allocation fails, the engine seamlessly falls back to Direct Unicode keystrokes (`send_unicode_text`), eliminating paste corruption and stale clipboard leakage.
+- **Dedicated Meeting Recording Isolation (`stop_recording_only`)**:
+  - Implemented `stop_recording_only` Tauri command and frontend API client method.
+  - Meeting Assistant recording now stops, transcribes, and synthesizes notes entirely in-memory without simulating keystrokes into active external windows.
+- **Hotkey Formatting Fidelity (`formatHotkeyDisplay`)**:
+  - Refined `formatHotkeyDisplay` in `src/lib/tauri.ts` to map `CommandOrControl` $\rightarrow$ `Ctrl` without dropping modifier keys, ensuring `CommandOrControl+Shift+Space` accurately displays as `Ctrl+Shift+Space`.
+
 ### [1.0.13] — 2026-11-24
 - **Headless Pythonw & Subprocess Console Blink Elimination (BUG-035)**:
   - **Headless Executable Preference**: Updated `find_python()` in `src-tauri/src/stt/mod.rs` to automatically detect and prefer `pythonw.exe` over `python.exe` on Windows. Because `pythonw.exe` is built with `IMAGE_SUBSYSTEM_WINDOWS_GUI`, Windows and Windows Terminal never allocate or flash a console window.

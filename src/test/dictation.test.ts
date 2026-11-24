@@ -153,9 +153,12 @@ describe('AMIYO FLOW Frontend Store & Pipeline Tests', () => {
 
   it('correctly formats hotkey display labels without collapsing distinct modifiers', () => {
     expect(formatHotkeyDisplay('Control+Space')).toBe('Ctrl+Space');
-    expect(formatHotkeyDisplay('CommandOrControl+Shift+Space')).toBe('Ctrl+Space');
+    expect(formatHotkeyDisplay('CommandOrControl+Space')).toBe('Ctrl+Space');
+    expect(formatHotkeyDisplay('CommandOrControl+Shift+Space')).toBe('Ctrl+Shift+Space');
     expect(formatHotkeyDisplay('Control+Shift+Space')).toBe('Ctrl+Shift+Space');
     expect(formatHotkeyDisplay('Alt+Space')).toBe('Alt+Space');
     expect(formatHotkeyDisplay('F8')).toBe('F8');
+    expect(formatHotkeyDisplay('')).toBe('Ctrl+Space');
+    expect(formatHotkeyDisplay(undefined)).toBe('Ctrl+Space');
   });
 });

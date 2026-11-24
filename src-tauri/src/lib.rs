@@ -251,6 +251,7 @@ pub fn run() {
             commands::resume_recording,
             commands::cancel_recording,
             commands::stop_recording_and_insert,
+            commands::stop_recording_only,
             commands::test_insert_text,
             commands::transcribe_and_clean,
             commands::get_history,

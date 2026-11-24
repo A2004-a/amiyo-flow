@@ -130,7 +130,7 @@ export const MeetingAssistant: React.FC = () => {
 
     let recordedTranscript = '';
     try {
-      const res = await api.stopRecordingAndInsert();
+      const res = await api.stopRecordingOnly();
       recordedTranscript = res.cleaned_text || res.raw_text;
     } catch (e) {
       console.warn('Audio capture finalize notice:', e);

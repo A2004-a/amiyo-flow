@@ -251,20 +251,25 @@ pub mod win_impl {
 
             let h_global = GlobalAlloc(GMEM_MOVEABLE, size);
 
+            let mut success = false;
             if let Ok(handle) = h_global {
                 let ptr = GlobalLock(handle) as *mut u16;
                 if !ptr.is_null() {
                     std::ptr::copy_nonoverlapping(wide.as_ptr(), ptr, wide.len());
                     let _ = GlobalUnlock(handle);
-                    let _ = SetClipboardData(
+                    if let Ok(res_handle) = SetClipboardData(
                         CF_UNICODETEXT,
                         HANDLE(handle.0 as *mut _),
-                    );
+                    ) {
+                        if res_handle.0 != (0 as _) {
+                            success = true;
+                        }
+                    }
                 }
             }
 
             let _ = CloseClipboard();
-            true
+            success
         }
     }
 

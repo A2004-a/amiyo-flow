@@ -176,10 +176,10 @@ pub fn cancel_recording(app_handle: AppHandle, state: State<'_, AppState>) {
     let _ = app_handle.emit("amiyo-recording-cancelled", ());
 }
 
-#[tauri::command]
-pub async fn stop_recording_and_insert(
+async fn finalize_recording_internal(
     app_handle: AppHandle,
     state: State<'_, AppState>,
+    should_insert: bool,
 ) -> Result<DictationResult, String> {
     let duration_ms = state
         .recording_start
@@ -381,7 +381,7 @@ pub async fn stop_recording_and_insert(
     let word_count = cleaned_text.split_whitespace().count();
 
     let mut insertion_error = None;
-    if auto_insert && !cleaned_text.is_empty() {
+    if should_insert && auto_insert && !cleaned_text.is_empty() {
         let _ = app_handle.emit("amiyo-inserting-text", &cleaned_text);
         if let Err(e) = input::insert_text(target_hwnd, &cleaned_text, use_clipboard, restore_delay_ms) {
             eprintln!("Direct text insertion error: {}", e);
@@ -425,6 +425,22 @@ pub async fn stop_recording_and_insert(
     });
 
     Ok(res)
+}
+
+#[tauri::command]
+pub async fn stop_recording_and_insert(
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<DictationResult, String> {
+    finalize_recording_internal(app_handle, state, true).await
+}
+
+#[tauri::command]
+pub async fn stop_recording_only(
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<DictationResult, String> {
+    finalize_recording_internal(app_handle, state, false).await
 }
 
 #[tauri::command]
