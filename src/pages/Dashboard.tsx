@@ -157,7 +157,7 @@ export const Dashboard: React.FC = () => {
   const currentGuide = appGuides[selectedApp];
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl mx-auto overflow-y-auto h-[calc(100vh-40px)]">
+    <div className="p-6 space-y-6 max-w-6xl mx-auto overflow-y-auto h-[calc(100vh-40px)] scroll-smooth custom-scrollbar">
       {/* Top Banner / Hero */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-[#0A192F] border border-cyan-500/20 p-6 shadow-xl">
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">

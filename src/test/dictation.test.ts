@@ -202,4 +202,24 @@ describe('AMIYO FLOW Frontend Store & Pipeline Tests', () => {
     await useSettingsStore.getState().updateSetting('remove_self_corrections', 'true');
     expect(useSettingsStore.getState().settings.remove_self_corrections).toBe('true');
   });
+
+  it('guarantees universal smooth scrolling and custom scrollbar across all workspace pages', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const pagesDir = path.resolve(__dirname, '../pages');
+    const pageFiles = fs.readdirSync(pagesDir).filter((f) => f.endsWith('.tsx'));
+
+    expect(pageFiles.length).toBeGreaterThanOrEqual(12);
+
+    for (const file of pageFiles) {
+      const content = fs.readFileSync(path.join(pagesDir, file), 'utf-8');
+      expect(content).toContain('overflow-y-auto');
+      expect(content).toContain('custom-scrollbar');
+    }
+
+    const cssContent = fs.readFileSync(path.resolve(__dirname, '../index.css'), 'utf-8');
+    expect(cssContent).toContain('.custom-scrollbar');
+    expect(cssContent).toContain('::-webkit-scrollbar');
+    expect(cssContent).toContain('scrollbar-width: thin');
+  });
 });

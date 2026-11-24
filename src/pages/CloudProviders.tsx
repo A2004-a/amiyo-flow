@@ -125,7 +125,7 @@ export const CloudProviders: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col p-6 overflow-y-auto space-y-6 max-w-6xl">
+    <div className="h-full flex flex-col p-6 overflow-y-auto space-y-6 max-w-6xl mx-auto scroll-smooth custom-scrollbar">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

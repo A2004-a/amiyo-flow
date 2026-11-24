@@ -183,7 +183,7 @@ export const LiveDictation: React.FC = () => {
   const scratchpadChars = scratchpadText.length;
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto overflow-y-auto h-[calc(100vh-40px)] select-none">
+    <div className="p-6 space-y-6 max-w-5xl mx-auto overflow-y-auto h-[calc(100vh-40px)] select-none scroll-smooth custom-scrollbar">
       {/* Studio Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
         <div>

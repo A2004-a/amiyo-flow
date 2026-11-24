@@ -76,7 +76,7 @@ export const PrivacyCenter: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col p-6 overflow-y-auto space-y-6 max-w-5xl">
+    <div className="h-full flex flex-col p-6 overflow-y-auto space-y-6 max-w-5xl mx-auto scroll-smooth custom-scrollbar">
       {/* Title */}
       <div className="flex items-center justify-between">
         <div>

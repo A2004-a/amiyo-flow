@@ -158,7 +158,7 @@ export const LocalModels: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-5xl pb-10">
+    <div className="p-6 space-y-6 max-w-5xl mx-auto overflow-y-auto h-[calc(100vh-40px)] scroll-smooth custom-scrollbar pb-16">
       {/* Title & Status */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
