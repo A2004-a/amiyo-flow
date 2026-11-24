@@ -1,4 +1,12 @@
 {
+  "json.validate.enable": false,
+  "npm.validate.enable": false,
+  "json.schemas": [
+    {
+      "fileMatch": ["package.json"],
+      "url": ""
+    }
+  ],
   "editor.bracketPairColorization.enabled": false,
   "editor.guides.bracketPairs": false,
   "editor.guides.bracketPairsHorizontal": false,
