@@ -397,6 +397,14 @@ async fn finalize_recording_internal(
         .filter(|s| !s.is_empty())
         .collect();
 
+    // Check for spoken voice commands controlling style and format
+    let (spoken_style_opt, _) = ai::extract_spoken_style_command(&raw_text);
+    let effective_style = spoken_style_opt.clone().unwrap_or_else(|| style.clone());
+    if let Some(ref new_style) = spoken_style_opt {
+        let _ = state.db.set_setting("style", new_style);
+        let _ = app_handle.emit("amiyo-style-changed", new_style);
+    }
+
     let cleaned_text = match ai::clean_transcript_routed_full(
         &router_config,
         &raw_text,
@@ -514,7 +522,7 @@ async fn finalize_recording_internal(
         cleaned_text: cleaned_text.clone(),
         target_app: target_app.clone(),
         word_count: word_count as i64,
-        style: style.clone(),
+        style: effective_style.clone(),
         provider: local_stt_model.clone(),
     };
     let _ = state.db.add_history(hist_item);

@@ -20,6 +20,9 @@ import {
   Tag,
   Clock,
   ShieldCheck,
+  Mic,
+  List,
+  Mail,
 } from 'lucide-react';
 import { useSettingsStore } from '../stores/useSettingsStore';
 
@@ -193,6 +196,154 @@ function resolvePivotBacktrack(before: string, replacement: string): string | nu
   return null;
 }
 
+function extractSpokenStyleCommand(input: string): { style: string | null; content: string } {
+  const trimmed = input.trim();
+  if (!trimmed) return { style: null, content: '' };
+
+  const triggers: [RegExp, string][] = [
+    [/^(?:please\s+)?(?:convert\s+(?:this\s+)?(?:in|into)\s+a\s+proper\s+prompt|make\s+(?:this\s+)?a\s+prompt|create\s+a\s+proper\s+prompt\s+(?:for|from)|generate\s+a\s+prompt\s+for|in\s+prompt\s+mode|as\s+a\s+prompt)\s*[:,\-]?\s*(.*)$/i, 'AI Prompt'],
+    [/^(?:please\s+)?(?:write\s+this\s+)?(?:in|using)\s+business\s+style\s*[:,\-]?\s*(.*)$/i, 'Professional'],
+    [/^(?:please\s+)?(?:write\s+this\s+)?(?:in|using)\s+professional\s+style\s*[:,\-]?\s*(.*)$/i, 'Professional'],
+    [/^(?:please\s+)?(?:write\s+this\s+)?(?:in|using)\s+casual\s+style\s*[:,\-]?\s*(.*)$/i, 'Casual'],
+    [/^(?:please\s+)?(?:write\s+this\s+)?(?:in|using)\s+developer\s+style\s*[:,\-]?\s*(.*)$/i, 'Developer'],
+    [/^(?:please\s+)?(?:write\s+this\s+)?(?:in|using)\s+academic\s+style\s*[:,\-]?\s*(.*)$/i, 'Academic'],
+    [/^(?:please\s+)?(?:write\s+this\s+)?(?:in|as)\s+bullet\s+points?\s*[:,\-]?\s*(.*)$/i, 'Bullet Points'],
+    [/^(?:please\s+)?(?:write\s+this\s+)?(?:in|as)\s+(?:an?\s+)?email\s*[:,\-]?\s*(.*)$/i, 'Email'],
+    [/^(?:please\s+)?(?:write\s+this\s+)?in\s+raw\s+mode\s*[:,\-]?\s*(.*)$/i, 'Raw'],
+  ];
+
+  for (const [re, styleName] of triggers) {
+    const match = trimmed.match(re);
+    if (match) {
+      return { style: styleName, content: (match[1] || '').trim() };
+    }
+  }
+
+  return { style: null, content: trimmed };
+}
+
+function transformToBusinessStyle(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return '';
+
+  let res = trimmed;
+
+  res = res.replace(
+    /\b(?:can\s+we\s+maybe|maybe\s+we\s+can|could\s+we\s+maybe)\s+(?:move|reschedule)\s+the\s+meeting\s+to\s+([0-9:]+\s*(?:AM|PM|today|tomorrow)?)\s*(?:if\s+that\s+works\s+for\s+you)?\b/gi,
+    'Would it be possible to reschedule our meeting to $1? Please let me know if that works for your schedule.'
+  );
+  res = res.replace(
+    /\b(?:can\s+we\s+maybe|maybe\s+we\s+can|could\s+we\s+maybe)\s+(?:move|reschedule)\s+the\s+meeting\s+to\s+([a-zA-Z0-9:]+)\s*(?:if\s+that\s+works\s+for\s+you)?\b/gi,
+    'Would it be possible to reschedule our meeting to $1? Please let me know if that works for your schedule.'
+  );
+
+  const replacements: [RegExp, string][] = [
+    [/\bcan\s+we\s+maybe\b/gi, 'Could we please'],
+    [/\bi\s+was\s+just\s+checking\s+if\b/gi, 'I am writing to inquire whether'],
+    [/\bi\s+was\s+wondering\s+if\b/gi, 'I would like to inquire whether'],
+    [/\blet\s+me\s+know\s+what\s+you\s+think\b/gi, 'I would appreciate your feedback and insights on this matter.'],
+    [/\bthanks\s+a\s+lot\b/gi, 'Thank you very much for your time and consideration.'],
+    [/\bgonna\b/gi, 'going to'],
+    [/\bwanna\b/gi, 'would like to'],
+    [/\bgotta\b/gi, 'need to'],
+    [/\basap\b/gi, 'at your earliest convenience'],
+    [/\byeah\s+basically\b/gi, 'Indeed,'],
+    [/\bhey\s+guys\b/gi, 'Dear colleagues,'],
+    [/\btotally\s+push\b/gi, 'proceed with deploying'],
+  ];
+
+  for (const [re, repl] of replacements) {
+    res = res.replace(re, repl);
+  }
+
+  res = res.trim();
+  if (res && !/[.!?]$/.test(res)) {
+    res += '.';
+  }
+
+  return res.charAt(0).toUpperCase() + res.slice(1);
+}
+
+function engineerStructuredPrompt(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return '';
+
+  if (trimmed.toLowerCase().startsWith('act as') || trimmed.toLowerCase().startsWith('you are an expert')) {
+    return trimmed;
+  }
+
+  const lower = trimmed.toLowerCase();
+  let role = 'an expert consultant and domain specialist';
+  if (
+    lower.includes('code') ||
+    lower.includes('build') ||
+    lower.includes('app') ||
+    lower.includes('function') ||
+    lower.includes('program') ||
+    lower.includes('api') ||
+    lower.includes('interface') ||
+    lower.includes('rust') ||
+    lower.includes('python') ||
+    lower.includes('react') ||
+    lower.includes('tauri') ||
+    lower.includes('software')
+  ) {
+    role = 'an expert software architect and full-stack engineer';
+  } else if (
+    lower.includes('write') ||
+    lower.includes('article') ||
+    lower.includes('blog') ||
+    lower.includes('essay') ||
+    lower.includes('email')
+  ) {
+    role = 'a master copywriter and communications specialist';
+  } else if (
+    lower.includes('analyze') ||
+    lower.includes('data') ||
+    lower.includes('sql') ||
+    lower.includes('metrics')
+  ) {
+    role = 'a senior data analyst and systems architect';
+  }
+
+  const task = trimmed.replace(/\.+$/, '');
+  return `Act as ${role}.\n\nObjective: ${task}.\n\nKey Requirements:\n- Detail step-by-step strategy and architectural breakdown.\n- Provide concrete, production-ready examples and address edge cases.\n- Highlight best practices, pitfalls to avoid, and verification guidelines.\n\nPlease structure the response with clear headings and bulleted explanations.`;
+}
+
+function transformToBulletPoints(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return '';
+
+  const parts = trimmed
+    .split(/(?:\.\s+|\;\s+|\n+|,\s*(?:and\s+also|and|also|plus)\s+)/i)
+    .map((s) => s.trim().replace(/^[,.\s-]+|[,.\s-]+$/g, ''))
+    .filter(Boolean);
+
+  if (parts.length <= 1) {
+    const andParts = trimmed
+      .split(/\s+and\s+/i)
+      .map((s) => s.trim().replace(/^[,.\s-]+|[,.\s-]+$/g, ''))
+      .filter(Boolean);
+    if (andParts.length > 1) {
+      return andParts.map((item) => `- ${item.charAt(0).toUpperCase() + item.slice(1)}`).join('\n');
+    }
+    return `- ${trimmed}`;
+  }
+
+  return parts.map((item) => `- ${item.charAt(0).toUpperCase() + item.slice(1)}`).join('\n');
+}
+
+function transformToEmailFormat(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return '';
+
+  const words = trimmed.split(/\s+/);
+  const subjectWords = words.length > 6 ? words.slice(0, 6).join(' ') : trimmed;
+  const cleanSubject = subjectWords.replace(/[^a-zA-Z0-9 ]/g, '').trim();
+
+  return `Subject: ${cleanSubject}\n\nHi team,\n\n${trimmed}\n\nBest regards,\nAmiyo Garai`;
+}
+
 function simulateCleanup(
   input: string,
   removeFillers: boolean,
@@ -202,7 +353,15 @@ function simulateCleanup(
   customFillers: string[]
 ): string {
   if (!input.trim()) return '';
-  let text = input;
+
+  // Step 0: Voice Command Directive Extraction
+  const { style: spokenStyle, content } = extractSpokenStyleCommand(input);
+  let text = spokenStyle ? content : input;
+  if (!text.trim()) return '';
+
+  if (spokenStyle === 'Raw') {
+    return text;
+  }
 
   // 0. Spoken in-line editing commands ("change Friday to Saturday", "change all 2 to 4")
   text = applySpokenEditCommands(text);
@@ -615,6 +774,19 @@ function simulateCleanup(
     text = lines.join('\n');
   }
 
+  if (spokenStyle === 'AI Prompt') {
+    return engineerStructuredPrompt(text);
+  }
+  if (spokenStyle === 'Professional') {
+    return transformToBusinessStyle(text);
+  }
+  if (spokenStyle === 'Bullet Points') {
+    return transformToBulletPoints(text);
+  }
+  if (spokenStyle === 'Email') {
+    return transformToEmailFormat(text);
+  }
+
   return text;
 }
 
@@ -724,6 +896,22 @@ export const WritingStyles: React.FC = () => {
     {
       label: 'Custom Word Cleanser',
       text: 'so like literally we should push this yaar right now you know',
+    },
+    {
+      label: 'Voice Control: AI Prompt',
+      text: 'convert this into a proper prompt: build a chatgpt like application using react and tauri',
+    },
+    {
+      label: 'Voice Control: Business Style',
+      text: 'in business style: can we maybe move the meeting to three PM if that works for you',
+    },
+    {
+      label: 'Voice Control: Bullet Points',
+      text: 'in bullet points: we need unit tests and release installer and documentation',
+    },
+    {
+      label: 'Voice Control: Email Format',
+      text: 'as an email: please review the pull request for the autonomous voice control feature',
     },
   ];
 
@@ -1189,6 +1377,93 @@ export const WritingStyles: React.FC = () => {
               >
                 <Plus className="w-3.5 h-3.5" />
                 Add
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Autonomous Voice Control & Spoken Directives Banner */}
+        <div className="p-4 rounded-xl bg-gradient-to-r from-cyan-950/40 via-slate-900 to-indigo-950/40 border border-cyan-500/40 space-y-3 shadow-lg shadow-cyan-500/5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-cyan-500/20 pb-2.5">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                <Mic className="w-4 h-4 animate-pulse" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-bold text-white">Autonomous Voice Control & Style Directives</h3>
+                  <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold">
+                    Hands-Free Voice AI
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-300 mt-0.5">
+                  Speak verbal commands to dynamically trigger AI prompt engineering or switch formats without touching your mouse or keyboard.
+                </p>
+              </div>
+            </div>
+            <div className="text-[10px] font-mono text-cyan-300 bg-slate-950/80 px-2.5 py-1 rounded-md border border-cyan-500/30 shrink-0">
+              Active Style: <span className="font-bold text-white">{settings.style}</span>
+            </div>
+          </div>
+
+          {/* Quick Voice Command Chips */}
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-mono text-slate-400 block">Click or speak any voice directive to test:</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+              <button
+                type="button"
+                onClick={() => setSimulatorInput('convert this into a proper prompt: build a chatgpt like application using react and tauri')}
+                className="p-2.5 rounded-lg bg-slate-900/90 hover:bg-cyan-950/50 border border-cyan-500/30 hover:border-cyan-400 text-left transition-all group"
+              >
+                <div className="flex items-center gap-1.5 text-cyan-300 font-semibold text-[11px]">
+                  <Bot className="w-3.5 h-3.5 text-cyan-400" />
+                  "convert this into a proper prompt"
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1 line-clamp-2">
+                  Engineers structured, role-driven prompts for ChatGPT, Claude, and Gemini.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSimulatorInput('in business style: can we maybe move the meeting to three PM if that works for you')}
+                className="p-2.5 rounded-lg bg-slate-900/90 hover:bg-cyan-950/50 border border-cyan-500/30 hover:border-cyan-400 text-left transition-all group"
+              >
+                <div className="flex items-center gap-1.5 text-cyan-300 font-semibold text-[11px]">
+                  <Briefcase className="w-3.5 h-3.5 text-cyan-400" />
+                  "in business style:"
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1 line-clamp-2">
+                  Elevates colloquial phrasing into polished executive corporate prose.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSimulatorInput('in bullet points: we need unit tests and release installer and documentation')}
+                className="p-2.5 rounded-lg bg-slate-900/90 hover:bg-cyan-950/50 border border-cyan-500/30 hover:border-cyan-400 text-left transition-all group"
+              >
+                <div className="flex items-center gap-1.5 text-cyan-300 font-semibold text-[11px]">
+                  <List className="w-3.5 h-3.5 text-cyan-400" />
+                  "in bullet points:"
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1 line-clamp-2">
+                  Extracts ideas into structured, indented bullet point items (- item).
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSimulatorInput('as an email: please review the pull request for the autonomous voice control feature')}
+                className="p-2.5 rounded-lg bg-slate-900/90 hover:bg-cyan-950/50 border border-cyan-500/30 hover:border-cyan-400 text-left transition-all group"
+              >
+                <div className="flex items-center gap-1.5 text-cyan-300 font-semibold text-[11px]">
+                  <Mail className="w-3.5 h-3.5 text-cyan-400" />
+                  "as an email:"
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1 line-clamp-2">
+                  Constructs an executive email with extracted Subject, greeting, and signature.
+                </p>
               </button>
             </div>
           </div>

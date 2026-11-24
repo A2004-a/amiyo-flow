@@ -117,12 +117,17 @@ pub async fn clean_transcript_with_options(
         return Ok("".to_string());
     }
 
-    if style.eq_ignore_ascii_case("raw") {
-        return Ok(raw_text.to_string());
+    // Step 0: Check for spoken voice commands controlling style and format
+    let (spoken_style, content_text) = extract_spoken_style_command(raw_text);
+    let target_style = spoken_style.as_deref().unwrap_or(style);
+    let text_to_clean = if spoken_style.is_some() { &content_text } else { raw_text };
+
+    if target_style.eq_ignore_ascii_case("raw") {
+        return Ok(text_to_clean.to_string());
     }
 
     // Step 1: High-performance local deterministic cleaning (0 MB RAM)
-    let pre_cleaned = heuristic_cleanup_with_options(raw_text, remove_fillers, remove_repeats, remove_corrections);
+    let pre_cleaned = heuristic_cleanup_with_options(text_to_clean, remove_fillers, remove_repeats, remove_corrections);
 
     // Step 2: Apply Personal Dictionary
     let after_dict = apply_dictionary(&pre_cleaned, dictionary);
@@ -131,7 +136,11 @@ pub async fn clean_transcript_with_options(
     let after_snippets = apply_snippets(&after_dict, snippets);
 
     // Step 4: Apply Style Transformations
-    let styled_text = apply_style_formatting(&after_snippets, style, target_app);
+    let styled_text = if spoken_style.as_deref() == Some("AI Prompt") {
+        engineer_structured_prompt_offline(&after_snippets)
+    } else {
+        apply_style_formatting(&after_snippets, target_style, target_app)
+    };
 
     // Step 5: If user enabled local llama.cpp model and binary is installed locally, run GGUF model
     if model_id != "heuristic-rule-engine" && model_id != "none" {
@@ -144,7 +153,7 @@ pub async fn clean_transcript_with_options(
             };
 
             if model_file.exists() {
-                if let Ok(llm_output) = run_local_llama_inference(&cli_path, &model_file, &styled_text, style).await {
+                if let Ok(llm_output) = run_local_llama_inference(&cli_path, &model_file, &styled_text, target_style).await {
                     if !llm_output.trim().is_empty() {
                         return Ok(llm_output);
                     }
@@ -257,13 +266,18 @@ pub async fn clean_transcript_routed_full(
         return Ok("".to_string());
     }
 
-    if style.eq_ignore_ascii_case("raw") {
-        return Ok(raw_text.to_string());
+    // Step 0: Check for spoken voice commands controlling style and format
+    let (spoken_style, content_text) = extract_spoken_style_command(raw_text);
+    let target_style = spoken_style.as_deref().unwrap_or(style);
+    let text_to_clean = if spoken_style.is_some() { &content_text } else { raw_text };
+
+    if target_style.eq_ignore_ascii_case("raw") {
+        return Ok(text_to_clean.to_string());
     }
 
     // Step 1: Instant deterministic local pre-clean (0 MB RAM)
     let pre_cleaned = heuristic_cleanup_full(
-        raw_text,
+        text_to_clean,
         remove_fillers,
         remove_repeats,
         remove_corrections,
@@ -278,19 +292,39 @@ pub async fn clean_transcript_routed_full(
     let after_snippets = apply_snippets(&after_dict, snippets);
 
     // Step 4: Formatting baseline
-    let styled_baseline = apply_style_formatting(&after_snippets, style, target_app);
+    let styled_baseline = if spoken_style.as_deref() == Some("AI Prompt") {
+        engineer_structured_prompt_offline(&after_snippets)
+    } else {
+        apply_style_formatting(&after_snippets, target_style, target_app)
+    };
 
     // Step 5: Resolve Route
-    let route = router::AiRouter::resolve_route(router_config, style);
+    let route = router::AiRouter::resolve_route(router_config, target_style);
 
     let start = Instant::now();
+
+    let (task_instruction, system_role) = if target_style.eq_ignore_ascii_case("ai prompt") {
+        ("Transform the user's spoken rough idea into an engineered, high-performance structured prompt for LLMs (like ChatGPT, Claude, and Gemini). Clarify the core objective, assign an expert persona/role, add clear step-by-step instructions, constraints, and specify the expected output format. Return ONLY the engineered prompt with no conversational commentary or quotes.", "You are an expert AI Prompt Engineer.")
+    } else if target_style.eq_ignore_ascii_case("professional") || target_style.eq_ignore_ascii_case("business") {
+        ("Transform the speech into polished, crisp, polite, and persuasive executive business prose. Eliminate casual colloquialisms, elevate clarity and authority, and ensure corporate etiquette. Return ONLY the polished business text with no quotes or explanation.", "You are an executive communication assistant.")
+    } else if target_style.eq_ignore_ascii_case("academic") {
+        ("Transform the speech into rigorous, objective, scholarly diction with sophisticated syntactic structure. Return ONLY the formal academic text.", "You are an academic scholar.")
+    } else if target_style.eq_ignore_ascii_case("developer") || target_style.eq_ignore_ascii_case("code") {
+        ("Format code snippets, terminal commands, camelCase, snake_case, and technical syntax accurately. Return ONLY the developer text.", "You are a software developer assistant.")
+    } else if target_style.eq_ignore_ascii_case("bullet points") || target_style.eq_ignore_ascii_case("list") {
+        ("Format the user's dictation into clean, concise bullet points (- item). Return ONLY the bullet points.", "You are a structured notes assistant.")
+    } else if target_style.eq_ignore_ascii_case("email") {
+        ("Format the user's dictation into a complete, professional email with Subject: and clean body paragraphs. Return ONLY the email.", "You are an executive email assistant.")
+    } else {
+        ("Clean grammar, fix punctuation, and adapt to the requested style. Return ONLY the final cleaned text.", "You are a universal text formatting assistant.")
+    };
 
     if route.engine_type == "local" {
         if route.provider_id == "ollama" && route.model != "heuristic-rule-engine" {
             let prompt = format!(
-                "Clean the following speech transcript for style '{}'. {}Output ONLY the cleaned text with no explanations:\n\"{}\"",
-                style,
-                if remove_fillers { "Remove all filler words (um, uh, nu, na, you know, etc.). " } else { "" },
+                "{} {}Output ONLY the final text with no explanations:\n\"{}\"",
+                task_instruction,
+                if remove_fillers { "Remove all filler words. " } else { "" },
                 styled_baseline
             );
 
@@ -298,7 +332,7 @@ pub async fn clean_transcript_routed_full(
                 &router_config.ollama_endpoint,
                 &route.model,
                 &prompt,
-                Some("You are a professional text formatting and grammar assistant. Return only the cleaned transcript."),
+                Some(system_role),
                 0.1,
             )
             .await
@@ -307,7 +341,7 @@ pub async fn clean_transcript_routed_full(
                     auditor.record_event(
                         &format!("Ollama ({})", route.model),
                         true,
-                        &format!("Text Cleanup ({})", style),
+                        &format!("Text Transformation ({})", target_style),
                         "Success",
                         start.elapsed().as_millis() as u64,
                         styled_baseline.split_whitespace().count(),
@@ -320,7 +354,7 @@ pub async fn clean_transcript_routed_full(
                     auditor.record_event(
                         &format!("Ollama ({})", route.model),
                         true,
-                        &format!("Text Cleanup ({})", style),
+                        &format!("Text Transformation ({})", target_style),
                         &format!("Error: {}", e),
                         start.elapsed().as_millis() as u64,
                         styled_baseline.split_whitespace().count(),
@@ -332,7 +366,7 @@ pub async fn clean_transcript_routed_full(
             auditor.record_event(
                 "Local Heuristic Engine",
                 true,
-                &format!("Deterministic Rule ({})", style),
+                &format!("Deterministic Rule ({})", target_style),
                 "Success",
                 start.elapsed().as_millis() as u64,
                 styled_baseline.split_whitespace().count(),
@@ -353,7 +387,7 @@ pub async fn clean_transcript_routed_full(
             auditor.record_event(
                 &format!("Cloud ({})", route.provider_id),
                 false,
-                &format!("Text Cleanup ({})", style),
+                &format!("Text Transformation ({})", target_style),
                 "Failed (Missing Credential)",
                 start.elapsed().as_millis() as u64,
                 0,
@@ -363,9 +397,10 @@ pub async fn clean_transcript_routed_full(
     };
 
     let sys_prompt = format!(
-        "You are an expert universal text formatting assistant for active desktop typing. Clean grammar, fix punctuation, and adapt to style '{}'. {}{}Preserve meaning, technical terms, and code exactly. Return ONLY the final cleaned text without quotes or explanation.",
-        style,
-        if remove_fillers { "Remove all hesitation and filler words (um, uh, nu, na, you know, basically). " } else { "" },
+        "{} {} {}{}Return ONLY the final transformed text without quotes or explanation.",
+        system_role,
+        task_instruction,
+        if remove_fillers { "Remove all hesitation and filler words. " } else { "" },
         if remove_repeats { "Remove repeated stutters and duplicated words. " } else { "" }
     );
 
@@ -384,7 +419,7 @@ pub async fn clean_transcript_routed_full(
             auditor.record_event(
                 &format!("{} ({})", route.provider_id, route.model),
                 false,
-                &format!("Text Cleanup ({})", style),
+                &format!("Text Transformation ({})", target_style),
                 "Success",
                 start.elapsed().as_millis() as u64,
                 styled_baseline.split_whitespace().count(),
@@ -399,7 +434,7 @@ pub async fn clean_transcript_routed_full(
             auditor.record_event(
                 &format!("{} ({})", route.provider_id, route.model),
                 false,
-                &format!("Text Cleanup ({})", style),
+                &format!("Text Transformation ({})", target_style),
                 &format!("Error: {}", e),
                 start.elapsed().as_millis() as u64,
                 0,
@@ -1380,13 +1415,233 @@ pub fn apply_snippets(text: &str, snippets: &[crate::db::SnippetItem]) -> String
     result
 }
 
+/// Extracts autonomous voice control directives from speech (e.g. "in business style: ...", "make this a prompt: ...")
+pub fn extract_spoken_style_command(input: &str) -> (Option<String>, String) {
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        return (None, String::new());
+    }
+
+    let command_patterns: &[(&str, &str)] = &[
+        // Professional & Business
+        (r"(?i)^(?:write\s+this\s+in|format\s+as|use|in|switch\s+to)?\s*(?:business\s+style|professional\s+style|business\s+format|corporate\s+style|business\s+tone|professional\s+tone)[:,\s]+(.+)", "Professional"),
+        (r"(?i)^(?:business\s+style|professional\s+style|business\s+format|corporate\s+style)[:,\s]+(.+)", "Professional"),
+        
+        // AI Prompt Mode
+        (r"(?i)^(?:convert\s+this\s+(?:in)?to\s+a\s+proper\s+prompt|convert\s+this\s+into\s+a\s+prompt|convert\s+to\s+prompt|make\s+this\s+an?\s+ai\s+prompt|make\s+this\s+a\s+prompt|create\s+a\s+proper\s+prompt\s+for|create\s+a\s+prompt\s+for|format\s+as\s+(?:an?\s+)?prompt|prompt\s+mode|prompt\s+style)[:,\s]+(.+)", "AI Prompt"),
+        (r"(?i)^(?:proper\s+prompt|ai\s+prompt|prompt\s+engineering)[:,\s]+(.+)", "AI Prompt"),
+
+        // Casual & Conversational
+        (r"(?i)^(?:write\s+this\s+in|format\s+as|use|in|switch\s+to)?\s*(?:casual\s+style|conversational\s+style|casual\s+tone|friendly\s+style|friendly\s+tone)[:,\s]+(.+)", "Casual"),
+        (r"(?i)^(?:casual\s+style|conversational\s+style|casual\s+tone)[:,\s]+(.+)", "Casual"),
+
+        // Developer & Code
+        (r"(?i)^(?:write\s+this\s+in|format\s+as|use|in|switch\s+to)?\s*(?:developer\s+style|developer\s+mode|code\s+style|coding\s+mode|developer\s+format|code\s+mode)[:,\s]+(.+)", "Developer"),
+        (r"(?i)^(?:developer\s+style|developer\s+mode|code\s+style)[:,\s]+(.+)", "Developer"),
+
+        // Academic & Formal
+        (r"(?i)^(?:write\s+this\s+in|format\s+as|use|in|switch\s+to)?\s*(?:academic\s+style|formal\s+style|academic\s+tone|scholarly\s+style|formal\s+tone)[:,\s]+(.+)", "Academic"),
+        (r"(?i)^(?:academic\s+style|formal\s+style|academic\s+tone)[:,\s]+(.+)", "Academic"),
+
+        // Bullet Points
+        (r"(?i)^(?:write\s+this\s+in|format\s+as|use|in|switch\s+to)?\s*(?:bullet\s+points|bullet\s+point\s+format|bulleted\s+list|as\s+a\s+list|list\s+format)[:,\s]+(.+)", "Bullet Points"),
+        (r"(?i)^(?:bullet\s+points|bulleted\s+list|as\s+bullets)[:,\s]+(.+)", "Bullet Points"),
+
+        // Email Format
+        (r"(?i)^(?:write\s+this\s+as\s+an?|format\s+as\s+an?|as\s+an?|in)?\s*(?:email|email\s+format|email\s+style)[:,\s]+(.+)", "Email"),
+
+        // Raw / Verbatim Mode
+        (r"(?i)^(?:write\s+this\s+in|format\s+as|use|in|switch\s+to)?\s*(?:raw\s+mode|raw\s+style|verbatim\s+mode|verbatim\s+style)[:,\s]+(.+)", "Raw"),
+    ];
+
+    for (pattern, target_style) in command_patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(trimmed) {
+                if let Some(content) = caps.get(1) {
+                    let cleaned_content = content.as_str().trim();
+                    if !cleaned_content.is_empty() {
+                        return (Some(target_style.to_string()), cleaned_content.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    (None, trimmed.to_string())
+}
+
+/// Transforms colloquial or tentative spoken text into polished executive business prose
+pub fn transform_to_business_style(text: &str) -> String {
+    let mut s = text.trim().to_string();
+    if s.is_empty() {
+        return s;
+    }
+
+    // Compound meeting & schedule request (high-fidelity executive conversion)
+    let compound_pat = r"(?i)\b(?:(?:um\s+)?(?:hey\s+)?(?:I\s+was\s+just\s+checking\s+if\s+)?(?:can\s+we\s+maybe|could\s+we\s+maybe|maybe\s+we\s+can|can\s+we))\s+move\s+the\s+meeting\s+to\s+([a-zA-Z0-9:]+(?:\s+[a-zA-Z0-9:]+)?)\s*(?:if\s+that\s+works\s+for\s+you)?\.?\b";
+    if let Ok(re) = Regex::new(compound_pat) {
+        if re.is_match(&s) {
+            let replaced = re.replace_all(&s, "Would it be possible to reschedule our meeting to $1? Please let me know if that works for your schedule.").to_string();
+            return replaced.trim().to_string();
+        }
+    }
+
+    // Business phrase normalizations
+    let business_replacements: &[(&str, &str)] = &[
+        // Meeting & Schedule requests
+        (r"(?i)\bum\s+hey\s+I\s+was\s+just\s+checking\s+if\s+we\s+can\s+maybe\s+move\s+the\s+meeting\s+to\b", "Would it be possible to reschedule our meeting to"),
+        (r"(?i)\b(?:can\s+we\s+maybe|could\s+we\s+maybe|can\s+we)\s+move\s+the\s+meeting\s+to\b", "Would it be possible to reschedule our meeting to"),
+        (r"(?i)\bmove\s+the\s+meeting\s+to\b", "reschedule our meeting to"),
+        (r"(?i)\bcan\s+we\s+maybe\b", "would it be possible to"),
+        (r"(?i)\bjust\s+checking\s+if\b", "I am inquiring whether"),
+        (r"(?i)\bi\s+was\s+just\s+checking\s+if\b", "I am inquiring whether"),
+        (r"(?i)\bif\s+that\s+works\s+for\s+you\b", "please let me know if that works for your schedule"),
+        (r"(?i)\blet\s+me\s+know\s+if\s+that\s+works\b", "please let me know if this aligns with your schedule"),
+        // Common casual inquiries & requests
+        (r"(?i)\bsend\s+me\s+the\s+stuff\b", "please forward the relevant deliverables"),
+        (r"(?i)\bsend\s+me\s+the\s+details\b", "please provide the necessary specifications"),
+        (r"(?i)\bsorry\s+for\s+the\s+delay\b", "thank you for your patience"),
+        (r"(?i)\bi\s+think\s+we\s+should\s+totally\b", "I strongly recommend that we"),
+        (r"(?i)\bi\s+think\s+we\s+should\b", "I recommend that we"),
+        (r"(?i)\bwe\s+have\s+to\s+fix\b", "we must resolve"),
+        (r"(?i)\bwe\s+need\s+to\s+fix\b", "we need to address and resolve"),
+        (r"(?i)\bwe\s+broke\s+the\b", "an incident occurred regarding the"),
+        (r"(?i)\btalk\s+to\s+you\s+soon\b", "looking forward to our upcoming discussion"),
+        (r"(?i)\btalk\s+soon\b", "looking forward to connecting"),
+        (r"(?i)\bget\s+back\s+to\s+me\b", "please reply at your earliest convenience"),
+        (r"(?i)\basap\b", "at your earliest convenience"),
+        (r"(?i)\ba\s+lot\s+of\b", "a substantial amount of"),
+    ];
+
+    for (pat, repl) in business_replacements {
+        if let Ok(re) = Regex::new(pat) {
+            s = re.replace_all(&s, *repl).to_string();
+        }
+    }
+
+    // Capitalize initial character
+    let mut chars = s.chars();
+    if let Some(first) = chars.next() {
+        s = format!("{}{}", first.to_uppercase(), chars.as_str());
+    }
+
+    // Ensure terminal punctuation
+    if !s.ends_with('.') && !s.ends_with('?') && !s.ends_with('!') {
+        if s.to_lowercase().starts_with("would it be possible") || s.to_lowercase().starts_with("could you") || s.to_lowercase().starts_with("can you") {
+            s.push('?');
+        } else {
+            s.push('.');
+        }
+    }
+
+    s
+}
+
+/// Autonomously transforms rough spoken ideas into engineered, high-performance structured prompts
+pub fn engineer_structured_prompt_offline(text: &str) -> String {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+
+    if trimmed.to_lowercase().starts_with("act as") || trimmed.to_lowercase().starts_with("you are an expert") {
+        return trimmed.to_string();
+    }
+
+    let lower = trimmed.to_lowercase();
+    let role = if lower.contains("code") || lower.contains("build") || lower.contains("app") || lower.contains("function") || lower.contains("program") || lower.contains("api") || lower.contains("interface") || lower.contains("rust") || lower.contains("python") || lower.contains("react") || lower.contains("tauri") || lower.contains("software") {
+        "an expert software architect and full-stack engineer"
+    } else if lower.contains("write") || lower.contains("article") || lower.contains("blog") || lower.contains("essay") || lower.contains("email") {
+        "a master copywriter and communications specialist"
+    } else if lower.contains("analyze") || lower.contains("data") || lower.contains("sql") || lower.contains("metrics") {
+        "a senior data analyst and systems architect"
+    } else {
+        "an expert consultant and domain specialist"
+    };
+
+    let task = trimmed.trim_end_matches('.');
+    format!(
+        "Act as {}.\n\nObjective: {}.\n\nKey Requirements:\n- Detail step-by-step strategy and architectural breakdown.\n- Provide concrete, production-ready examples and address edge cases.\n- Highlight best practices, pitfalls to avoid, and verification guidelines.\n\nPlease structure the response with clear headings and bulleted explanations.",
+        role,
+        task
+    )
+}
+
+/// Formats text into clean bullet points (- item)
+pub fn transform_to_bullet_points(text: &str) -> String {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+
+    let re = Regex::new(r"(?:\.\s+|\;\s+|\n+|,\s*(?:and\s+also|and|also|plus)\s+)").unwrap();
+    let parts: Vec<&str> = re
+        .split(trimmed)
+        .map(|s| s.trim().trim_matches(|c: char| c == '.' || c == ',' || c == '-'))
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    if parts.len() <= 1 {
+        let and_re = Regex::new(r"\s+and\s+").unwrap();
+        let and_parts: Vec<&str> = and_re
+            .split(trimmed)
+            .map(|s| s.trim().trim_matches(|c: char| c == '.' || c == ','))
+            .filter(|s| !s.is_empty())
+            .collect();
+        if and_parts.len() > 1 {
+            return and_parts
+                .iter()
+                .map(|item| {
+                    let mut c = item.chars();
+                    let f = c.next().unwrap_or(' ').to_uppercase();
+                    format!("- {}{}", f, c.as_str())
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+        }
+        return format!("- {}", trimmed);
+    }
+
+    parts
+        .iter()
+        .map(|item| {
+            let mut c = item.chars();
+            let f = c.next().unwrap_or(' ').to_uppercase();
+            format!("- {}{}", f, c.as_str())
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Formats text as an executive email with Subject and Body
+pub fn transform_to_email_format(text: &str) -> String {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+
+    let words: Vec<&str> = trimmed.split_whitespace().collect();
+    let subject_words = if words.len() > 6 {
+        words[..6].join(" ")
+    } else {
+        trimmed.to_string()
+    };
+    let clean_subject = subject_words.trim_matches(|c: char| !c.is_alphanumeric() && c != ' ');
+
+    format!(
+        "Subject: {}\n\nHi team,\n\n{}\n\nBest regards,\nAmiyo Garai",
+        clean_subject,
+        trimmed
+    )
+}
+
 /// Applies writing style formatting
 pub fn apply_style_formatting(text: &str, style: &str, _target_app: &str) -> String {
     match style.to_lowercase().replace('-', " ").replace('_', " ").trim() {
         "casual" => {
             text.trim_end_matches('.').to_string()
         }
-        "developer" => {
+        "developer" | "code" => {
             let mut dev = text.to_string();
             let replacements = [
                 (r"(?i)\bclose\s+curly\s+brace\b", "}"),
@@ -1425,12 +1680,14 @@ pub fn apply_style_formatting(text: &str, style: &str, _target_app: &str) -> Str
             }
             s
         }
-        "professional" => {
-            let mut s = text.trim().to_string();
-            if !s.is_empty() && !s.ends_with('.') && !s.ends_with('?') && !s.ends_with('!') {
-                s.push('.');
-            }
-            s
+        "professional" | "business" => {
+            transform_to_business_style(text)
+        }
+        "bullet points" | "list" => {
+            transform_to_bullet_points(text)
+        }
+        "email" => {
+            transform_to_email_format(text)
         }
         _ => text.to_string(),
     }

@@ -18,7 +18,7 @@ import { Settings } from './pages/Settings';
 import { useWorkspaceStore } from './stores/useWorkspaceStore';
 import { useSettingsStore } from './stores/useSettingsStore';
 import { useDictationStore } from './stores/useDictationStore';
-import { isTauri, onNavigate } from './lib/tauri';
+import { isTauri, onNavigate, onDictationEvent } from './lib/tauri';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 export const App: React.FC = () => {
@@ -54,8 +54,16 @@ export const App: React.FC = () => {
       setActivePage(page as any);
     });
 
+    // Listen for autonomous voice style changes
+    const unlistenStyle = onDictationEvent<string>('amiyo-style-changed', (newStyle) => {
+      useSettingsStore.setState((state) => ({
+        settings: { ...state.settings, style: newStyle },
+      }));
+    });
+
     return () => {
       unlistenNav();
+      unlistenStyle();
       unlistenDictation();
     };
   }, [loadSettings, loadAll, setActivePage]);

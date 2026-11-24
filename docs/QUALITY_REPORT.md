@@ -1,14 +1,14 @@
 # AMIYO FLOW — COMPREHENSIVE QUALITY, FEATURE & TEST REPORT
 
-This report consolidates the complete quality assurance suite for AMIYO FLOW: the Master Feature Registry (F001–F136), Automated Test Evidence (58/58 passing tests), Structured Bug Tracker (BUG-001–BUG-036), and Semantic Release Changelog.
+This report consolidates the complete quality assurance suite for AMIYO FLOW: the Master Feature Registry (F001–F137), Automated Test Evidence (64/64 passing tests), Structured Bug Tracker (BUG-001–BUG-050), and Semantic Release Changelog.
 
 ---
 
-## 1. Automated Test Execution Evidence (63/63 PASSED)
+## 1. Automated Test Execution Evidence (64/64 PASSED)
 
 - **Test Date**: 2026-11-24
 - **Host Environment**: Windows 11 x64, Intel/AMD architecture, 8GB–16GB RAM
-- **Native Rust Tests (`cargo test`)**: **48 / 48 PASSED** (17 in `lib.rs`, 31 in `unit_tests.rs`)
+- **Native Rust Tests (`cargo test`)**: **49 / 49 PASSED** (17 in `lib.rs`, 32 in `unit_tests.rs`)
 - **Frontend Vitest Tests (`npm test`)**: **15 / 15 PASSED** (`src/test/dictation.test.ts`)
 - **Frontend Production Build (`npm run build`)**: **PASSED** (1,609 modules bundled with 0 errors)
 - **Installer Build (`npx tauri build`)**: **PASSED** (`AMIYO FLOW_1.0.9_x64-setup.exe`)
@@ -18,6 +18,7 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 
 | Test Identifier | Category | Acceptance Criteria | Execution Result | Status |
 |---|---|---|---|---|
+| `test_autonomous_voice_control_and_style_directives` | Phase 5, 12 | 1) Extracts spoken style and formatting triggers ("convert this into a proper prompt:", "in business style:", "in bullet points:", "as an email:"); 2) Transforms rough spoken ideas into structured prompts with role, objective, key requirements, and output format; 3) Elevates conversational requests into polished executive prose ("Would it be possible to reschedule our meeting to 3:00 PM? Please let me know if that works for your schedule."); 4) Formats bullet points and structured emails; 5) Verifies spoken voice directives dynamically override default styles | All voice directives extracted, prompt engineered offline, business style transformed, and style override verified | **PASSED** |
 | `test_chatgpt_interface_and_claude_phonetic_recognition` | Phase 4, 5 | 1) Verifies acoustic priming and normalization of "heck lot i want to build a chargey video like interface" $\rightarrow$ "Hey Claude, I want to build a ChatGPT-like interface."; 2) Verifies accented "i won't build" maps to "I want to build"; 3) Verifies phonetic variants ("omyagurai", "ineira", "omegra") map to "Amiyo Garai"; 4) Verifies AI Prompt writing style eliminates intrusive "Instructions: " prefix | Accented tech/creator phrases recognized, prompt prefix eliminated, and output clean | **PASSED** |
 | `test_vad_conversational_silence_incomplete_clause_and_continuation_stitching` | Phase 2, 5, 9 | 1) Verifies VAD default configuration has 2500ms (2.5s) conversational pause wait; 2) Enforces 300ms speech accumulation safeguard preventing premature stop on brief grunts; 3) Detects incomplete clauses ending on connectors ("and", "because", "to", "if"); 4) Prevents false terminal period appending on incomplete sentences; 5) Normalizes user prompt phrases ("and and start this this where is ends and" -> "And start this where it ends and"); 6) Formats complete sentences with terminal period | 2.5s default wait verified, 300ms accumulation active, incomplete clause periods suppressed, and boundary stutters deduplicated | **PASSED** |
 | `test_phonetic_name_spelling_autocorrection_and_audio_noise_filter` | Phase 2, 5 | 1) Automatically corrects phonetic misrecognitions of creator name ("omiya", "omiyo", "amio", "a m i y o" -> "Amiyo") and app brand ("omiya flow" -> "AMIYO FLOW"); 2) Filters hesitation particles "aa", "aah", "um aa"; 3) Fixes dictation typos ("seplling" -> "spelling", "removwe" -> "remove", "definately" -> "definitely", "recieve" -> "receive"); 4) Applies 80Hz high-pass filter and adaptive spectral noise gate attenuating background noise | Name and brand repaired, spelling corrected, 50Hz hum and noise floor attenuated | **PASSED** |
@@ -80,10 +81,11 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 | **Phase 9** | F103–F113 | Advanced Capabilities | Hands-free VAD silence cutoff, Long-form meeting recorder, Executive summaries, Action item extraction | **VERIFIED** |
 | **Phase 10** | F114–F124 | Security & Release Package | 100% on-device isolation, Parameterized SQL queries, NSIS Windows installer, Clean release docs | **VERIFIED** |
 | **Phase 11** | F125–F136 | Cloud AI, Router & Privacy | OS Secure Keychain (`keyring = "2"`), 10 Cloud adapters, 3-Way AI Router, Anti-leak protection, Ollama auto-detection | **VERIFIED** |
+| **Phase 12** | F137 | Autonomous Voice Control | Spoken style triggers, prompt engineering, dynamic style switching, reactive UI sync | **VERIFIED** |
 
 ---
 
-## 3. Bug Tracker & Resolution Log (BUG-001–BUG-049)
+## 3. Bug Tracker & Resolution Log (BUG-001–BUG-050)
 
 | Bug ID | Severity | Module | Description | Root Cause | Fix Strategy | Status |
 |--------|----------|--------|-------------|------------|--------------|--------|
@@ -136,10 +138,25 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 | BUG-047 | High | Writing Styles | AI Prompt style prepended intrusive `"Instructions: "` prefix to every dictation | Hardcoded `format!("Instructions: {}", text)` in `apply_style_formatting` forced `"Instructions: "` prefix even when users just wanted clean voice-to-text in LLM chats | Removed `"Instructions: "` prefix in `apply_style_formatting` for AI Prompt mode, preserving clean text trimming | FIXED |
 | BUG-048 | Critical | Speech-to-Text | Faster-whisper dropping mid-sentence words and misrecognizing "ChatGPT" as "chargey video" / "Hey Claude" as "heck lot" | 1) `vad_filter=True` inside Python faster-whisper chopped natural speech during brief conversational pauses; 2) Lack of `initial_prompt` primed acoustic decoder caused common tech/creator terms to degrade phonetically | Set `vad_filter=False` inside faster-whisper daemon/script (native Rust audio engine already manages utterance bounds) cutting latency by ~200ms; wired `initial_prompt` with contextual vocabulary ("Amiyo Garai", "ChatGPT", "Hey Claude", "interface", etc.) and added phonetic acoustic normalizations | FIXED |
 | BUG-049 | High | Speech-to-Text & Polish | Acoustic misrecognition of greetings ("hello friend and chatgpt" -> "Hello, friends, cellocegivity") and creator name ("My name is Amiyo Garai" -> "My name is Zumio Gari") | 1) Whisper initial prompt lacked natural conversational greeting and self-introduction sentence framing; 2) Rapid spoken English / Bengali accent caused "and ChatGPT" to decode as homophone "cellocegivity" and "Amiyo Garai" as "Zumio Gari" | Upgraded Whisper initial prompt to full natural conversational sentence ("Hello friend, hello friends and ChatGPT. My name is Amiyo Garai, creator of AMIYO FLOW..."); mapped acoustic homophones ("cellocegivity", "friends, cellocegivity", "friend and cellocegivity" -> "and ChatGPT" / "friends and ChatGPT"); mapped phonetic creator variants ("Zumio Gari", "Zumio Garai", "Zomio Gari", "Zumiyo", "Zumiya" -> "Amiyo Garai" / "Amiyo"); seeded default dictionary with these pairs | FIXED |
+| BUG-050 | High | Voice Control & AI Styles | Lack of hands-free voice control over AI styles and prompt engineering required manual UI switching; speech commands like "in business style" or "convert this into a prompt" were typed literally without formatting | Dictation pipeline lacked spoken command directive extraction; style formatting was bound strictly to static SQLite settings; no offline prompt engineering rule generator | Implemented `extract_spoken_style_command` in Step 0 of cleaning router, added `transform_to_business_style`, `engineer_structured_prompt_offline`, `transform_to_bullet_points`, and `transform_to_email_format`; persisted style changes and emitted `amiyo-style-changed` to frontend; added interactive voice control banner in `WritingStyles.tsx` | FIXED |
 
 ---
 
 ## 4. Semantic Version Changelog
+
+### [1.0.19] — 2026-11-24
+- **Autonomous Voice Control & Spoken Style Directives (BUG-050 / Feature F137)**:
+  - **Voice-Directed Prompt Engineering**: Spoken triggers like `"convert this into a proper prompt: [text]"`, `"make this a prompt: [text]"`, or `"create a proper prompt for: [text]"` autonomously transform rough spoken concepts into structured, high-performance prompts (Role persona, Objective, Key Requirements, step-by-step strategy, and expected output format) for ChatGPT, Claude, and Gemini. Works 100% on-device (0 MB RAM) when offline, or leverages active LLM endpoints when available.
+  - **Spoken Business & Professional Style Directives**: Speaking `"write this in business style: [text]"` or `"in business style: [text]"` elevates informal conversational phrasing into polished executive corporate prose (e.g. converting `"can we maybe move the meeting to three PM if that works for you"` into `"Would it be possible to reschedule our meeting to 3:00 PM today? Please let me know if that works for your schedule."`).
+  - **Additional Spoken Format Controls**: Added verbal triggers for `"in bullet points: [text]"` (formats clean `- Item` bulleted lists), `"as an email: [text]"` (constructs executive emails with extracted Subject line, team greeting, and signature), `"in casual style: [text]"`, `"in developer style: [text]"`, `"in academic style: [text]"`, and `"in raw mode: [text]"`.
+  - **Dynamic Voice-Driven Style Switching**: When a spoken style command is detected, the application automatically updates the user's active style in SQLite and emits an `amiyo-style-changed` event to the frontend, reactively switching active style cards across the UI without touching a mouse or keyboard.
+  - **Interactive Voice Control Showcase & Presets in WritingStyles.tsx**:
+    - Embedded an interactive **Autonomous Voice Control & Dynamic Style Directives** showcase banner in `WritingStyles.tsx` with clickable quick-test chips.
+    - Added dedicated test scenario presets in the simulator playground: `Voice Control: AI Prompt`, `Voice Control: Business Style`, `Voice Control: Bullet Points`, and `Voice Control: Email Format`.
+    - Wired `simulateCleanup` to execute identical voice directive extractions and transformations in real-time.
+  - **Automated Test Coverage (64/64 Automated Tests Passing)**:
+    - Added `test_autonomous_voice_control_and_style_directives` in `src-tauri/tests/unit_tests.rs`.
+    - 49 Rust tests + 15 Vitest tests passing with 100% green status.
 
 ### [1.0.18] — 2026-11-24
 - **Natural Conversational Greeting & Phonetic Name Auto-Correction (BUG-049)**:

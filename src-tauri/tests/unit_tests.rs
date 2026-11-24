@@ -771,5 +771,110 @@ fn test_chatgpt_interface_and_claude_phonetic_recognition() {
     assert!(heuristic_cleanup("hello friends, chatgpt").contains("Hello friends and ChatGPT"));
 }
 
+#[tokio::test]
+async fn test_autonomous_voice_control_and_style_directives() {
+    use amiyo_flow_lib::ai::{
+        clean_transcript_with_options,
+        extract_spoken_style_command,
+        transform_to_business_style,
+        engineer_structured_prompt_offline,
+        transform_to_bullet_points,
+        transform_to_email_format,
+    };
+
+    // 1. Spoken style command extraction
+    let (prompt_style, prompt_content) = extract_spoken_style_command(
+        "convert this into a proper prompt: build a chatgpt like application using react and tauri"
+    );
+    assert_eq!(prompt_style, Some("AI Prompt".to_string()));
+    assert_eq!(prompt_content, "build a chatgpt like application using react and tauri");
+
+    let (biz_style, biz_content) = extract_spoken_style_command(
+        "in business style: can we maybe move the meeting to three PM if that works for you"
+    );
+    assert_eq!(biz_style, Some("Professional".to_string()));
+    assert_eq!(biz_content, "can we maybe move the meeting to three PM if that works for you");
+
+    let (bullets_style, bullets_content) = extract_spoken_style_command(
+        "in bullet points: we need unit tests and release installer and documentation"
+    );
+    assert_eq!(bullets_style, Some("Bullet Points".to_string()));
+    assert_eq!(bullets_content, "we need unit tests and release installer and documentation");
+
+    let (email_style, email_content) = extract_spoken_style_command(
+        "as an email: please review the pull request for the autonomous voice control feature"
+    );
+    assert_eq!(email_style, Some("Email".to_string()));
+    assert_eq!(email_content, "please review the pull request for the autonomous voice control feature");
+
+    let (none_style, none_content) = extract_spoken_style_command("ordinary spoken dictation");
+    assert_eq!(none_style, None);
+    assert_eq!(none_content, "ordinary spoken dictation");
+
+    // 2. Business style transformation
+    let biz_transformed = transform_to_business_style(
+        "can we maybe move the meeting to 3:00 PM if that works for you"
+    );
+    assert!(biz_transformed.contains("Would it be possible to reschedule our meeting to 3:00 PM?"));
+    assert!(biz_transformed.contains("Please let me know if that works for your schedule."));
+
+    // 3. Offline structured prompt engineering
+    let prompt_engineered = engineer_structured_prompt_offline(
+        "build a chatgpt like application using react and tauri"
+    );
+    assert!(prompt_engineered.contains("Act as an expert software architect and full-stack engineer"));
+    assert!(prompt_engineered.contains("Objective: build a chatgpt like application using react and tauri"));
+    assert!(prompt_engineered.contains("Key Requirements:"));
+    assert!(prompt_engineered.contains("Please structure the response with clear headings and bulleted explanations."));
+
+    // 4. Bullet points formatting
+    let bullets_transformed = transform_to_bullet_points("unit tests and release installer and documentation");
+    assert!(bullets_transformed.contains("- Unit tests"));
+    assert!(bullets_transformed.contains("- Release installer"));
+    assert!(bullets_transformed.contains("- Documentation"));
+
+    // 5. Email formatting
+    let email_transformed = transform_to_email_format("please review the pull request for the autonomous voice control feature");
+    assert!(email_transformed.contains("Subject: please review the pull request for"));
+    assert!(email_transformed.contains("Hi team,"));
+    assert!(email_transformed.contains("Best regards,\nAmiyo Garai"));
+
+    // 6. Full end-to-end cleaning pipeline with spoken prompt directive overriding default style
+    let cleaned_prompt = clean_transcript_with_options(
+        "none",
+        None,
+        "convert this into a proper prompt: build a chatgpt like application using react and tauri",
+        "Professional",
+        "general",
+        &[],
+        &[],
+        true,
+        true,
+        true,
+    ).await.expect("Cleaning failed");
+
+    assert!(cleaned_prompt.contains("Act as an expert software architect"));
+    assert!(cleaned_prompt.contains("ChatGPT-like application"));
+    assert!(cleaned_prompt.contains("Objective:"));
+
+    // 7. Full end-to-end cleaning pipeline with spoken business style directive overriding default Casual style
+    let cleaned_biz = clean_transcript_with_options(
+        "none",
+        None,
+        "in business style: can we maybe move the meeting to 3:00 PM if that works for you",
+        "Casual",
+        "general",
+        &[],
+        &[],
+        true,
+        true,
+        true,
+    ).await.expect("Cleaning failed");
+
+    assert!(cleaned_biz.contains("Would it be possible to reschedule our meeting to 3:00 PM?"));
+    assert!(cleaned_biz.contains("Please let me know if that works for your schedule."));
+}
+
+
 
 
