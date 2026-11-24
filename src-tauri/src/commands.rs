@@ -385,8 +385,14 @@ async fn finalize_recording_internal(
     let remove_fillers = settings.get("remove_filler_words").map(|v| v != "false").unwrap_or(true);
     let remove_repeats = settings.get("remove_repeated_words").map(|v| v != "false").unwrap_or(true);
     let remove_corrections = settings.get("remove_self_corrections").map(|v| v != "false").unwrap_or(true);
+    let custom_fillers_str = settings.get("custom_filler_words").cloned().unwrap_or_default();
+    let custom_fillers: Vec<String> = custom_fillers_str
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
 
-    let cleaned_text = match ai::clean_transcript_routed_with_options(
+    let cleaned_text = match ai::clean_transcript_routed_with_custom(
         &router_config,
         &raw_text,
         &style,
@@ -397,6 +403,7 @@ async fn finalize_recording_internal(
         remove_fillers,
         remove_repeats,
         remove_corrections,
+        &custom_fillers,
     )
     .await
     {
@@ -495,8 +502,14 @@ pub async fn transcribe_and_clean(
     let remove_fillers = settings.get("remove_filler_words").map(|v| v != "false").unwrap_or(true);
     let remove_repeats = settings.get("remove_repeated_words").map(|v| v != "false").unwrap_or(true);
     let remove_corrections = settings.get("remove_self_corrections").map(|v| v != "false").unwrap_or(true);
+    let custom_fillers_str = settings.get("custom_filler_words").cloned().unwrap_or_default();
+    let custom_fillers: Vec<String> = custom_fillers_str
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
 
-    ai::clean_transcript_routed_with_options(
+    ai::clean_transcript_routed_with_custom(
         &router_config,
         &raw_text,
         &style,
@@ -507,6 +520,7 @@ pub async fn transcribe_and_clean(
         remove_fillers,
         remove_repeats,
         remove_corrections,
+        &custom_fillers,
     )
     .await
 }

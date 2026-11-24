@@ -160,6 +160,7 @@ impl Database {
             ("remove_filler_words", "true"),
             ("remove_repeated_words", "true"),
             ("remove_self_corrections", "true"),
+            ("custom_filler_words", ""),
         ];
 
         for (k, v) in default_settings.iter() {

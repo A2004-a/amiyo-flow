@@ -1,14 +1,14 @@
 # AMIYO FLOW — COMPREHENSIVE QUALITY, FEATURE & TEST REPORT
 
-This report consolidates the complete quality assurance suite for AMIYO FLOW: the Master Feature Registry (F001–F136), Automated Test Evidence (52/52 passing tests), Structured Bug Tracker (BUG-001–BUG-036), and Semantic Release Changelog.
+This report consolidates the complete quality assurance suite for AMIYO FLOW: the Master Feature Registry (F001–F136), Automated Test Evidence (53/53 passing tests), Structured Bug Tracker (BUG-001–BUG-036), and Semantic Release Changelog.
 
 ---
 
-## 1. Automated Test Execution Evidence (52/52 PASSED)
+## 1. Automated Test Execution Evidence (53/53 PASSED)
 
 - **Test Date**: 2026-11-24
 - **Host Environment**: Windows 11 x64, Intel/AMD architecture, 8GB–16GB RAM
-- **Native Rust Tests (`cargo test`)**: **38 / 38 PASSED** (17 in `lib.rs`, 21 in `unit_tests.rs`)
+- **Native Rust Tests (`cargo test`)**: **39 / 39 PASSED** (17 in `lib.rs`, 22 in `unit_tests.rs`)
 - **Frontend Vitest Tests (`npm test`)**: **14 / 14 PASSED** (`src/test/dictation.test.ts`)
 - **Frontend Production Build (`npm run build`)**: **PASSED** (1,609 modules bundled with 0 errors)
 - **Installer Build (`npx tauri build`)**: **PASSED** (`AMIYO FLOW_1.0.9_x64-setup.exe`)
@@ -22,6 +22,7 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 | `test_nu_na_and_regional_filler_removal` | Phase 5 | Strips conversational fillers ("um", "nu", "na", "uh") | "um hello nu na we should do this" $\rightarrow$ "Hello we should do this." | **PASSED** |
 | `test_repeated_phrase_removal` | Phase 5 | Deduplicates 2-word repeated stutters ("we can we can") | "we can we can deploy" $\rightarrow$ "We can deploy." | **PASSED** |
 | `test_disfluency_options_toggle` | Phase 5 | Honors user preferences for disabling/enabling filler/repeat filters | Isolated toggle verification for all 3 cleaner options | **PASSED** |
+| `test_custom_filler_words_removal` | Phase 5 | Strips custom user-defined filler words and regional slang ("like", "literally", "yaar") | Custom filler words cleanly eliminated from output | **PASSED** |
 | `test_verbal_punctuation_and_email_formatting` | Phase 5 | Expands verbal punctuation and formats spoken emails/URLs | "amiyo at gmail dot com period" $\rightarrow$ "Amiyo@gmail.com." | **PASSED** |
 | `test_audio_resampling_44100_to_16000` | Phase 2 | Converts 44.1kHz audio to 16kHz mono PCM accurately | Linear resampling ratio verified ($44100 \rightarrow 16000$) | **PASSED** |
 | `test_wav_encoding_header` | Phase 2 | Generates 44-byte standard RIFF WAVE header with PCM fmt subchunk | Header matches `hound` 16-bit mono 16kHz spec | **PASSED** |
@@ -194,7 +195,13 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
   - **Inline Executive Editing**: Added instant inline title rename and full markdown notes editor with live edit/save/cancel controls.
   - **Backend SQLite Persistence (`update_meeting`)**: Added ACID `update_meeting` SQL query and Tauri IPC command to ensure changes to title, summary, decisions, and action items persist permanently across application reboots.
 
-### [1.0.9] — 2026-11-23
+### [1.0.9] — 2026-11-24
+- **Interactive Speech Cleanser & Disfluency Removal Suite**:
+  - **Symmetrically Equalized Filter Cards**: Upgraded the 3 core disfluency filters (`Remove Filler Words`, `Remove Repeated Stutters`, `Remove Self-Corrections`) with uniform heights (`h-full flex flex-col justify-between`), glowing active/disabled status pills (`ACTIVE` in Amber/Cyan/Emerald vs `OFF`), and fixed preview containers (`min-h-[52px]`).
+  - **Personalized Custom Filler Words & Regional Slang Filter**: Added interactive tag and chip manager allowing users to eliminate custom fillers (e.g. "like", "literally", "yaar", "arre", "toh", "I mean") alongside built-in particles (`um`, `uh`, `nu`, `na`, `erm`, `you know`, `actually`, `basically`). Includes one-click quick add suggestions, removable tags (`×`), and Enter-driven input field that persists to SQLite.
+  - **⚡ Live Cleanser Simulator & Token Playground**: Embedded real-time interactive testing workbench directly in `WritingStyles.tsx`. Features 0ms instant local deterministic simulation mirroring `heuristic_cleanup_with_custom`, 1-click test scenario presets (`Stutters & Hesitations`, `Spoken Self-Correction`, `Custom Word Cleanser`), editable raw speech input, live cleaned output box, and real-time word reduction percentage metrics (`-X% disfluency`).
+  - **Native Backend & Pipeline Integration**: Passed `custom_filler_words` from settings through `heuristic_cleanup_with_custom` in `src-tauri/src/ai/mod.rs` and wired it through `clean_transcript_routed_with_custom` in `src-tauri/src/commands.rs`.
+  - **Comprehensive Test Suite Expansion**: Added unit test `test_custom_filler_words_removal` in `src-tauri/tests/unit_tests.rs`; expanded automated test suite to 53/53 green tests (39 Rust tests + 14 Vitest tests).
 - **Elimination of Clipboard Overwrite Race Conditions (BUG-030)**:
   - Transitioned default insertion mechanism to native Win32 `SendInput(KEYEVENTF_UNICODE)` (Direct Unicode Keystrokes).
   - Characters are typed directly into the active cursor in Claude, ChatGPT, VS Code, and browsers at 0ms latency without modifying, clearing, or reading the OS clipboard.

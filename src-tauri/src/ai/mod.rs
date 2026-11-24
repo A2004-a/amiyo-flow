@@ -193,6 +193,35 @@ pub async fn clean_transcript_routed_with_options(
     remove_repeats: bool,
     remove_corrections: bool,
 ) -> Result<String, String> {
+    clean_transcript_routed_with_custom(
+        router_config,
+        raw_text,
+        style,
+        target_app,
+        dictionary,
+        snippets,
+        auditor,
+        remove_fillers,
+        remove_repeats,
+        remove_corrections,
+        &[],
+    )
+    .await
+}
+
+pub async fn clean_transcript_routed_with_custom(
+    router_config: &router::AiRouterConfig,
+    raw_text: &str,
+    style: &str,
+    target_app: &str,
+    dictionary: &[crate::db::DictionaryItem],
+    snippets: &[crate::db::SnippetItem],
+    auditor: &NetworkAuditor,
+    remove_fillers: bool,
+    remove_repeats: bool,
+    remove_corrections: bool,
+    custom_fillers: &[String],
+) -> Result<String, String> {
     if raw_text.trim().is_empty() {
         return Ok("".to_string());
     }
@@ -202,7 +231,7 @@ pub async fn clean_transcript_routed_with_options(
     }
 
     // Step 1: Instant deterministic local pre-clean (0 MB RAM)
-    let pre_cleaned = heuristic_cleanup_with_options(raw_text, remove_fillers, remove_repeats, remove_corrections);
+    let pre_cleaned = heuristic_cleanup_with_custom(raw_text, remove_fillers, remove_repeats, remove_corrections, custom_fillers);
 
     // Step 2: Personal Dictionary substitution
     let after_dict = apply_dictionary(&pre_cleaned, dictionary);
@@ -418,6 +447,17 @@ pub fn heuristic_cleanup_with_options(
     remove_repeats: bool,
     remove_corrections: bool,
 ) -> String {
+    heuristic_cleanup_with_custom(input, remove_fillers, remove_repeats, remove_corrections, &[])
+}
+
+/// Local Deterministic Heuristic Normalizer with custom filler word list support
+pub fn heuristic_cleanup_with_custom(
+    input: &str,
+    remove_fillers: bool,
+    remove_repeats: bool,
+    remove_corrections: bool,
+    custom_fillers: &[String],
+) -> String {
     let mut text = input.to_string();
 
     // 1. Remove spoken self-corrections ("no wait...", "scratch that...", "I mean...")
@@ -440,6 +480,17 @@ pub fn heuristic_cleanup_with_options(
         for pat in filler_patterns {
             if let Ok(re) = Regex::new(pat) {
                 text = re.replace_all(&text, "").to_string();
+            }
+        }
+
+        // Apply custom user-defined filler words
+        for cf in custom_fillers {
+            let trimmed = cf.trim();
+            if !trimmed.is_empty() {
+                let escaped = regex::escape(trimmed);
+                if let Ok(re) = Regex::new(&format!(r"(?i)\b{}\b,?", escaped)) {
+                    text = re.replace_all(&text, "").to_string();
+                }
             }
         }
     }

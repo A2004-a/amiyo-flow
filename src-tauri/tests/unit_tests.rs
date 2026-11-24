@@ -109,6 +109,21 @@ fn test_disfluency_options_toggle() {
 }
 
 #[test]
+fn test_custom_filler_words_removal() {
+    use amiyo_flow_lib::ai::heuristic_cleanup_with_custom;
+
+    let raw = "so like literally we should push this yaar right now you know";
+    let custom_fillers = vec!["like".to_string(), "literally".to_string(), "yaar".to_string()];
+
+    let cleaned = heuristic_cleanup_with_custom(raw, true, true, true, &custom_fillers);
+    assert!(!cleaned.to_lowercase().contains("like"));
+    assert!(!cleaned.to_lowercase().contains("literally"));
+    assert!(!cleaned.to_lowercase().contains("yaar"));
+    assert!(!cleaned.to_lowercase().contains("you know"));
+    assert!(cleaned.to_lowercase().contains("push this right now"));
+}
+
+#[test]
 fn test_dictionary_replacement() {
     let raw = "I am testing amiyo with antigravity and taury framework";
     let dict = vec![
