@@ -317,10 +317,26 @@ fn test_local_model_enumeration() {
     assert!(!speech_models.is_empty(), "Should enumerate local speech models");
     assert!(speech_models.iter().any(|m| m.id == "tiny.en"));
     assert!(speech_models.iter().any(|m| m.id == "base.en"));
+    assert!(speech_models.iter().any(|m| m.id == "distil-large-v3"), "Should enumerate Distil-Large v3");
+    assert!(speech_models.iter().any(|m| m.id == "large-v3-turbo"), "Should enumerate Large v3 Turbo");
+    assert!(speech_models.iter().any(|m| m.id == "medium.en"), "Should enumerate Whisper Medium");
+
+    // Verify rich telemetry metadata
+    let turbo = speech_models.iter().find(|m| m.id == "large-v3-turbo").unwrap();
+    assert_eq!(turbo.tier, "Flagship Universal");
+    assert!(turbo.latency_ms > 0);
+    assert!(!turbo.quantization.is_empty());
+    assert!(!turbo.parameters.is_empty());
 
     let llm_models = list_local_llm_models();
     assert!(!llm_models.is_empty(), "Should enumerate local LLM models");
     assert!(llm_models.iter().any(|m| m.id == "heuristic-rule-engine"));
+    assert!(llm_models.iter().any(|m| m.id == "qwen2.5-1.5b-q4_k_m"), "Should enumerate Qwen 1.5B");
+    assert!(llm_models.iter().any(|m| m.id == "llama-3.2-3b-q4_k_m"), "Should enumerate Llama 3.2 3B");
+
+    let flagship_llm = llm_models.iter().find(|m| m.id == "llama-3.2-3b-q4_k_m").unwrap();
+    assert_eq!(flagship_llm.tier, "Flagship Edge LLM");
+    assert!(flagship_llm.context_tokens >= 8192);
 }
 
 #[test]

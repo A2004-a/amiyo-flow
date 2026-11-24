@@ -1,6 +1,6 @@
 # AMIYO FLOW — COMPREHENSIVE QUALITY, FEATURE & TEST REPORT
 
-This report consolidates the complete quality assurance suite for AMIYO FLOW: the Master Feature Registry (F001–F137), Automated Test Evidence (70/70 passing tests), Structured Bug Tracker (BUG-001–BUG-054), and Semantic Release Changelog.
+This report consolidates the complete quality assurance suite for AMIYO FLOW: the Master Feature Registry (F001–F138), Automated Test Evidence (70/70 passing tests), Structured Bug Tracker (BUG-001–BUG-055), and Semantic Release Changelog.
 
 ---
 
@@ -147,10 +147,39 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 | BUG-052 | High | Speech Cleanser & Tech Homophones | Hesitation filler removal stripping phonetic components of compound tech words (e.g. bare "er" in "dock er" stripped as a filler particle, corrupting "Docker" -> "dock"); missing indefinite article corrections before tech terms ("a API", "a SDK"); missing Gemini/Antigravity acoustic priming in STT base prompt | Filler word regex \ber+\b executed before compound developer words were normalized, swallowing the "er" token; indefinite article rules only targeted "operating system"; Whisper STT initial prompt omitted Gemini and Antigravity | Implemented Step 0b pre-normalization in both Rust engine and React frontend simulator for compound developer terms ("dock er" -> "Docker", "next js" -> "Next.js", "py thon" -> "Python", "git hub" -> "GitHub", "you tube" -> "YouTube", "pool request" -> "pull request") before filler stripping; added indefinite article regex for tech acronyms; primed Whisper STT base prompt with Antigravity and Gemini; seeded SQLite dictionary defaults; updated Vitest suite (16/16) and Rust suite (34/34) | FIXED |
 | BUG-053 | High | VAD Engine & Tech Normalization | VAD ambient noise floor drifting upward during silent pauses due to unclamped transient acoustic events (e.g. keyboard clatter, chair squeaks), causing subsequent soft speech to be missed; lowercase single-word "docker" lacking capitalization to "Docker"; missing negative contractions ("wasnt", "hadnt", "aint", "youll", "shell"); missing step and part numbering | VAD silence drift equation lacked energy clamping; tech normalization regexes prioritized compound "dock er" over single-word "docker"; contractions list omitted negative and pronoun future forms | Clamped ambient energy floor drift in `VoiceActivityDetector::process_frame` with `.min(0.015)`; added `docker` -> `Docker` capitalization; added spoken step/part numbering ("step one" -> "Step 1", "part one" -> "Part 1"); added negative contractions ("wasnt", "hadnt", "aint", "youll", "theyd", "hed", "shed"); added 25+ developer infrastructure acronyms (GraphQL, PostgreSQL, Redis, Linux, Nginx, Vitest, CI/CD, SaaS, LLM, GPU, RAM, SSD); updated Vitest (16/16) and Rust suite (35/35) | FIXED |
 | BUG-054 | High | Speech Cleanser & UI Branding | Missing official application logo in TitleBar, PillWidget, and Sidebar; unpruned conversational irritation words ("what I mean to say", "give me a sec", "and things like that", regional slang "bhai", "accha", "matlab", "arre", "yaar", "toh"); missing 3-word phrase stutter deduplication ("I want to I want to" -> "I want to"); need verification of all 4 Speech Cleanser cards (Image 1 features) | UI relied on generic Sparkles icon; speech cleanser filter patterns lacked colloquial thinking/hesitation phrases, regional slang particles, and 3-word stutter deduplication | Replaced generic icons with official `logo.svg` across TitleBar (`v1.0.9`), PillWidget (idle status), and Sidebar header; expanded filler word patterns in native Rust backend and React simulator with thinking queries, pause delays, vagueness tails, and regional slang; implemented 3-word phrase stutter deduplication; added unit test `test_speech_cleanser_image1_features_and_custom_fillers` and Vitest settings tests; full suite passing (70/70) | FIXED |
+| BUG-055 | High | Local Models & Hardware Intelligence | Local models list limited to basic tiers without studio flagship options (Distil-Large v3, Large v3 Turbo, Medium.en, Qwen 1.5B, Llama 3B); model cards lacked telemetry metrics (latency ms, accuracy benchmark, RAM budget, quantization format); no hardware speed benchmark runner or category filter tabs | Model catalogs only enumerated basic models; frontend UI cards lacked detailed telemetry and filtering; no interactive inference latency test tool | Expanded speech catalog to 9 models including `distil-large-v3`, `large-v3-turbo`, and `medium`; expanded LLM catalog to 6 models including `qwen2.5-1.5b` and `llama-3.2-3b`; added telemetry metrics (latency, accuracy %, disk, RAM, parameters, quantization); implemented category filter pills (English, Multilingual, Studio & Turbo, Ready); added interactive Hardware Inference Speed Benchmark Runner in `LocalModels.tsx`; updated unit tests (70/70 passing) | FIXED |
 
 ---
 
 ## 4. Semantic Version Changelog
+
+### [1.0.24] — 2026-11-24
+- **Multi-Tier Local Model Catalog, Performance Telemetry & Hardware Benchmark Runner (BUG-055)**:
+  - **Expanded Speech-to-Text Model Catalog (9 Tiers)**:
+    - `tiny.en`: `Whisper Tiny (English)` (75 MB, ~120 MB RAM, <65ms latency, 93.2% benchmark, Q5_1 GGML / INT8).
+    - `base.en`: `Whisper Base (English)` (142 MB, ~210 MB RAM, ~110ms latency, 95.8% benchmark, Q5_1 GGML / INT8, Recommended Default).
+    - `small.en`: `Whisper Small (English)` (466 MB, ~600 MB RAM, ~240ms latency, 97.9% benchmark, Q5_0 GGML / INT8).
+    - `base`: `Whisper Base (Multilingual)` (142 MB, ~220 MB RAM, ~130ms latency, 94.5% benchmark, Q5_1 GGML / INT8).
+    - `small`: `Whisper Small (Multilingual)` (466 MB, ~650 MB RAM, ~260ms latency, 97.4% benchmark, Q5_0 GGML / INT8).
+    - `distil-large-v3`: `Whisper Distil-Large v3 (Turbo Distilled)` (756 MB, ~850 MB RAM, ~175ms latency, 98.9% benchmark, Q5_K_M GGML / INT8, 6x faster inference).
+    - `large-v3-turbo`: `Whisper Large v3 Turbo (Flagship Universal)` (809 MB, ~980 MB RAM, ~320ms latency, 99.3% benchmark, Q5_K_M GGML / INT8, maximum noise & accent robustness).
+    - `medium.en`: `Whisper Medium (English)` (1530 MB, ~1200 MB RAM, ~420ms latency, 98.8% benchmark, Q5_0 GGML / INT8).
+    - `medium`: `Whisper Medium (Multilingual)` (1530 MB, ~1400 MB RAM, ~480ms latency, 98.5% benchmark, Q5_0 GGML / INT8).
+  - **Expanded Local LLM Model Catalog (6 Tiers)**:
+    - `heuristic-rule-engine`: `Zero-RAM Heuristic Engine` (0 MB disk, 0 MB RAM, <1ms latency, 8192 context).
+    - `smollm2-360m-q4_k_m`: `SmolLM2 360M (Q4_K_M)` (229 MB, ~320 MB RAM, <12ms latency, 2048 context).
+    - `qwen2.5-0.5b-q4_k_m`: `Qwen 2.5 0.5B (Q4_K_M)` (398 MB, ~480 MB RAM, ~22ms latency, 4096 context).
+    - `qwen2.5-1.5b-q4_k_m`: `Qwen 2.5 1.5B (Q4_K_M)` (986 MB, ~1150 MB RAM, ~45ms latency, 8192 context).
+    - `llama-3.2-1b-q4_k_m`: `Llama 3.2 1B (Q4_K_M)` (748 MB, ~920 MB RAM, ~35ms latency, 8192 context).
+    - `llama-3.2-3b-q4_k_m`: `Llama 3.2 3B (Q4_K_M)` (1820 MB, ~2200 MB RAM, ~70ms latency, 8192 context).
+  - **Advanced UI Redesign in LocalModels.tsx**:
+    - **Category Filter Tabs**: 1-click filtering by `All Models`, `English`, `Multilingual`, `Studio & Turbo`, and `Ready / Installed`.
+    - **4-Tile Telemetry Metric Bar**: Displays real-time Speed / Latency, Accuracy benchmark, Disk footprint, and RAM budget on every card.
+    - **Interactive Hardware Speed Benchmark Runner**: Built-in benchmark tool testing real CPU throughput, latency in milliseconds, and typing speed ratio (WPM).
+    - **Rich Tier Badges & Tags**: Color-coded badges (`Ultra-Lightweight`, `Balanced`, `High Precision`, `Multilingual`, `Turbo Distilled`, `Flagship Universal`) with parameter count and quantization format chips.
+  - **Full Automated Test Coverage**:
+    - Expanded unit test assertions in `test_local_model_enumeration` and `dictation.test.ts`.
+    - All 70/70 automated tests passing with 100% green status.
 
 ### [1.0.23] — 2026-11-24
 - **Official Brand Logo Integration & Speech Cleanser Image 1 Features (BUG-054)**:

@@ -80,6 +80,13 @@ describe('AMIYO FLOW Frontend Store & Pipeline Tests', () => {
     const speechModels = await api.listLocalSpeechModels();
     expect(speechModels.length).toBeGreaterThan(0);
     expect(speechModels.some((m) => m.id === 'base.en')).toBe(true);
+    expect(speechModels.some((m) => m.id === 'distil-large-v3')).toBe(true);
+    expect(speechModels.some((m) => m.id === 'large-v3-turbo')).toBe(true);
+
+    const llmModels = await api.listLocalLlmModels();
+    expect(llmModels.length).toBeGreaterThan(0);
+    expect(llmModels.some((m) => m.id === 'heuristic-rule-engine')).toBe(true);
+    expect(llmModels.some((m) => m.id === 'llama-3.2-3b-q4_k_m')).toBe(true);
 
     const status = await api.getOfflineSystemStatus();
     expect(status.is_offline_ready).toBe(true);

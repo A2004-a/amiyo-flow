@@ -23,6 +23,18 @@ pub struct LocalLlmModelInfo {
     pub description: String,
     pub is_downloaded: bool,
     pub file_path: String,
+    #[serde(default)]
+    pub tier: String,
+    #[serde(default)]
+    pub latency_ms: u32,
+    #[serde(default)]
+    pub context_tokens: u32,
+    #[serde(default)]
+    pub quantization: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub parameters: String,
 }
 
 /// Returns the home directory cross-platform
@@ -49,15 +61,17 @@ pub fn list_local_llm_models() -> Vec<LocalLlmModelInfo> {
     let dir = get_llm_models_dir();
 
     let models = vec![
-        ("smollm2-360m-q4_k_m", "SmolLM2 360M (Q4_K_M)", 229, 320, "Ultra-fast local grammar fixer (<15ms, ~320MB RAM)"),
-        ("qwen2.5-0.5b-q4_k_m", "Qwen 2.5 0.5B (Q4_K_M)", 398, 480, "High-fidelity multilingual text cleanup"),
-        ("llama-3.2-1b-q4_k_m", "Llama 3.2 1B (Q4_K_M)", 748, 920, "Advanced reasoning and contextual formatting"),
-        ("heuristic-rule-engine", "Zero-RAM Heuristic Engine", 0, 0, "Deterministic instant cleanup (0 MB RAM overhead)"),
+        ("heuristic-rule-engine", "Zero-RAM Heuristic Engine", 0, 0, "Deterministic instant local rules, 0 MB memory budget, 100% offline", "Instant Heuristic", 1, 8192, "Deterministic Native", vec!["0 MB RAM", "<1ms Speed", "Deterministic"], "Zero-Weights"),
+        ("smollm2-360m-q4_k_m", "SmolLM2 360M (Q4_K_M)", 229, 320, "Ultra-fast local grammar fixer with lightweight memory footprint", "Ultra-Lightweight Edge", 12, 2048, "Q4_K_M GGUF", vec!["Ultra-Fast", "Grammar", "8GB RAM"], "360M"),
+        ("qwen2.5-0.5b-q4_k_m", "Qwen 2.5 0.5B (Q4_K_M)", 398, 480, "High-fidelity multilingual text cleanup & punctuation restoration", "Multilingual Edge", 22, 4096, "Q4_K_M GGUF", vec!["Multilingual", "Punctuation", "Polyglot"], "500M"),
+        ("qwen2.5-1.5b-q4_k_m", "Qwen 2.5 1.5B (Q4_K_M)", 986, 1150, "Advanced technical reasoning, code preservation & complex clause restructuring", "Technical Reasoning", 45, 8192, "Q4_K_M GGUF", vec!["Code & Jargon", "Clause Logic", "High Precision"], "1.5B"),
+        ("llama-3.2-1b-q4_k_m", "Llama 3.2 1B (Q4_K_M)", 748, 920, "Meta's edge model for executive business tone & high-grade styling", "Executive & Business", 35, 8192, "Q4_K_M GGUF", vec!["Business Prose", "Executive Tone", "Meta Edge"], "1.2B"),
+        ("llama-3.2-3b-q4_k_m", "Llama 3.2 3B (Q4_K_M)", 1820, 2200, "Flagship edge LLM for autonomous prompt engineering & deep context refinement", "Flagship Edge LLM", 70, 8192, "Q4_K_M GGUF", vec!["Prompt Engineering", "Deep Context", "Flagship"], "3.2B"),
     ];
 
     models
         .into_iter()
-        .map(|(id, name, size, ram, desc)| {
+        .map(|(id, name, size, ram, desc, tier, latency, ctx, quant, tags, params)| {
             let filename = format!("{}.gguf", id);
             let path = dir.join(&filename);
             let is_downloaded = id == "heuristic-rule-engine"
@@ -71,6 +85,12 @@ pub fn list_local_llm_models() -> Vec<LocalLlmModelInfo> {
                 description: desc.to_string(),
                 is_downloaded,
                 file_path: if id == "heuristic-rule-engine" { "builtin".to_string() } else { path.to_string_lossy().to_string() },
+                tier: tier.to_string(),
+                latency_ms: latency,
+                context_tokens: ctx,
+                quantization: quant.to_string(),
+                tags: tags.into_iter().map(|s| s.to_string()).collect(),
+                parameters: params.to_string(),
             }
         })
         .collect()

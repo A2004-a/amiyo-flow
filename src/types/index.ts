@@ -82,6 +82,12 @@ export interface LocalSpeechModelInfo {
   description: string;
   is_downloaded: boolean;
   file_path: string;
+  tier?: string;
+  latency_ms?: number;
+  wer_benchmark?: string;
+  quantization?: string;
+  tags?: string[];
+  parameters?: string;
 }
 
 export interface LocalLlmModelInfo {
@@ -92,6 +98,12 @@ export interface LocalLlmModelInfo {
   description: string;
   is_downloaded: boolean;
   file_path: string;
+  tier?: string;
+  latency_ms?: number;
+  context_tokens?: number;
+  quantization?: string;
+  tags?: string[];
+  parameters?: string;
 }
 
 export interface OfflineSystemStatus {
