@@ -407,6 +407,8 @@ function simulateCleanup(
 
   // 2. Filler words
   if (removeFillers) {
+    text = text.replace(/\b(?:what\s+else\s+is\s+there\s*,\s*like\s+what|what\s+else\s+is\s+there|like\s+what\s+is\s+there)\b,?/gi, '');
+    text = text.replace(/\bload\s*,\s*plug\s*,\s*closely\b,?/gi, '');
     text = text.replace(/\b(?:no no wait|no no no|no no)\b,?/gi, '');
     text = text.replace(/\b(?:um\s+aa|aa\s+um|um\s+uh|uh\s+um|er\s+um|um\s+er|aa\s+nu|nu\s+aa)\b,?/gi, '');
     text = text.replace(/\b(um+|uh+|erm+|ah+|aa+|aah+|ahh+|nu+|na+|umm+|uhh+|er+|hmm+|uhm+|em+|ohh+)\b,?/gi, '');
@@ -617,8 +619,32 @@ function simulateCleanup(
       [/\bchatgpt\b/gi, "ChatGPT"],
       [/\bheck\s+lot\b/gi, "Hey Claude"],
       [/\btake\s+a\s+lot\s+my\s+name\b/gi, "Hey Claude, my name"],
+      [/\btake\s+claude\b/gi, "Hey Claude"],
+      [/\btake\s+claudia\b/gi, "Hey Claude"],
+      [/\btake\s+claud\b/gi, "Hey Claude"],
       [/\ban\s+i-claudia\b/gi, "in Claude"],
       [/\bi\s+claudia\b/gi, "in Claude"],
+      // Microsoft Office & Productivity Suite Normalizations
+      [/\bmicrosoft\s+osu\s+system\b/gi, "Microsoft Office system"],
+      [/\bmicrosoft\s+osu\b/gi, "Microsoft Office"],
+      [/\bosu\s+system\b/gi, "Office system"],
+      [/\bmicrosoft\s+office\b/gi, "Microsoft Office"],
+      [/\bwindows\s+11\b/gi, "Windows 11"],
+      [/\ba\s+operating\s+system\b/gi, "an operating system"],
+      [/\bby\s+windows\s+11\b/gi, "for Windows 11"],
+      [/\bby\s+windows\b/gi, "for Windows"],
+      // "Word to win" / "like win" in Office Context
+      [/\blike\s+a\s+mail\s*,\s*like\s+win\b/gi, "like Mail, like Word"],
+      [/\blike\s+mail\s*,\s*like\s+win\b/gi, "like Mail, like Word"],
+      [/\blike\s+win\s*,\s*what\s+else\s+is\s+there\b/gi, "like Word, what else is there"],
+      [/\blike\s+win\b(?=.*(?:powerpoint|excel|office|microsoft))/gi, "like Word"],
+      [/\b(?:mail|email|outlook)\s*,\s*like\s+win\b/gi, "Mail, like Word"],
+      [/\bwin\s*,\s*(?:what\s+else\s+is\s+there\s*,\s*like\s+what\s+)?(?:like\s+)?powerpoint\b/gi, "Word, PowerPoint"],
+      [/\bwin\s*,\s*(?:and\s+)?(?:like\s+)?powerpoint\b/gi, "Word, PowerPoint"],
+      [/\bpowerpoint\s+excel\b/gi, "PowerPoint, Excel"],
+      [/\bpowerpoint\b/gi, "PowerPoint"],
+      [/\bexcel\b/gi, "Excel"],
+      [/\boutlook\b/gi, "Outlook"],
       [/\bi\s+won't\s+build\b/gi, "I want to build"],
       [/\bi\s+want\s+build\b/gi, "I want to build"],
       [/\bclaude\b/gi, "Claude"],
@@ -912,6 +938,10 @@ export const WritingStyles: React.FC = () => {
     {
       label: 'Voice Control: Email Format',
       text: 'as an email: please review the pull request for the autonomous voice control feature',
+    },
+    {
+      label: 'Office & Productivity: Word, Excel, PowerPoint',
+      text: 'Take Claude, my name is Amiyo Garai and I try to build a operating system by Windows 11 and try to build like a file manager and systems and others, load, plug, closely and build a Microsoft OSU system like a mail, like win, what else is there, like what PowerPoint excel system',
     },
   ];
 

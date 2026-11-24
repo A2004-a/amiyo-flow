@@ -202,6 +202,12 @@ impl Database {
             ("Zumio", "Amiyo", "Phonetics"),
             ("cellocegivity", "and ChatGPT", "Phonetics"),
             ("cegivity", "ChatGPT", "Phonetics"),
+            ("Microsoft OSU", "Microsoft Office", "Phonetics"),
+            ("OSU", "Office", "Phonetics"),
+            ("Take Claude", "Hey Claude", "Phonetics"),
+            ("PowerPoint", "PowerPoint", "Technical"),
+            ("Excel", "Excel", "Technical"),
+            ("Windows 11", "Windows 11", "Technical"),
             ("omiya", "Amiyo", "Phonetics"),
             ("omiyo", "Amiyo", "Phonetics"),
             ("amio", "Amiyo", "Phonetics"),
@@ -225,6 +231,31 @@ impl Database {
                 "INSERT OR IGNORE INTO dictionary (id, word, replacement, category, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
                 params![id, w, r, c, now],
             );
+        }
+
+        // Ensure new phonetic and technical dictionary mappings are populated in existing databases
+        let additional_mappings = [
+            ("Microsoft OSU", "Microsoft Office", "Phonetics"),
+            ("OSU", "Office", "Phonetics"),
+            ("Take Claude", "Hey Claude", "Phonetics"),
+            ("PowerPoint", "PowerPoint", "Technical"),
+            ("Excel", "Excel", "Technical"),
+            ("Windows 11", "Windows 11", "Technical"),
+        ];
+        for (w, r, c) in additional_mappings.iter() {
+            let exists: bool = conn.query_row(
+                "SELECT 1 FROM dictionary WHERE word = ?1",
+                params![w],
+                |_| Ok(true),
+            ).unwrap_or(false);
+            if !exists {
+                let id = uuid::Uuid::new_v4().to_string();
+                let now = chrono::Utc::now().to_rfc3339();
+                let _ = conn.execute(
+                    "INSERT INTO dictionary (id, word, replacement, category, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                    params![id, w, r, c, now],
+                );
+            }
         }
 
         // Seed default snippets

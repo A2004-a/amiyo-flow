@@ -875,6 +875,60 @@ async fn test_autonomous_voice_control_and_style_directives() {
     assert!(cleaned_biz.contains("Please let me know if that works for your schedule."));
 }
 
+#[test]
+fn test_office_osu_word_to_win_and_irritate_words_removal() {
+    use amiyo_flow_lib::ai::heuristic_cleanup;
+
+    // 1. Verify "Take Claude" maps to "Hey Claude"
+    let t1 = heuristic_cleanup("Take Claude, my name is Amiyo Garai");
+    assert!(t1.contains("Hey Claude"));
+    assert!(!t1.contains("Take Claude"));
+
+    // 2. Verify "Microsoft OSU system" maps to "Microsoft Office system"
+    let t2 = heuristic_cleanup("build a Microsoft OSU system");
+    assert!(t2.contains("Microsoft Office system"));
+    assert!(!t2.contains("OSU"));
+
+    // 3. Verify indefinite article "a operating system" -> "an operating system"
+    let t3 = heuristic_cleanup("build a operating system");
+    assert!(t3.contains("an operating system"));
+
+    // 4. Verify "by Windows 11" -> "for Windows 11"
+    let t4 = heuristic_cleanup("build an operating system by Windows 11");
+    assert!(t4.contains("for Windows 11"));
+
+    // 5. Verify "like a mail, like win" -> "like Mail, like Word"
+    let t5 = heuristic_cleanup("Microsoft Office system like a mail, like win, PowerPoint, Excel");
+    assert!(t5.contains("like Mail, like Word"));
+    assert!(!t5.contains("like win"));
+
+    // 6. Verify "PowerPoint excel" -> "PowerPoint, Excel"
+    let t6 = heuristic_cleanup("PowerPoint excel system");
+    assert!(t6.contains("PowerPoint, Excel system"));
+
+    // 7. Verify irritation hesitation removal: "what else is there, like what"
+    let t7 = heuristic_cleanup("like Word, what else is there, like what PowerPoint, Excel");
+    assert!(!t7.contains("what else is there"));
+    assert!(!t7.contains("like what"));
+
+    // 8. Full user test utterance
+    let raw_input = "Take Claude, my name is Amiyo Garai and I try to build a operating system by Windows 11 and try to build like a file manager and systems and others, load, plug, closely and build a Microsoft OSU system like a mail, like win, what else is there, like what PowerPoint excel system";
+    let cleaned = heuristic_cleanup(raw_input);
+
+    assert!(cleaned.contains("Hey Claude"));
+    assert!(cleaned.contains("my name is Amiyo Garai"));
+    assert!(cleaned.contains("an operating system"));
+    assert!(cleaned.contains("for Windows 11"));
+    assert!(cleaned.contains("Microsoft Office system"));
+    assert!(cleaned.contains("like Mail, like Word"));
+    assert!(cleaned.contains("PowerPoint, Excel"));
+    assert!(!cleaned.contains("OSU"));
+    assert!(!cleaned.contains("Take Claude"));
+    assert!(!cleaned.contains("like win"));
+    assert!(!cleaned.contains("load, plug, closely"));
+    assert!(!cleaned.contains("what else is there, like what"));
+}
+
 
 
 
