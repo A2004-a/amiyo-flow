@@ -386,7 +386,7 @@ function simulateCleanup(
 
   // 0a. Pre-greeting cleaner: strips throat clearing, coughs, warmup stutters before assistant greetings
   const preGreetingMatch = text.match(
-    /^(?:\s*[,.]*\s*(?:een|aam|ehn|uhn|ehm|um|uh|nu|na|erm|ah|aa|aah|ahh|amiyo|omiya|omiyaya|omiyo|omi|testing|mic|hello|hi|one\s+two|one\s+two\s+three)+\s*[,.]*)+\s*(?:omi)?\s*(hey\s+claude|hi\s+claude|hello\s+claude|claude|hey\s+opencode|hi\s+opencode|hello\s+opencode|opencode|hey\s+open\s+code|open\s+code|hey\s+chatgpt|hi\s+chatgpt|hello\s+chatgpt|chatgpt)\b/i
+    /^(?:\s*[,.]*\s*(?:een|aam|ehn|uhn|ehm|um|uh|nu|na|erm|ah|aa|aah|ahh|amiyo|garai|omiya|omiyaya|omiyo|omi|testing|mic|hello|hi|one\s+two|one\s+two\s+three|mic\s+check|check\s+check|sound\s+check|mic\s+testing|sound\s+testing|test\s+test)+\s*[,.]*)+\s*(?:omi)?\s*(hey\s+claude|hi\s+claude|hello\s+claude|claude|hey\s+opencode|hi\s+opencode|hello\s+opencode|opencode|hey\s+open\s+code|open\s+code|hey\s+open\s+port|open\s+port|hey\s+chatgpt|hi\s+chatgpt|hello\s+chatgpt|chatgpt)\b/i
   );
   if (preGreetingMatch && preGreetingMatch[1]) {
     const greeting = preGreetingMatch[1];
@@ -520,7 +520,7 @@ function simulateCleanup(
     text = text.replace(/\bload\s*,?\s*plug\s*,?\s*closely\b,?/gi, '');
     text = text.replace(/\b(?:no no wait|no no no|no no)\b,?/gi, '');
     // Regional slang particles & vocal throat clears
-    text = text.replace(/\b(?:bhai|accha|matlab|na\s+re|arrey|arre\s+yaar|arre|yaar|toh\s+phir|toh|ki\s+na|mane)\b,?/gi, '');
+    text = text.replace(/\b(?:bhaiya|bhai|accha\s+accha|accha|matlab\s+ki|matlab|na\s+re|arrey\s+re|arrey|arre\s+yaar|arre|yaar|toh\s+phir|toh|ki\s+na|mane|suno|dekho|samjhe\s+na|thik\s+ache|thik\s+thak|ekta\s+kotha|bolchi|bolo|shono|aro\s+ekta|ar\s+ki|ar\s+ki\s+bolbo)\b,?/gi, '');
     text = text.replace(/\b(?:ahem|uh-huh|mhm)\b,?/gi, '');
     // Hesitation syllables & combined stutter tokens
     text = text.replace(/\b(?:um\s+aa|aa\s+um|um\s+uh|uh\s+um|er\s+um|um\s+er|aa\s+nu|nu\s+aa|nu\s+na|na\s+nu|nu\s+nu|na\s+na)\b,?/gi, '');
@@ -1374,13 +1374,13 @@ export const WritingStyles: React.FC = () => {
                 </div>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed min-h-[36px]">
-                Filters out hesitations, throat clears, and regional slang like <span className="text-amber-300 font-mono">um, aa, nu, na, uh, erm, you know, yaar, toh phir</span>.
+                Filters out hesitations like <span className="text-amber-300 font-mono">um, aa, aah, nu, na, uh, erm, ah, you know</span>, and custom fillers.
               </p>
             </div>
             <div className="text-[10px] bg-slate-950/90 rounded-lg p-2.5 border border-slate-800/80 font-mono text-slate-400 min-h-[52px] flex flex-col justify-center">
               <span className="text-slate-600 block text-[9px]">Preview:</span>
               <span>
-                "um hello nu we can start toh phir" →{' '}
+                "um hello nu we can start" →{' '}
                 <span className="text-amber-300 font-medium">"Hello we can start."</span>
               </span>
             </div>
@@ -1430,13 +1430,13 @@ export const WritingStyles: React.FC = () => {
                 </div>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed min-h-[36px]">
-                Deduplicates hyphenated stutters (<span className="text-cyan-300 font-mono">"w- we"</span>), single words, and multi-word phrases (<span className="text-cyan-300 font-mono">"we can we can"</span>).
+                Deduplicates repeated single words and 2-word phrases like <span className="text-cyan-300 font-mono">"the the"</span> and <span className="text-cyan-300 font-mono">"we can we can"</span>.
               </p>
             </div>
             <div className="text-[10px] bg-slate-950/90 rounded-lg p-2.5 border border-slate-800/80 font-mono text-slate-400 min-h-[52px] flex flex-col justify-center">
               <span className="text-slate-600 block text-[9px]">Preview:</span>
               <span>
-                "w- we can we can deploy" →{' '}
+                "we can we can deploy" →{' '}
                 <span className="text-cyan-300 font-medium">"We can deploy."</span>
               </span>
             </div>
@@ -1486,13 +1486,13 @@ export const WritingStyles: React.FC = () => {
                 </div>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed min-h-[36px]">
-                Detects backtrack phrases like <span className="text-emerald-300 font-mono">"no wait"</span>, <span className="text-emerald-300 font-mono">"or rather"</span>, <span className="text-emerald-300 font-mono">"make that"</span>, keeping your true speech.
+                Detects backtrack phrases like <span className="text-emerald-300 font-mono">"no wait"</span>, <span className="text-emerald-300 font-mono">"scratch that"</span>, keeping your true speech.
               </p>
             </div>
             <div className="text-[10px] bg-slate-950/90 rounded-lg p-2.5 border border-slate-800/80 font-mono text-slate-400 min-h-[52px] flex flex-col justify-center">
               <span className="text-slate-600 block text-[9px]">Preview:</span>
               <span>
-                "Friday or rather Monday" →{' '}
+                "Friday no wait Monday" →{' '}
                 <span className="text-emerald-300 font-medium">"Monday."</span>
               </span>
             </div>
@@ -1542,14 +1542,14 @@ export const WritingStyles: React.FC = () => {
                 </div>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed min-h-[36px]">
-                Capitalizes all sentences, fixes pronoun <span className="text-violet-300 font-mono">"I"</span>, repairs contractions (<span className="text-violet-300 font-mono">don't, couldn't have</span>), and balances quotes.
+                Capitalizes all sentences, fixes pronoun <span className="text-violet-300 font-mono">"I"</span>, repairs contractions (<span className="text-violet-300 font-mono">don't, can't</span>), and balances punctuation.
               </p>
             </div>
             <div className="text-[10px] bg-slate-950/90 rounded-lg p-2.5 border border-slate-800/80 font-mono text-slate-400 min-h-[52px] flex flex-col justify-center">
               <span className="text-slate-600 block text-[9px]">Preview:</span>
               <span>
-                "we couldntve failed. \"dont worry" →{' '}
-                <span className="text-violet-300 font-medium">"We couldn't have failed. Don't worry."</span>
+                "we arrived. it works. dont worry" →{' '}
+                <span className="text-violet-300 font-medium">"We arrived. It works. Don't worry."</span>
               </span>
             </div>
           </div>
@@ -1595,6 +1595,7 @@ export const WritingStyles: React.FC = () => {
               <option value="3000">3.0s Pause Wait (Relaxed)</option>
               <option value="3500">3.5s Pause Wait (Deep Thinking)</option>
               <option value="4000">4.0s Pause Wait (Maximum)</option>
+              <option value="5000">5.0s Pause Wait (Long Thinker)</option>
               <option value="0">Manual Only (No Auto-Stop)</option>
             </select>
           </div>

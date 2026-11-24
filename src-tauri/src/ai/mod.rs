@@ -297,13 +297,14 @@ pub async fn clean_transcript_routed_full(
     }
 
     // Step 1: Instant deterministic local pre-clean (0 MB RAM)
-    let pre_cleaned = heuristic_cleanup_full(
+    let pre_cleaned = heuristic_cleanup_full_with_app(
         text_to_clean,
         remove_fillers,
         remove_repeats,
         remove_corrections,
         clean_sentences,
         custom_fillers,
+        target_app,
     );
 
     // Step 2: Personal Dictionary substitution
@@ -854,7 +855,37 @@ pub fn heuristic_cleanup_full(
     clean_sentences: bool,
     custom_fillers: &[String],
 ) -> String {
+    heuristic_cleanup_full_with_app(input, remove_fillers, remove_repeats, remove_corrections, clean_sentences, custom_fillers, "")
+}
+
+/// Local Deterministic Heuristic Normalizer with full modular control including smart sentence polishing and target app context
+pub fn heuristic_cleanup_full_with_app(
+    input: &str,
+    remove_fillers: bool,
+    remove_repeats: bool,
+    remove_corrections: bool,
+    clean_sentences: bool,
+    custom_fillers: &[String],
+    target_app: &str,
+) -> String {
     let mut text = input.to_string();
+
+    // Contextual target application normalization (e.g. OpenCode IDE active window)
+    let is_opencode = target_app.to_lowercase().contains("opencode");
+    if is_opencode {
+        static OPENCODE_RE: OnceLock<Regex> = OnceLock::new();
+        let opencode_re = OPENCODE_RE.get_or_init(|| {
+            Regex::new(r"(?i)\b(?:hey\s*,\s*)?(?:welcome\s+claude|i'm\s+claude|claude|open\s+port|open\s+cord|open\s+court|open\s+card|open\s+code|open-code)\b").unwrap()
+        });
+        text = opencode_re.replace_all(&text, |caps: &regex::Captures| {
+            let m = caps.get(0).unwrap().as_str().to_lowercase();
+            if m.starts_with("hey") || m.contains("welcome") || m.contains("i'm") {
+                "Hey OpenCode"
+            } else {
+                "OpenCode"
+            }
+        }).to_string();
+    }
 
     // -1. Strip mid-sentence false start greeting restarts (e.g. "Hey, welcome Claude... and I try to Hey, I'm Claude...")
     text = strip_mid_sentence_regreeting_restart(&text);
@@ -865,7 +896,7 @@ pub fn heuristic_cleanup_full(
     // 0a. Pre-greeting cleaner: strips throat clearing, coughs, warmup stutters before assistant greetings
     let pre_greeting_re = PRE_GREETING_RE.get_or_init(|| {
         Regex::new(
-            r"(?i)^(?:\s*[,.]*\s*(?:een|aam|ehn|uhn|ehm|um|uh|nu|na|erm|ah|aa|aah|ahh|amiyo|omiya|omiyaya|omiyo|omi|testing|mic|hello|hi|one\s+two|one\s+two\s+three)+\s*[,.]*)+\s*(?:omi)?\s*(hey\s+claude|hi\s+claude|hello\s+claude|claude|hey\s+opencode|hi\s+opencode|hello\s+opencode|opencode|hey\s+open\s+code|open\s+code|hey\s+chatgpt|hi\s+chatgpt|hello\s+chatgpt|chatgpt)\b"
+            r"(?i)^(?:\s*[,.]*\s*(?:een|aam|ehn|uhn|ehm|um|uh|nu|na|erm|ah|aa|aah|ahh|amiyo|garai|omiya|omiyaya|omiyo|omi|testing|mic|hello|hi|one\s+two|one\s+two\s+three|mic\s+check|check\s+check|sound\s+check|mic\s+testing|sound\s+testing|test\s+test)+\s*[,.]*)+\s*(?:omi)?\s*(hey\s+claude|hi\s+claude|hello\s+claude|claude|hey\s+opencode|hi\s+opencode|hello\s+opencode|opencode|hey\s+open\s+code|open\s+code|hey\s+open\s+port|open\s+port|hey\s+chatgpt|hi\s+chatgpt|hello\s+chatgpt|chatgpt)\b"
         ).unwrap()
     });
     if let Some(caps) = pre_greeting_re.captures(&text) {
@@ -920,7 +951,9 @@ pub fn heuristic_cleanup_full(
             (r"\b(?i)how\s+(?:the\s+)?what's\s+up\s+works\b", "how WhatsApp works"),
             (r"\b(?i)(?:the\s+)?what's\s+up\s+works\b", "WhatsApp works"),
             (r"\b(?i)what's\s+up\s+and\s+creative\b", "WhatsApp and creative"),
+            (r"\b(?i)\bwhat's\s+up\b(?=.*(?:user\s+manual|chatgpt|claude|opencode|windows|app|software|features|message|messaging|chat))", "WhatsApp"),
             (r"\b(?i)\bwhat's\s+up\s+(?:web|app|group|chat|call|status)\b", "WhatsApp $1"),
+            (r"\b(?i)creative\s*,\s*overall\b", "creative overall"),
             (r"\b(?i)microsoft\s+osu\s+system\b", "Microsoft Office system"),
             (r"\b(?i)microsoft\s+osu\b", "Microsoft Office"),
             (r"\b(?i)osu\s+system\b", "Office system"),
@@ -1021,7 +1054,7 @@ pub fn heuristic_cleanup_full(
                 r"(?i)\bload\s*,?\s*plug\s*,?\s*closely\b,?",
                 r"(?i)\b(?:no no wait|no no no|no no)\b,?",
                 // Regional slang particles (Hinglish/Bengali/South Asian conversational markers)
-                r"(?i)\b(?:bhaiya|bhai|accha\s+accha|accha|matlab\s+ki|matlab|na\s+re|arrey\s+re|arrey|arre\s+yaar|arre|yaar|toh\s+phir|toh|ki\s+na|mane|suno|dekho|samjhe\s+na)\b,?",
+                r"(?i)\b(?:bhaiya|bhai|accha\s+accha|accha|matlab\s+ki|matlab|na\s+re|arrey\s+re|arrey|arre\s+yaar|arre|yaar|toh\s+phir|toh|ki\s+na|mane|suno|dekho|samjhe\s+na|thik\s+ache|thik\s+thak|ekta\s+kotha|bolchi|bolo|shono|aro\s+ekta|ar\s+ki|ar\s+ki\s+bolbo)\b,?",
                 // Hesitation syllables & combined stutter tokens
                 r"(?i)\b(?:um\s+aa|aa\s+um|um\s+uh|uh\s+um|er\s+um|um\s+er|aa\s+nu|nu\s+aa|nu\s+na|na\s+nu|nu\s+nu|na\s+na)\b,?",
                 r"(?i)\b(?:een|aam|ehm|ehn|uhn|omiyaya|ahem|uh-huh|mhm|mm-hmm|nuh-uh|hmph)\b,?",
@@ -1435,7 +1468,9 @@ pub fn polish_sentence_structure(input: &str) -> String {
             (r"\b(?i)how\s+(?:the\s+)?what's\s+up\s+works\b", "how WhatsApp works"),
             (r"\b(?i)(?:the\s+)?what's\s+up\s+works\b", "WhatsApp works"),
             (r"\b(?i)what's\s+up\s+and\s+creative\b", "WhatsApp and creative"),
+            (r"\b(?i)\bwhat's\s+up\b(?=.*(?:user\s+manual|chatgpt|claude|opencode|windows|app|software|features|message|messaging|chat))", "WhatsApp"),
             (r"\b(?i)\bwhat's\s+up\s+(?:web|app|group|chat|call|status)\b", "WhatsApp $1"),
+            (r"\b(?i)creative\s*,\s*overall\b", "creative overall"),
             // Microsoft Office & Productivity Suite Normalizations
             (r"\b(?i)microsoft\s+osu\s+system\b", "Microsoft Office system"),
             (r"\b(?i)microsoft\s+osu\b", "Microsoft Office"),
@@ -2213,10 +2248,11 @@ pub async fn generate_meeting_summary(raw_transcript: &str) -> Result<crate::db:
 
     let cleaned = heuristic_cleanup(raw_transcript);
 
-    // Split cleaned text into distinct sentences (avoiding splitting decimal numbers like v1.0)
-    let sentence_regex = Regex::new(r#"(?:\.\s+|\?\s+|\!\s+|\;\s+|\n+)"#).unwrap();
+    // Split cleaned text into distinct sentences (handling periods, semicolons, newlines, and list bullets)
+    let sentence_regex = Regex::new(r#"(?:\.\s+|\?\s+|\!\s+|\;\s+|\n+|(?:^|\n)\s*[-*•]\s*|(?:^|\n)\s*\d+\.\s*)"#).unwrap();
     let sentences: Vec<String> = sentence_regex
         .split(&cleaned)
+        .map(|s| s.trim().trim_start_matches(|c: char| c == '-' || c == '*' || c == '•' || c == '.' || c == ' '))
         .map(|s| s.trim())
         .filter(|s| s.len() > 3)
         .map(|s| {
@@ -2239,7 +2275,8 @@ pub async fn generate_meeting_summary(raw_transcript: &str) -> Result<crate::db:
     let decision_patterns = [
         "agree", "agreed", "decide", "decided", "approve", "approved",
         "standardize", "standardized", "chosen", "choose", "resolved",
-        "consensus", "aligned", "selected", "verdict", "deploy local", "concluded"
+        "consensus", "aligned", "selected", "verdict", "deploy local", "concluded",
+        "settled on", "recommend", "recommended", "confirmed", "finalized", "accepted", "opted for"
     ];
 
     let mut decisions: Vec<String> = sentences
@@ -2262,10 +2299,11 @@ pub async fn generate_meeting_summary(raw_transcript: &str) -> Result<crate::db:
 
     // 2. Dynamic Extraction of Action Items
     let action_patterns = [
-        "will", "must", "need to", "action", "todo", "follow up", "assign",
+        "will", "must", "need to", "action", "todo", "follow up", "assign", "assigned",
         "by friday", "by monday", "deadline", "ship", "deliver", "review",
         "test", "benchmark", "implement", "create", "build", "verify",
-        "plan to", "prepare", "deploy", "suggested"
+        "plan to", "prepare", "deploy", "suggested", "responsible for", "scheduled to",
+        "tasked with", "deliverable", "next step"
     ];
 
     let mut action_items: Vec<String> = sentences

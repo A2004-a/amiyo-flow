@@ -99,9 +99,14 @@ impl VoiceActivityDetector {
         }
 
         let threshold = (self.noise_energy_floor * self.config.energy_threshold_ratio).max(0.0008);
-        // Robust voice detection: voiced vowels have low ZCR (0.015 - 0.05) and high energy.
-        // Unvoiced fricatives (s, sh, f) have high ZCR. We accept voice across all vocal registers.
-        let is_speech = energy > threshold && (zcr >= 0.008 || energy > threshold * 1.4);
+        // Robust voice detection: when speech is already underway, be more forgiving with trailing vocal decrescendo
+        // so soft trailing words (e.g. "which features we can") are never prematurely classified as silence.
+        let effective_threshold = if self.has_detected_speech {
+            (threshold * 0.75).max(0.0005)
+        } else {
+            threshold
+        };
+        let is_speech = energy > effective_threshold && (zcr >= 0.006 || energy > effective_threshold * 1.25);
 
         const SPEECH_HANGOVER_MS: u64 = 400; // 400ms speech hangover protects natural inter-word breathing pauses
 

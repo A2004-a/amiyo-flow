@@ -1332,6 +1332,115 @@ fn test_opencode_acoustic_homophones_restart_and_audio_trimming() {
     assert!(trimmed.len() <= 32000, "Must strip dead leading and trailing silence: got {} samples", trimmed.len());
 }
 
+#[tokio::test]
+async fn test_meeting_assistant_expanded_decisions_and_bullet_lists() {
+    use amiyo_flow_lib::ai::generate_meeting_summary;
+
+    let transcript = "
+    - Amiyo settled on implementing 100% on-device speech transcription.
+    - Team finalized the dual-window HUD architecture.
+    - Sarah is responsible for the Win32 SendInput Unicode injection pipeline.
+    - Marcus is tasked with benchmarking VAD silence auto-stop across studio audio interfaces.
+    - Deliverable deadline is scheduled for next sprint review.
+    ";
+
+    let meeting = generate_meeting_summary(transcript).await.expect("Failed to generate meeting");
+
+    // 1. Verify markdown bullet lists are parsed into discrete entries
+    assert!(meeting.decisions.len() >= 2, "Expected at least 2 decisions, got {}", meeting.decisions.len());
+    assert!(meeting.decisions.iter().any(|d| d.to_lowercase().contains("settled on")));
+    assert!(meeting.decisions.iter().any(|d| d.to_lowercase().contains("finalized")));
+
+    // 2. Verify action items extracted with new corporate triggers
+    assert!(meeting.action_items.len() >= 2, "Expected at least 2 action items, got {}", meeting.action_items.len());
+    assert!(meeting.action_items.iter().any(|a| a.to_lowercase().contains("responsible for")));
+    assert!(meeting.action_items.iter().any(|a| a.to_lowercase().contains("tasked with") || a.to_lowercase().contains("deliverable")));
+
+    // 3. Verify clean checklist formatting
+    assert!(meeting.action_items.iter().all(|a| a.starts_with("[ ] ")));
+}
+
+#[test]
+fn test_screenshot_image3_utterance_and_vad_trailing_decrescendo() {
+    use amiyo_flow_lib::ai::heuristic_cleanup;
+    use amiyo_flow_lib::audio::vad::{VadConfig, VoiceActivityDetector};
+
+    // 1. User's exact dictation from Claude screenshot:
+    let raw = "Een, Amiyo omiyaya Amiyo, omiHey Claude, my name is Amiyo Garai and I try to visit ChatGPT, I'm like, what's up and creative, overall, for this user manual and how the what's up works and which features we can";
+    let cleaned = heuristic_cleanup(raw);
+
+    // Verify throat clearing and repeated name warm-up stripped
+    assert!(!cleaned.contains("Een"), "Must strip 'Een': got '{}'", cleaned);
+    assert!(!cleaned.contains("omiyaya"), "Must strip 'omiyaya': got '{}'", cleaned);
+    assert!(cleaned.starts_with("Hey Claude"), "Must begin directly with 'Hey Claude': got '{}'", cleaned);
+
+    // Verify filler 'I'm like' stripped
+    assert!(!cleaned.contains("I'm like"), "Must remove 'I'm like': got '{}'", cleaned);
+
+    // Verify 'what's up' converted to 'WhatsApp'
+    assert!(cleaned.contains("WhatsApp"), "Must convert 'what's up' to 'WhatsApp': got '{}'", cleaned);
+
+    // Verify incomplete clause ending on modal verb 'we can' is protected from terminal period
+    assert!(!cleaned.ends_with('.'), "Utterance ending on 'we can' must not have terminal period: got '{}'", cleaned);
+    assert!(cleaned.ends_with("we can"), "Must preserve trailing incomplete clause: got '{}'", cleaned);
+
+    // 2. VAD Trailing Vocal Decrescendo Sensitivity
+    let mut vad = VoiceActivityDetector::new(VadConfig::default());
+    let speech_frame = vec![12000i16; 480];
+
+    // Establish active speech state
+    for _ in 0..15 {
+        vad.process_frame(&speech_frame);
+    }
+
+    // Now test a soft trailing speech frame (lower volume decrescendo)
+    let soft_trailing_frame = vec![1800i16; 480];
+    let (is_speech, should_stop) = vad.process_frame(&soft_trailing_frame);
+    assert!(is_speech, "Active speech trailing decrescendo must still be detected as speech");
+    assert!(!should_stop, "Must not prematurely auto-stop during trailing decrescendo words");
+}
+
+#[test]
+fn test_opencode_window_context_and_expanded_regional_slang() {
+    use amiyo_flow_lib::ai::{heuristic_cleanup, heuristic_cleanup_full_with_app};
+
+    // 1. Target app window context: inside OpenCode, Claude greetings automatically resolve to OpenCode
+    let raw_opencode_utterance = "Hey, welcome Claude, my name is Amiyo Garai, and I try to Hey, I'm Claude, my name is Amiyo Garai, I'm a child of built-in system like a typewriter, so K-A-B-O interface and others, and tell me the proper guidelines and which features you need and what talks we've done and which we do";
+    let cleaned_with_app = heuristic_cleanup_full_with_app(
+        raw_opencode_utterance,
+        true,
+        true,
+        true,
+        true,
+        &[],
+        "OpenCode (opencode.exe - Tidepool Alpha)",
+    );
+
+    assert!(cleaned_with_app.starts_with("Hey OpenCode, my name is Amiyo Garai"), "Must start with Hey OpenCode in OpenCode window context: got '{}'", cleaned_with_app);
+    assert!(!cleaned_with_app.contains("welcome Claude"), "Must strip abandoned false start: got '{}'", cleaned_with_app);
+    assert!(cleaned_with_app.contains("keyboard interface"), "Must map K-A-B-O to keyboard: got '{}'", cleaned_with_app);
+    assert!(cleaned_with_app.contains("what tasks we've done"), "Must map talks to tasks: got '{}'", cleaned_with_app);
+    assert!(!cleaned_with_app.ends_with('.'), "Trailing incomplete clause 'and which we do' must not have terminal period: got '{}'", cleaned_with_app);
+    assert!(cleaned_with_app.ends_with("which we do"), "Must preserve trailing incomplete clause: got '{}'", cleaned_with_app);
+
+    // 2. OpenCode word-like app and tags utterance (Image 7)
+    let raw_word_like = "Hey open port, my name is Amiyo Garai and I try to build a Word-like app for the documents and write the tags and anything, what each other works. Could I do a background for this?";
+    let cleaned_word = heuristic_cleanup(raw_word_like);
+    assert!(cleaned_word.contains("Hey OpenCode"), "Must convert open port to OpenCode: got '{}'", cleaned_word);
+    assert!(cleaned_word.contains("Word-like app"), "Must preserve Word-like app: got '{}'", cleaned_word);
+    assert!(cleaned_word.contains("write the text and anything"), "Must convert write the tags to write the text: got '{}'", cleaned_word);
+    assert!(cleaned_word.contains("how each works"), "Must convert what each other works to how each works: got '{}'", cleaned_word);
+    assert!(cleaned_word.ends_with("Could I do a background for this?"), "Interrogative sentence must end with question mark: got '{}'", cleaned_word);
+
+    // 3. Expanded regional Bengali and Hinglish hesitation slang
+    let raw_slang = "thik ache we can deploy ekta kotha the server is ready bolchi Friday";
+    let cleaned_slang = heuristic_cleanup(raw_slang);
+    assert!(!cleaned_slang.to_lowercase().contains("thik ache"), "Must filter 'thik ache': got '{}'", cleaned_slang);
+    assert!(!cleaned_slang.to_lowercase().contains("ekta kotha"), "Must filter 'ekta kotha': got '{}'", cleaned_slang);
+    assert!(!cleaned_slang.to_lowercase().contains("bolchi"), "Must filter 'bolchi': got '{}'", cleaned_slang);
+    assert!(cleaned_slang.contains("Friday"), "Must preserve content words: got '{}'", cleaned_slang);
+}
+
 
 
 

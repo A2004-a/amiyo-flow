@@ -1,8 +1,9 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Users,
   Play,
   Square,
+  Pause,
   CheckCircle2,
   ListTodo,
   FileText,
@@ -24,9 +25,13 @@ import {
   Share2,
   StickyNote,
   X,
+  Target,
+  ArrowRight,
+  Bookmark,
 } from 'lucide-react';
 import { useWorkspaceStore } from '../stores/useWorkspaceStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
+import { useDictationStore } from '../stores/useDictationStore';
 import { api, formatHotkeyDisplay } from '../lib/tauri';
 import { MeetingItem } from '../types';
 
@@ -39,12 +44,22 @@ const CATEGORIES = [
   'Design Review',
 ];
 
+const TITLE_SUGGESTIONS = [
+  { title: 'Sprint Planning & Release Roadmap', category: 'Sprint Planning' },
+  { title: 'Client Product Demo & Security Review', category: 'Client Call' },
+  { title: 'Local Audio Engine & VAD Architecture', category: 'Architecture' },
+  { title: 'Weekly 1-on-1 Engineering Catchup', category: '1-on-1' },
+  { title: 'UX Design & Floating HUD Review', category: 'Design Review' },
+];
+
 export const MeetingAssistant: React.FC = () => {
   const { meetings, loadMeetings, updateMeeting, deleteMeeting, setIsMeetingRecording } = useWorkspaceStore();
-  const { settings } = useSettingsStore();
+  const { settings, loadSettings } = useSettingsStore();
+  const { audioLevel } = useDictationStore();
 
   // Recording State
   const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [meetingTitle, setMeetingTitle] = useState('');
   const [meetingCategory, setMeetingCategory] = useState('General Sync');
   const [liveNotes, setLiveNotes] = useState('');
@@ -64,13 +79,31 @@ export const MeetingAssistant: React.FC = () => {
   const [editedNotes, setEditedNotes] = useState('');
   const [newActionItem, setNewActionItem] = useState('');
   const [newDecision, setNewDecision] = useState('');
+  const [editingDecisionIndex, setEditingDecisionIndex] = useState<number | null>(null);
+  const [editedDecisionText, setEditedDecisionText] = useState('');
+  const [editingActionIndex, setEditingActionIndex] = useState<number | null>(null);
+  const [editedActionText, setEditedActionText] = useState('');
   const [transcriptSearch, setTranscriptSearch] = useState('');
 
   // Feedback State
   const [copiedType, setCopiedType] = useState<string | null>(null);
   const [showMeetGuide, setShowMeetGuide] = useState(true);
+  const [isCreatingDemo, setIsCreatingDemo] = useState(false);
 
   const notesTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Auto-mount effect: Load meetings and settings into reactive store immediately
+  useEffect(() => {
+    loadMeetings();
+    loadSettings();
+  }, []);
+
+  // Synchronize initial or updated selected meeting
+  useEffect(() => {
+    if (!selectedMeeting && meetings.length > 0) {
+      setSelectedMeeting(meetings[0]);
+    }
+  }, [meetings, selectedMeeting]);
 
   const formatSec = (sec: number) => {
     const h = Math.floor(sec / 3600);
@@ -82,9 +115,9 @@ export const MeetingAssistant: React.FC = () => {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const insertTimestampIntoLiveNotes = () => {
-    const timestampTag = `[${formatSec(durationSec)}] `;
-    setLiveNotes((prev) => prev + (prev.endsWith('\n') || prev === '' ? '' : '\n') + timestampTag);
+  const insertBookmarkIntoLiveNotes = (prefix: string) => {
+    const tag = `[${formatSec(durationSec)}] ${prefix}`;
+    setLiveNotes((prev) => prev + (prev.endsWith('\n') || prev === '' ? '' : '\n') + tag);
     if (notesTextareaRef.current) {
       notesTextareaRef.current.focus();
     }
@@ -108,6 +141,7 @@ export const MeetingAssistant: React.FC = () => {
     }
 
     setIsRecording(true);
+    setIsPaused(false);
     setIsMeetingRecording(true);
     setDurationSec(0);
     setLiveNotes('');
@@ -117,10 +151,26 @@ export const MeetingAssistant: React.FC = () => {
     setIntervalId(id);
   };
 
+  const togglePauseMeeting = () => {
+    if (!isRecording) return;
+    if (!isPaused) {
+      if (intervalId) clearInterval(intervalId);
+      setIntervalId(null);
+      setIsPaused(true);
+    } else {
+      setIsPaused(false);
+      const id = window.setInterval(() => {
+        setDurationSec((prev) => prev + 1);
+      }, 1000);
+      setIntervalId(id);
+    }
+  };
+
   const stopMeeting = async () => {
     if (intervalId) clearInterval(intervalId);
     setIntervalId(null);
     setIsRecording(false);
+    setIsPaused(false);
     setIsMeetingRecording(false);
 
     const activeTitle =
@@ -164,12 +214,104 @@ export const MeetingAssistant: React.FC = () => {
     }
   };
 
+  // Demo Meeting Templates
+  const DEMO_TEMPLATES = [
+    {
+      title: '[Sprint Planning] Q1 Universal Voice Typing & Platform Architecture',
+      category: 'Sprint Planning',
+      duration: 1840,
+      transcript: `Amiyo Garai opened the sprint planning session. The team reviewed key milestones for AMIYO FLOW v1.0 on Windows and macOS.
+Amiyo suggested we standardize on 100% on-device speech processing with zero external API calls.
+The engineering team agreed to implement Whisper INT8 local models and a zero-RAM heuristic text normalizer.
+Sarah will complete the Win32 SendInput Unicode injection pipeline with clipboard fallback by Friday.
+Marcus is tasked with benchmarking VAD silence auto-stop across 48kHz audio interfaces.
+We decided to deploy the native floating pill widget with drag handle and escape dismissal.
+Next step is to deliver 80 automated unit tests covering audio resampling, disfluency removal, and meeting action items.`,
+      summary: `Sprint planning session focused on commercial-grade on-device voice typing architecture.
+The team aligned on zero-cloud privacy guarantees, sub-100ms heuristic text cleansing, and seamless text injection into any desktop application.`,
+      decisions: [
+        'Enforce 100% on-device local execution with zero external cloud STT/LLM API calls',
+        'Standardize on Whisper INT8 local models with dual-window desktop architecture',
+        'Deploy native floating pill widget with drag handle and keyboard dismissal',
+      ],
+      action_items: [
+        '[ ] 1. Complete Win32 SendInput Unicode injection pipeline by Friday (Sarah)',
+        '[ ] 2. Benchmark VAD silence auto-stop across 48kHz studio audio interfaces (Marcus)',
+        '[x] 3. Deliver 80 automated unit tests covering speech cleansing and meeting extraction (Amiyo)',
+      ],
+    },
+    {
+      title: '[Client Call] Enterprise Security & Air-Gapped Deployment Review',
+      category: 'Client Call',
+      duration: 1420,
+      transcript: `Discussed enterprise data governance requirements with client security team.
+Client confirmed strict zero-telemetry policy for financial workstations.
+We agreed to provide fully air-gapped installation packages with bundled local models.
+Alex will prepare the SOC 2 compliance mapping and local network audit log export by Monday.
+Client accepted the offline single-instance installer and signed off on evaluation pilot.`,
+      summary: `Client security review confirmed enterprise readiness for air-gapped workstations.
+Client praised local zero-cloud architecture and approved pilot deployment on financial analysis desks.`,
+      decisions: [
+        'Provide fully air-gapped installer packages with bundled INT8 quantized speech models',
+        'Client approved pilot deployment for 50 enterprise workstations',
+      ],
+      action_items: [
+        '[ ] 1. Prepare SOC 2 compliance mapping and local network audit export by Monday (Alex)',
+        '[ ] 2. Schedule follow-up deployment verification call for next Tuesday',
+      ],
+    },
+    {
+      title: '[Architecture] Low-Latency Audio Streaming & Resampling Pipeline',
+      category: 'Architecture',
+      duration: 2100,
+      transcript: `Deep dive into audio buffer architecture with native cpal bindings.
+Amiyo presented the linear software resampling algorithm converting 44.1kHz and 48kHz streams to 16kHz mono.
+Team resolved to clamp VAD noise floor drift during quiet periods.
+Elena will benchmark SIMD AVX2 acceleration for real-time spectral filtering.
+Agreed on 400ms speech hangover window to prevent premature voice cutoff during natural pauses.`,
+      summary: `Technical architecture review of native cpal audio capture and resampling pipeline.
+Optimized VAD ambient floor tracking and speech hangover window to ensure seamless sentence formulation without cutoffs.`,
+      decisions: [
+        'Adopt 400ms speech hangover window to protect natural inter-word breathing pauses',
+        'Clamp ambient energy floor drift to prevent soft speech clipping',
+      ],
+      action_items: [
+        '[ ] 1. Benchmark SIMD AVX2 acceleration for spectral noise gate (Elena)',
+        '[x] 2. Implement linear software resampling for studio 48kHz microphones',
+      ],
+    },
+  ];
+
+  const handleCreateDemoMeeting = async (index: number) => {
+    setIsCreatingDemo(true);
+    try {
+      const demo = DEMO_TEMPLATES[index] || DEMO_TEMPLATES[0];
+      const created = await api.processMeetingRecording(
+        demo.title,
+        demo.transcript,
+        demo.duration
+      );
+      created.summary = demo.summary;
+      created.decisions = demo.decisions;
+      created.action_items = demo.action_items;
+      await updateMeeting(created);
+      await loadMeetings();
+      setSelectedMeeting(created);
+    } catch (e) {
+      console.error('Failed to create demo meeting', e);
+    } finally {
+      setIsCreatingDemo(false);
+    }
+  };
+
   // Filtered & Sorted Meeting Archives
   const filteredMeetings = useMemo(() => {
     return meetings
       .filter((m) => {
         const matchesCategory =
-          filterCategory === 'all' || m.title.toLowerCase().includes(`[${filterCategory.toLowerCase()}]`);
+          filterCategory === 'all' ||
+          m.title.toLowerCase().includes(filterCategory.toLowerCase()) ||
+          m.title.toLowerCase().includes(`[${filterCategory.toLowerCase()}]`);
         const q = searchTerm.toLowerCase();
         const matchesSearch =
           !q ||
@@ -196,13 +338,10 @@ export const MeetingAssistant: React.FC = () => {
 
     let updatedItem: string;
     if (current.startsWith('[x] ') || current.startsWith('✓ ')) {
-      // Uncheck
       updatedItem = current.replace(/^(\[x\]\s*|✓\s*)/, '[ ] ');
     } else if (current.startsWith('[ ] ')) {
-      // Check
       updatedItem = current.replace(/^\[ \]\s*/, '[x] ');
     } else {
-      // Regular string -> check
       updatedItem = `[x] ${current.replace(/^\d+\.\s*/, '')}`;
     }
 
@@ -237,6 +376,23 @@ export const MeetingAssistant: React.FC = () => {
     await updateMeeting(updated);
   };
 
+  const handleStartEditAction = (index: number) => {
+    if (!selectedMeeting) return;
+    setEditingActionIndex(index);
+    setEditedActionText(cleanActionItemText(selectedMeeting.action_items[index]));
+  };
+
+  const handleSaveEditedAction = async (index: number) => {
+    if (!selectedMeeting || !editedActionText.trim()) return;
+    const items = [...selectedMeeting.action_items];
+    const isDone = isActionItemDone(items[index]);
+    items[index] = `[${isDone ? 'x' : ' '}] ${editedActionText.trim()}`;
+    const updated = { ...selectedMeeting, action_items: items };
+    setSelectedMeeting(updated);
+    await updateMeeting(updated);
+    setEditingActionIndex(null);
+  };
+
   const handleAddDecision = async () => {
     if (!selectedMeeting || !newDecision.trim()) return;
     const decisions = [...selectedMeeting.decisions, newDecision.trim()];
@@ -252,6 +408,22 @@ export const MeetingAssistant: React.FC = () => {
     const updated = { ...selectedMeeting, decisions };
     setSelectedMeeting(updated);
     await updateMeeting(updated);
+  };
+
+  const handleStartEditDecision = (index: number) => {
+    if (!selectedMeeting) return;
+    setEditingDecisionIndex(index);
+    setEditedDecisionText(selectedMeeting.decisions[index]);
+  };
+
+  const handleSaveEditedDecision = async (index: number) => {
+    if (!selectedMeeting || !editedDecisionText.trim()) return;
+    const decisions = [...selectedMeeting.decisions];
+    decisions[index] = editedDecisionText.trim();
+    const updated = { ...selectedMeeting, decisions };
+    setSelectedMeeting(updated);
+    await updateMeeting(updated);
+    setEditingDecisionIndex(null);
   };
 
   const handleSaveTitle = async () => {
@@ -399,6 +571,32 @@ ${meeting.transcript}
     setTimeout(() => setCopiedType(null), 2000);
   };
 
+  // Highlighting verbatim transcript matches
+  const renderHighlightedTranscript = (text: string, query: string) => {
+    if (!query.trim()) {
+      return text;
+    }
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${escaped})`, 'gi');
+    const parts = text.split(regex);
+    return parts.map((part, i) =>
+      part.toLowerCase() === query.toLowerCase() ? (
+        <mark key={i} className="bg-cyan-500/40 text-cyan-200 px-0.5 rounded font-bold">
+          {part}
+        </mark>
+      ) : (
+        part
+      )
+    );
+  };
+
+  const transcriptMatchCount = useMemo(() => {
+    if (!selectedMeeting || !transcriptSearch.trim()) return 0;
+    const escaped = transcriptSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const matches = selectedMeeting.transcript.match(new RegExp(escaped, 'gi'));
+    return matches ? matches.length : 0;
+  }, [selectedMeeting, transcriptSearch]);
+
   const actionItemsCompleted = selectedMeeting
     ? selectedMeeting.action_items.filter(isActionItemDone).length
     : 0;
@@ -448,8 +646,8 @@ ${meeting.transcript}
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed">
                 Click inside the Google Meet chat box, press{' '}
-                <kbd className="px-1 py-0.5 rounded bg-slate-800 text-cyan-300 font-mono">
-                  {formatHotkeyDisplay(settings.hotkey)}
+                <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-cyan-300 font-mono text-[11px] font-semibold border border-slate-700">
+                  {formatHotkeyDisplay(settings.hotkey || 'Control+Space')}
                 </kbd>
                 , speak, and press it again. It types directly into the meeting chat!
               </p>
@@ -479,8 +677,30 @@ ${meeting.transcript}
       </div>
 
       {/* Meeting Recorder Console */}
-      <div className="p-5 rounded-2xl bg-gradient-to-r from-slate-900 to-slate-950 border border-slate-800 shadow-xl space-y-4">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-slate-950 border border-slate-800 shadow-xl space-y-3">
+        {/* Quick Title Suggestion Chips */}
+        {!isRecording && (
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none text-[11px]">
+            <span className="text-slate-500 font-medium shrink-0 flex items-center gap-1">
+              <Bookmark className="w-3 h-3 text-cyan-400" /> Templates:
+            </span>
+            {TITLE_SUGGESTIONS.map((s, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => {
+                  setMeetingTitle(s.title);
+                  setMeetingCategory(s.category);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-slate-800/60 hover:bg-slate-800 text-slate-300 hover:text-cyan-300 border border-slate-700/60 whitespace-nowrap transition-all cursor-pointer"
+              >
+                + {s.title.split(' ')[0]} {s.title.split(' ')[1]}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex-1 w-full flex items-center gap-3">
             <input
               type="text"
@@ -488,7 +708,7 @@ ${meeting.transcript}
               onChange={(e) => setMeetingTitle(e.target.value)}
               disabled={isRecording}
               placeholder="Enter meeting title (e.g. Sprint Sync, Client Demo, Strategy Session)..."
-              className="flex-1 px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+              className="flex-1 px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
             />
 
             {/* Category Tag Selector */}
@@ -496,7 +716,7 @@ ${meeting.transcript}
               value={meetingCategory}
               onChange={(e) => setMeetingCategory(e.target.value)}
               disabled={isRecording}
-              className="px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-cyan-300 focus:outline-none focus:border-cyan-500"
+              className="px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-cyan-300 focus:outline-none focus:border-cyan-500 cursor-pointer"
             >
               {CATEGORIES.map((c) => (
                 <option key={c} value={c}>
@@ -505,14 +725,42 @@ ${meeting.transcript}
               ))}
             </select>
 
+            {/* Live Recording HUD with Pulsating Audio Meter */}
             {isRecording && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 font-mono text-xs font-bold animate-pulse">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-                {formatSec(durationSec)}
+              <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className={`w-2.5 h-2.5 rounded-full ${
+                      isPaused ? 'bg-amber-500' : 'bg-rose-500 animate-ping'
+                    }`}
+                  />
+                  <span
+                    className={`font-mono text-xs font-bold ${
+                      isPaused ? 'text-amber-300' : 'text-rose-300'
+                    }`}
+                  >
+                    {isPaused ? 'PAUSED' : formatSec(durationSec)}
+                  </span>
+                </div>
+
+                {/* Real-time mic audio level meter */}
+                {!isPaused && (
+                  <div className="flex items-center gap-0.5 h-3">
+                    {[0.1, 0.25, 0.45, 0.65, 0.85].map((lvl, idx) => (
+                      <span
+                        key={idx}
+                        className={`w-1 rounded-full transition-all duration-75 ${
+                          audioLevel >= lvl ? 'bg-cyan-400 h-3' : 'bg-slate-700 h-1.5'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
 
+          {/* Action Control Buttons */}
           <div className="flex items-center gap-2 shrink-0">
             {!isRecording ? (
               <button
@@ -523,34 +771,77 @@ ${meeting.transcript}
                 <span>Start Meeting Recording</span>
               </button>
             ) : (
-              <button
-                onClick={stopMeeting}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-bold text-xs shadow-md transition-all animate-pulse active:scale-95 cursor-pointer"
-              >
-                <Square className="w-4 h-4 fill-current" />
-                <span>Finish & Synthesize Notes</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={togglePauseMeeting}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                    isPaused
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                      : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                  }`}
+                  title={isPaused ? 'Resume meeting capture' : 'Pause meeting capture'}
+                >
+                  {isPaused ? <Play className="w-3.5 h-3.5 fill-current" /> : <Pause className="w-3.5 h-3.5" />}
+                  <span>{isPaused ? 'Resume' : 'Pause'}</span>
+                </button>
+
+                <button
+                  onClick={stopMeeting}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
+                >
+                  <Square className="w-4 h-4 fill-current" />
+                  <span>Finish & Synthesize Notes</span>
+                </button>
+              </div>
             )}
           </div>
         </div>
 
-        {/* Live Meeting Notes Scratchpad (Appears while recording or expandable) */}
+        {/* Live Meeting Notes Scratchpad */}
         {isRecording && (
           <div className="pt-3 border-t border-slate-800/80 space-y-2 animate-fadeIn">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
                 <StickyNote className="w-3.5 h-3.5 text-cyan-400" />
                 Live In-Meeting Notes Scratchpad
               </span>
-              <button
-                type="button"
-                onClick={insertTimestampIntoLiveNotes}
-                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[11px] font-mono flex items-center gap-1 transition-all cursor-pointer"
-                title="Insert current elapsed timestamp"
-              >
-                <Clock className="w-3 h-3" />
-                <span>+ [{formatSec(durationSec)}] Timestamp</span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => insertBookmarkIntoLiveNotes('')}
+                  className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[11px] font-mono flex items-center gap-1 transition-all cursor-pointer"
+                  title="Insert current timestamp"
+                >
+                  <Clock className="w-3 h-3" />
+                  <span>+ [{formatSec(durationSec)}]</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => insertBookmarkIntoLiveNotes('🎯 Decision: ')}
+                  className="px-2 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 text-[11px] flex items-center gap-1 transition-all cursor-pointer"
+                  title="Bookmark a key decision"
+                >
+                  <Target className="w-3 h-3" />
+                  <span>+ Decision</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => insertBookmarkIntoLiveNotes('✅ Action: ')}
+                  className="px-2 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-[11px] flex items-center gap-1 transition-all cursor-pointer"
+                  title="Bookmark an action item"
+                >
+                  <CheckCircle2 className="w-3 h-3" />
+                  <span>+ Action</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => insertBookmarkIntoLiveNotes('📌 Note: ')}
+                  className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] flex items-center gap-1 transition-all cursor-pointer"
+                >
+                  <span>+ Note</span>
+                </button>
+              </div>
             </div>
             <textarea
               ref={notesTextareaRef}
@@ -589,12 +880,12 @@ ${meeting.transcript}
               )}
             </div>
 
-            {/* Category Filter Pills & Sort Bar */}
+            {/* Category Filter Pills: All 6 Categories Supported */}
             <div className="flex items-center justify-between gap-1 text-[11px]">
-              <div className="flex items-center gap-1 overflow-x-auto py-1">
+              <div className="flex items-center gap-1 overflow-x-auto py-1 scrollbar-none max-w-[200px] sm:max-w-[240px]">
                 <button
                   onClick={() => setFilterCategory('all')}
-                  className={`px-2 py-0.5 rounded-md font-medium transition-all ${
+                  className={`px-2 py-0.5 rounded-md font-medium whitespace-nowrap transition-all cursor-pointer ${
                     filterCategory === 'all'
                       ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
                       : 'text-slate-400 hover:text-slate-200'
@@ -602,11 +893,11 @@ ${meeting.transcript}
                 >
                   All
                 </button>
-                {CATEGORIES.slice(0, 3).map((cat) => (
+                {CATEGORIES.map((cat) => (
                   <button
                     key={cat}
                     onClick={() => setFilterCategory(cat)}
-                    className={`px-2 py-0.5 rounded-md font-medium whitespace-nowrap transition-all ${
+                    className={`px-2 py-0.5 rounded-md font-medium whitespace-nowrap transition-all cursor-pointer ${
                       filterCategory === cat
                         ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
                         : 'text-slate-400 hover:text-slate-200'
@@ -620,7 +911,7 @@ ${meeting.transcript}
               <select
                 value={sortBy}
                 onChange={(e: any) => setSortBy(e.target.value)}
-                className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] text-slate-400"
+                className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] text-slate-400 cursor-pointer"
               >
                 <option value="newest">Newest</option>
                 <option value="oldest">Oldest</option>
@@ -635,9 +926,27 @@ ${meeting.transcript}
           </h2>
 
           {filteredMeetings.length === 0 ? (
-            <div className="p-6 text-center rounded-xl bg-slate-900/60 border border-slate-800 text-slate-500 text-xs space-y-1">
-              <p>No meetings found.</p>
-              <p className="text-[11px] text-slate-600">Enter a title above and start recording.</p>
+            <div className="p-6 text-center rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 text-xs space-y-3">
+              <p className="font-semibold text-slate-300">No meetings recorded yet.</p>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Start a recording above or load an instant demo session to test the meeting synthesizer:
+              </p>
+              <div className="pt-2 flex flex-col gap-1.5">
+                <button
+                  onClick={() => handleCreateDemoMeeting(0)}
+                  disabled={isCreatingDemo}
+                  className="px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-[11px] font-semibold transition-all cursor-pointer"
+                >
+                  {isCreatingDemo ? 'Loading...' : '+ Load Sprint Planning Demo'}
+                </button>
+                <button
+                  onClick={() => handleCreateDemoMeeting(1)}
+                  disabled={isCreatingDemo}
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] transition-all cursor-pointer"
+                >
+                  + Load Client Review Demo
+                </button>
+              </div>
             </div>
           ) : (
             <div className="space-y-2 max-h-[calc(100vh-320px)] overflow-y-auto pr-1">
@@ -653,6 +962,8 @@ ${meeting.transcript}
                       setSelectedMeeting(m);
                       setIsEditingTitle(false);
                       setIsEditingNotes(false);
+                      setEditingDecisionIndex(null);
+                      setEditingActionIndex(null);
                     }}
                     className={`p-3.5 rounded-xl border transition-all cursor-pointer space-y-2 ${
                       isSelected
@@ -739,6 +1050,7 @@ ${meeting.transcript}
                         type="text"
                         value={editedTitle}
                         onChange={(e) => setEditedTitle(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSaveTitle()}
                         className="px-3 py-1 rounded-lg bg-slate-950 border border-cyan-500 text-sm font-bold text-white focus:outline-none flex-1"
                       />
                       <button
@@ -857,7 +1169,7 @@ ${meeting.transcript}
                       </button>
                       <button
                         onClick={() => setIsEditingNotes(false)}
-                        className="text-[11px] text-slate-500 hover:text-slate-300"
+                        className="text-[11px] text-slate-500 hover:text-slate-300 cursor-pointer"
                       >
                         Cancel
                       </button>
@@ -896,16 +1208,52 @@ ${meeting.transcript}
                     ) : (
                       selectedMeeting.decisions.map((d, i) => (
                         <div key={i} className="flex items-start justify-between gap-2 group">
-                          <div className="flex items-start gap-2">
-                            <span className="text-emerald-400 font-bold">•</span>
-                            <span>{d}</span>
-                          </div>
-                          <button
-                            onClick={() => handleDeleteDecision(i)}
-                            className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-rose-400 transition-all cursor-pointer p-0.5"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
+                          {editingDecisionIndex !== i ? (
+                            <>
+                              <div className="flex items-start gap-2 flex-1">
+                                <span className="text-emerald-400 font-bold">•</span>
+                                <span className="text-slate-200 leading-relaxed">{d}</span>
+                              </div>
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => handleStartEditDecision(i)}
+                                  className="text-slate-500 hover:text-cyan-400 transition-colors p-0.5 cursor-pointer"
+                                  title="Edit decision"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteDecision(i)}
+                                  className="text-slate-500 hover:text-rose-400 transition-colors p-0.5 cursor-pointer"
+                                  title="Delete decision"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="flex items-center gap-1.5 w-full">
+                              <input
+                                type="text"
+                                value={editedDecisionText}
+                                onChange={(e) => setEditedDecisionText(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleSaveEditedDecision(i)}
+                                className="flex-1 px-2 py-0.5 rounded bg-slate-900 border border-emerald-500 text-xs text-white focus:outline-none"
+                              />
+                              <button
+                                onClick={() => handleSaveEditedDecision(i)}
+                                className="p-1 rounded bg-emerald-500 text-slate-950 hover:bg-emerald-400 cursor-pointer"
+                              >
+                                <Check className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={() => setEditingDecisionIndex(null)}
+                                className="p-1 rounded bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       ))
                     )}
@@ -941,7 +1289,7 @@ ${meeting.transcript}
                     {actionItemsTotal > 0 && (
                       <button
                         onClick={() => copyNotesToClipboard('actions')}
-                        className="text-[10px] text-slate-400 hover:text-amber-300 transition-colors"
+                        className="text-[10px] text-slate-400 hover:text-amber-300 transition-colors cursor-pointer"
                         title="Copy checklist"
                       >
                         {copiedType === 'actions' ? 'Copied!' : 'Copy Checklist'}
@@ -967,23 +1315,59 @@ ${meeting.transcript}
                         const done = isActionItemDone(a);
                         return (
                           <div key={i} className="flex items-start justify-between gap-2 group">
-                            <label className="flex items-start gap-2 cursor-pointer select-none flex-1">
-                              <input
-                                type="checkbox"
-                                checked={done}
-                                onChange={() => toggleActionItem(i)}
-                                className="mt-0.5 rounded border-slate-700 text-amber-500 focus:ring-0 cursor-pointer"
-                              />
-                              <span className={done ? 'line-through text-slate-500' : 'text-slate-200'}>
-                                {cleanActionItemText(a)}
-                              </span>
-                            </label>
-                            <button
-                              onClick={() => handleDeleteActionItem(i)}
-                              className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-rose-400 transition-all cursor-pointer p-0.5"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
+                            {editingActionIndex !== i ? (
+                              <>
+                                <label className="flex items-start gap-2 cursor-pointer select-none flex-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={done}
+                                    onChange={() => toggleActionItem(i)}
+                                    className="mt-0.5 rounded border-slate-700 text-amber-500 focus:ring-0 cursor-pointer"
+                                  />
+                                  <span className={done ? 'line-through text-slate-500' : 'text-slate-200'}>
+                                    {cleanActionItemText(a)}
+                                  </span>
+                                </label>
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={() => handleStartEditAction(i)}
+                                    className="text-slate-500 hover:text-cyan-400 transition-colors p-0.5 cursor-pointer"
+                                    title="Edit task"
+                                  >
+                                    <Edit2 className="w-3 h-3" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteActionItem(i)}
+                                    className="text-slate-500 hover:text-rose-400 transition-colors p-0.5 cursor-pointer"
+                                    title="Delete task"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="flex items-center gap-1.5 w-full">
+                                <input
+                                  type="text"
+                                  value={editedActionText}
+                                  onChange={(e) => setEditedActionText(e.target.value)}
+                                  onKeyDown={(e) => e.key === 'Enter' && handleSaveEditedAction(i)}
+                                  className="flex-1 px-2 py-0.5 rounded bg-slate-900 border border-amber-500 text-xs text-white focus:outline-none"
+                                />
+                                <button
+                                  onClick={() => handleSaveEditedAction(i)}
+                                  className="p-1 rounded bg-amber-500 text-slate-950 hover:bg-amber-400 cursor-pointer"
+                                >
+                                  <Check className="w-3 h-3" />
+                                </button>
+                                <button
+                                  onClick={() => setEditingActionIndex(null)}
+                                  className="p-1 rounded bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            )}
                           </div>
                         );
                       })
@@ -1011,12 +1395,17 @@ ${meeting.transcript}
                 </div>
               </div>
 
-              {/* Full Verbatim Transcript Viewer with Search */}
+              {/* Full Verbatim Transcript Viewer with Live Search Highlighting */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                     <FileText className="w-3.5 h-3.5" />
                     Full Meeting Transcript
+                    {transcriptMatchCount > 0 && (
+                      <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-[10px] font-mono normal-case">
+                        {transcriptMatchCount} match{transcriptMatchCount > 1 ? 'es' : ''}
+                      </span>
+                    )}
                   </h3>
                   <div className="flex items-center gap-2">
                     <div className="relative">
@@ -1026,12 +1415,20 @@ ${meeting.transcript}
                         value={transcriptSearch}
                         onChange={(e) => setTranscriptSearch(e.target.value)}
                         placeholder="Search transcript..."
-                        className="pl-6 pr-2 py-1 rounded bg-slate-900 border border-slate-800 text-[11px] text-white focus:outline-none focus:border-cyan-500 w-36"
+                        className="pl-6 pr-6 py-1 rounded bg-slate-900 border border-slate-800 text-[11px] text-white focus:outline-none focus:border-cyan-500 w-36"
                       />
+                      {transcriptSearch && (
+                        <button
+                          onClick={() => setTranscriptSearch('')}
+                          className="absolute right-1.5 top-1.5 text-slate-400 hover:text-white"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
                     </div>
                     <button
                       onClick={() => copyNotesToClipboard('transcript')}
-                      className="text-[11px] text-slate-400 hover:text-cyan-300 font-mono flex items-center gap-1"
+                      className="text-[11px] text-slate-400 hover:text-cyan-300 font-mono flex items-center gap-1 cursor-pointer"
                     >
                       {copiedType === 'transcript' ? 'Copied!' : 'Copy'}
                     </button>
@@ -1039,17 +1436,60 @@ ${meeting.transcript}
                 </div>
 
                 <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 text-xs font-mono text-slate-300 max-h-52 overflow-y-auto leading-relaxed">
-                  {selectedMeeting.transcript}
+                  {renderHighlightedTranscript(selectedMeeting.transcript, transcriptSearch)}
                 </div>
               </div>
             </div>
           ) : (
-            <div className="p-12 text-center rounded-2xl bg-slate-900/40 border border-slate-800 text-slate-500 text-xs space-y-2">
-              <Users className="w-8 h-8 mx-auto text-slate-600 stroke-[1.5]" />
-              <p className="font-semibold text-slate-400">Select a meeting from the archive to view its details.</p>
-              <p className="text-[11px]">
-                You can record a new session anytime using the recorder bar above.
-              </p>
+            <div className="p-12 text-center rounded-2xl bg-slate-900/40 border border-slate-800 text-slate-400 text-xs space-y-4">
+              <Users className="w-10 h-10 mx-auto text-slate-600 stroke-[1.5]" />
+              <div className="space-y-1">
+                <p className="font-semibold text-slate-300 text-sm">Select a meeting from the archive to view its details</p>
+                <p className="text-[11px] text-slate-500">
+                  Or load one of the interactive demo sessions below to explore meeting AI summaries and action checklists:
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 max-w-lg mx-auto">
+                <button
+                  type="button"
+                  onClick={() => handleCreateDemoMeeting(0)}
+                  disabled={isCreatingDemo}
+                  className="p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/40 text-left space-y-1 transition-all cursor-pointer group"
+                >
+                  <div className="text-cyan-400 font-bold text-[11px] group-hover:text-cyan-300 flex items-center justify-between">
+                    <span>Sprint Review</span>
+                    <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                  <p className="text-[10px] text-slate-500">Architecture & milestones with 3 tasks</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleCreateDemoMeeting(1)}
+                  disabled={isCreatingDemo}
+                  className="p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/40 text-left space-y-1 transition-all cursor-pointer group"
+                >
+                  <div className="text-emerald-400 font-bold text-[11px] group-hover:text-emerald-300 flex items-center justify-between">
+                    <span>Client Call</span>
+                    <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                  <p className="text-[10px] text-slate-500">Security review & compliance checklist</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleCreateDemoMeeting(2)}
+                  disabled={isCreatingDemo}
+                  className="p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/40 text-left space-y-1 transition-all cursor-pointer group"
+                >
+                  <div className="text-amber-400 font-bold text-[11px] group-hover:text-amber-300 flex items-center justify-between">
+                    <span>Architecture</span>
+                    <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                  <p className="text-[10px] text-slate-500">Audio buffer & VAD streaming sync</p>
+                </button>
+              </div>
             </div>
           )}
         </div>

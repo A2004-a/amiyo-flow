@@ -278,4 +278,63 @@ describe('AMIYO FLOW Frontend Store & Pipeline Tests', () => {
     expect(wsContent).toContain('keyboard interface');
     expect(wsContent).toContain("tasks we've done");
   });
+
+  it('verifies MeetingAssistant live audio meter, demo loader, and inline editing', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const maContent = fs.readFileSync(path.resolve(__dirname, '../pages/MeetingAssistant.tsx'), 'utf-8');
+
+    expect(maContent).toContain('loadMeetings');
+    expect(maContent).toContain('loadSettings');
+    expect(maContent).toContain('audioLevel');
+    expect(maContent).toContain('handleCreateDemoMeeting');
+    expect(maContent).toContain('editingDecisionIndex');
+    expect(maContent).toContain('editingActionIndex');
+    expect(maContent).toContain('renderHighlightedTranscript');
+    expect(maContent).toContain('TITLE_SUGGESTIONS');
+    expect(maContent).toContain('insertBookmarkIntoLiveNotes');
+  });
+
+  it('verifies exact Image 1 four cards previews and extended pause times in WritingStyles', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const wsContent = fs.readFileSync(path.resolve(__dirname, '../pages/WritingStyles.tsx'), 'utf-8');
+
+    // 1. Verify exact 4 cards previews from Image 1
+    expect(wsContent).toContain('"um hello nu we can start"');
+    expect(wsContent).toContain('"Hello we can start."');
+
+    expect(wsContent).toContain('"we can we can deploy"');
+    expect(wsContent).toContain('"We can deploy."');
+
+    expect(wsContent).toContain('"Friday no wait Monday"');
+    expect(wsContent).toContain('"Monday."');
+
+    expect(wsContent).toContain('"we arrived. it works. dont worry"');
+    expect(wsContent).toContain('"We arrived. It works. Don\'t worry."');
+
+    // 2. Verify Silence Auto-Stop extended pause wait options
+    expect(wsContent).toContain('2.5s Pause Wait (Recommended)');
+    expect(wsContent).toContain('3.0s Pause Wait (Relaxed)');
+    expect(wsContent).toContain('3.5s Pause Wait (Deep Thinking)');
+    expect(wsContent).toContain('5.0s Pause Wait (Long Thinker)');
+    expect(wsContent).toContain('Manual Only (No Auto-Stop)');
+  });
+
+  it('verifies OpenCode acoustic homophones, false start stripping, and expanded regional slang in WritingStyles', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const wsContent = fs.readFileSync(path.resolve(__dirname, '../pages/WritingStyles.tsx'), 'utf-8');
+
+    // 1. Verify OpenCode and mic check patterns
+    expect(wsContent).toContain('open\\s+port');
+    expect(wsContent).toContain('Hey OpenCode');
+    expect(wsContent).toContain('mic\\s+check');
+    expect(wsContent).toContain('check\\s+check');
+
+    // 2. Verify expanded regional slang in WritingStyles
+    expect(wsContent).toContain('thik\\s+ache');
+    expect(wsContent).toContain('ekta\\s+kotha');
+    expect(wsContent).toContain('bolchi');
+  });
 });

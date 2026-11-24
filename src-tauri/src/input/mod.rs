@@ -303,7 +303,7 @@ pub mod win_impl {
                 });
             }
             SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
-            sleep(Duration::from_millis(20));
+            sleep(Duration::from_millis(5));
         }
     }
 
@@ -512,8 +512,11 @@ pub mod win_impl {
         release_all_modifiers();
 
         if target_hwnd != 0 {
-            activate_window(target_hwnd);
-            sleep(Duration::from_millis(60));
+            let fg = unsafe { windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow() };
+            if fg.0 as isize != target_hwnd {
+                activate_window(target_hwnd);
+                sleep(Duration::from_millis(15));
+            }
         }
 
         // Release modifiers again after window activation just in case
