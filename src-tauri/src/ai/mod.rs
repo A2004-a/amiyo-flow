@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::OnceLock;
 use std::time::Instant;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -646,11 +647,12 @@ pub fn apply_spoken_edit_commands(input: &str) -> String {
         return text;
     }
 
-    // Matches trailing edit commands:
-    // e.g. "change Friday to Saturday", "replace 2 with 4", "change all 2 to 4"
-    let cmd_re = Regex::new(
-        r"(?i)(?:[,.]\s*|\s+(?:and\s+)?)\b(?:change|replace)\s+(all\s+)?([a-zA-Z0-9$€£#]+(?:\s+[a-zA-Z0-9$€£#]+){0,2})\s+(?:to|with)\s+([a-zA-Z0-9$€£#]+(?:\s+[a-zA-Z0-9$€£#]+){0,2})[.?!]?$"
-    ).unwrap();
+    static CMD_RE: OnceLock<Regex> = OnceLock::new();
+    let cmd_re = CMD_RE.get_or_init(|| {
+        Regex::new(
+            r"(?i)(?:[,.]\s*|\s+(?:and\s+)?)\b(?:change|replace)\s+(all\s+)?([a-zA-Z0-9$€£#]+(?:\s+[a-zA-Z0-9$€£#]+){0,2})\s+(?:to|with)\s+([a-zA-Z0-9$€£#]+(?:\s+[a-zA-Z0-9$€£#]+){0,2})[.?!]?$"
+        ).unwrap()
+    });
 
     let mut commands = Vec::new();
     while let Some(caps) = cmd_re.captures(&text) {
@@ -793,6 +795,38 @@ pub fn heuristic_cleanup_with_custom(
     heuristic_cleanup_full(input, remove_fillers, remove_repeats, remove_corrections, true, custom_fillers)
 }
 
+// Static Pre-Compiled Regex Caches for Zero-Latency Real-Time Dictation (Sub-Millisecond Execution)
+static PRE_GREETING_RE: OnceLock<Regex> = OnceLock::new();
+static PRE_HOMOPHONES: OnceLock<Vec<(Regex, &'static str)>> = OnceLock::new();
+static SELF_CORRECTION_RE: OnceLock<Regex> = OnceLock::new();
+static BARE_NO_RE: OnceLock<Regex> = OnceLock::new();
+static FILLER_REGEXES: OnceLock<Vec<Regex>> = OnceLock::new();
+static SYLLABLE_STUTTER_RE: OnceLock<Regex> = OnceLock::new();
+static PUNCT_PATTERNS: OnceLock<Vec<(Regex, &'static str)>> = OnceLock::new();
+static EMAIL_RE: OnceLock<Regex> = OnceLock::new();
+static EMAIL_SIMPLE_RE: OnceLock<Regex> = OnceLock::new();
+static URL_RE: OnceLock<Regex> = OnceLock::new();
+static WWW_RE: OnceLock<Regex> = OnceLock::new();
+static QUOTE_RE: OnceLock<Regex> = OnceLock::new();
+static PAREN_RE: OnceLock<Regex> = OnceLock::new();
+static BRACKET_RE: OnceLock<Regex> = OnceLock::new();
+static DUP_COMMAS_RE: OnceLock<Regex> = OnceLock::new();
+static COMMA_PERIOD_RE: OnceLock<Regex> = OnceLock::new();
+static PERIOD_COMMA_RE: OnceLock<Regex> = OnceLock::new();
+static CONJ_COMMA_RE: OnceLock<Regex> = OnceLock::new();
+static DUP_CONJ_COMMA_RE: OnceLock<Regex> = OnceLock::new();
+static SPACE_PUNCT_RE: OnceLock<Regex> = OnceLock::new();
+static HSPACE_RE: OnceLock<Regex> = OnceLock::new();
+static NL_SPACE_RE: OnceLock<Regex> = OnceLock::new();
+static MULTI_NL_RE: OnceLock<Regex> = OnceLock::new();
+static POLISH_PRONOUNS: OnceLock<Vec<(Regex, &'static str)>> = OnceLock::new();
+static POLISH_CONTRACTIONS: OnceLock<Vec<(Regex, &'static str)>> = OnceLock::new();
+static POLISH_MISSING_SPACE: OnceLock<Regex> = OnceLock::new();
+static POLISH_DUP_PUNCT: OnceLock<Vec<(Regex, &'static str)>> = OnceLock::new();
+static POLISH_INTRO_TRANSITIONS: OnceLock<Vec<(Regex, &'static str)>> = OnceLock::new();
+static POLISH_SENT_RE: OnceLock<Regex> = OnceLock::new();
+static POLISH_EMAIL_FIX: OnceLock<Regex> = OnceLock::new();
+
 /// Local Deterministic Heuristic Normalizer with full modular control including smart sentence polishing
 pub fn heuristic_cleanup_full(
     input: &str,
@@ -808,9 +842,11 @@ pub fn heuristic_cleanup_full(
     text = apply_spoken_edit_commands(&text);
 
     // 0a. Pre-greeting cleaner: strips throat clearing, coughs, warmup stutters before assistant greetings
-    let pre_greeting_re = Regex::new(
-        r"(?i)^(?:\s*[,.]*\s*(?:een|aam|ehn|uhn|ehm|um|uh|nu|na|erm|ah|aa|aah|ahh|amiyo|omiya|omiyaya|omiyo|omi|testing|mic|hello|hi|one\s+two|one\s+two\s+three)+\s*[,.]*)+\s*(?:omi)?\s*(hey\s+claude|hi\s+claude|hello\s+claude|claude|hey\s+chatgpt|hi\s+chatgpt|hello\s+chatgpt|chatgpt)\b"
-    ).unwrap();
+    let pre_greeting_re = PRE_GREETING_RE.get_or_init(|| {
+        Regex::new(
+            r"(?i)^(?:\s*[,.]*\s*(?:een|aam|ehn|uhn|ehm|um|uh|nu|na|erm|ah|aa|aah|ahh|amiyo|omiya|omiyaya|omiyo|omi|testing|mic|hello|hi|one\s+two|one\s+two\s+three)+\s*[,.]*)+\s*(?:omi)?\s*(hey\s+claude|hi\s+claude|hello\s+claude|claude|hey\s+chatgpt|hi\s+chatgpt|hello\s+chatgpt|chatgpt)\b"
+        ).unwrap()
+    });
     if let Some(caps) = pre_greeting_re.captures(&text) {
         let greeting = caps.get(1).unwrap().as_str();
         let full_len = caps.get(0).unwrap().as_str().len();
@@ -818,131 +854,143 @@ pub fn heuristic_cleanup_full(
     }
 
     // 0b. Pre-normalize compound developer terms and acoustic homophones before filler stripping
-    let pre_homophones = [
-        (r"\b(?i)dock\s+er\b", "Docker"),
-        (r"\b(?i)(?:next\s+js|nextjs)\b", "Next.js"),
-        (r"\b(?i)(?:node\s+js|nodejs)\b", "Node.js"),
-        (r"\b(?i)(?:react\s+js|reactjs)\b", "React"),
-        (r"\b(?i)git\s+hub\b", "GitHub"),
-        (r"\b(?i)you\s+tube\b", "YouTube"),
-        (r"\b(?i)(?:pie\s+thon|py\s+thon)\b", "Python"),
-        (r"\b(?i)pool\s+requests?\b", "pull request"),
-        (r"\b(?i)front\s+end\b", "frontend"),
-        (r"\b(?i)back\s+end\b", "backend"),
-        (r"\b(?i)full\s+stack\b", "full-stack"),
-        (r"\b(?i)open\s+source\b", "open-source"),
-        (r"\b(?i)micro\s+soft\b", "Microsoft"),
-        (r"\b(?i)power\s+point\b", "PowerPoint"),
-        (r"\b(?i)(?:ex\s+cel|ex\s+cell)\b", "Excel"),
-        (r"\b(?i)out\s+look\b", "Outlook"),
-        (r"\b(?i)how\s+(?:the\s+)?what's\s+up\s+works\b", "how WhatsApp works"),
-        (r"\b(?i)(?:the\s+)?what's\s+up\s+works\b", "WhatsApp works"),
-        (r"\b(?i)what's\s+up\s+and\s+creative\b", "WhatsApp and creative"),
-        (r"\b(?i)\bwhat's\s+up\b(?=.*(?:user\s+manual|chatgpt|claude|windows|app|software|features|message|messaging|chat))", "WhatsApp"),
-        (r"\b(?i)\bwhat's\s+up\s+(?:web|app|group|chat|call|status)\b", "WhatsApp $1"),
-        (r"\b(?i)microsoft\s+osu\s+system\b", "Microsoft Office system"),
-        (r"\b(?i)microsoft\s+osu\b", "Microsoft Office"),
-        (r"\b(?i)osu\s+system\b", "Office system"),
-        (r"\b(?i)take\s+claude\b", "Hey Claude"),
-        (r"\b(?i)omi\s*hey\s+claude\b", "Hey Claude"),
-        (r"\b(?i)omi\s*claude\b", "Claude"),
-        (r"\b(?i)like\s+a\s+mail\s*,\s*like\s+win\b", "like Mail, like Word"),
-        (r"\b(?i)like\s+mail\s*,\s*like\s+win\b", "like Mail, like Word"),
-        (r"\b(?i)like\s+a\s+mail\s*,\s*like\s+word\b", "like Mail, like Word"),
-        (r"\b(?i)like\s+win\s*,\s*what\s+else\s+is\s+there\b", "like Word, what else is there"),
-        (r"\b(?i)like\s+win\b(?=.*(?:powerpoint|excel|office|microsoft))", "like Word"),
-        (r"\b(?i)by\s+windows\s+11\b", "for Windows 11"),
-    ];
-    for (pat, repl) in pre_homophones {
-        if let Ok(re) = Regex::new(pat) {
-            text = re.replace_all(&text, repl).to_string();
-        }
+    let pre_homophones = PRE_HOMOPHONES.get_or_init(|| {
+        let raw = [
+            (r"\b(?i)dock\s+er\b", "Docker"),
+            (r"\b(?i)(?:next\s+js|nextjs)\b", "Next.js"),
+            (r"\b(?i)(?:node\s+js|nodejs)\b", "Node.js"),
+            (r"\b(?i)(?:react\s+js|reactjs)\b", "React"),
+            (r"\b(?i)git\s+hub\b", "GitHub"),
+            (r"\b(?i)you\s+tube\b", "YouTube"),
+            (r"\b(?i)(?:pie\s+thon|py\s+thon)\b", "Python"),
+            (r"\b(?i)pool\s+requests?\b", "pull request"),
+            (r"\b(?i)front\s+end\b", "frontend"),
+            (r"\b(?i)back\s+end\b", "backend"),
+            (r"\b(?i)full\s+stack\b", "full-stack"),
+            (r"\b(?i)open\s+source\b", "open-source"),
+            (r"\b(?i)micro\s+soft\b", "Microsoft"),
+            (r"\b(?i)power\s+point\b", "PowerPoint"),
+            (r"\b(?i)(?:ex\s+cel|ex\s+cell)\b", "Excel"),
+            (r"\b(?i)out\s+look\b", "Outlook"),
+            (r"\b(?i)how\s+(?:the\s+)?what's\s+up\s+works\b", "how WhatsApp works"),
+            (r"\b(?i)(?:the\s+)?what's\s+up\s+works\b", "WhatsApp works"),
+            (r"\b(?i)what's\s+up\s+and\s+creative\b", "WhatsApp and creative"),
+            (r"\b(?i)\bwhat's\s+up\s+(?:web|app|group|chat|call|status)\b", "WhatsApp $1"),
+            (r"\b(?i)microsoft\s+osu\s+system\b", "Microsoft Office system"),
+            (r"\b(?i)microsoft\s+osu\b", "Microsoft Office"),
+            (r"\b(?i)osu\s+system\b", "Office system"),
+            (r"\b(?i)take\s+claude\b", "Hey Claude"),
+            (r"\b(?i)omi\s*hey\s+claude\b", "Hey Claude"),
+            (r"\b(?i)omi\s*claude\b", "Claude"),
+            (r"\b(?i)like\s+a\s+mail\s*,\s*like\s+win\b", "like Mail, like Word"),
+            (r"\b(?i)like\s+mail\s*,\s*like\s+win\b", "like Mail, like Word"),
+            (r"\b(?i)like\s+a\s+mail\s*,\s*like\s+word\b", "like Mail, like Word"),
+            (r"\b(?i)like\s+win\s*,\s*what\s+else\s+is\s+there\b", "like Word, what else is there"),
+            (r"\b(?i)(?:like\s+)?(?:mail|email|outlook)\s*,\s*like\s+win\b", "Mail, like Word"),
+            (r"\b(?i)by\s+windows\s+11\b", "for Windows 11"),
+        ];
+        raw.into_iter().filter_map(|(pat, repl)| Regex::new(pat).ok().map(|re| (re, repl))).collect()
+    });
+    for (re, repl) in pre_homophones {
+        text = re.replace_all(&text, *repl).to_string();
     }
 
-    // 1. Spoken self-corrections ("no wait...", "scratch that...", "I mean...", "actually no...", "no no...", pivot backtracks)
+    // 1. Spoken self-corrections (Card 3: "no wait...", "or rather...", "make that...", "scratch that...", "I mean...", pivot backtracks)
     if remove_corrections {
-        let self_correction_regex = Regex::new(
-            r"(?i)\b(?:wait let me start over|let me start over|start over|scratch all that|actually what I meant was|correction please|I mean to say|no no wait|no no no|no no|no wait|scratch that|sorry I meant|actually no|wait no|no sorry|sorry no|oops I meant|or rather|correction|let me rephrase|strike that|I mean)[,\s]+(.+)"
-        ).unwrap();
+        let self_correction_regex = SELF_CORRECTION_RE.get_or_init(|| {
+            Regex::new(
+                r"(?i)\b(?:wait let me start over|let me start over|start over|scratch all that|scratch the last sentence|cancel that|actually what I meant was|actually scratch that|sorry scratch that|correction please|correction|I meant to say|I mean to say|no no wait|no no no|no no|no wait make it|no make that|wait make that|no wait|scratch that last word|scratch that|sorry I meant|actually no|wait no|no sorry|sorry no|oops I meant|whoops|oops|my bad|or rather|rather|let me rephrase|wait let me rephrase|let me change that to|replace that with|strike that|disregard that|I mean)[,\s]+(.+)"
+            ).unwrap()
+        });
 
-        if let Some(caps) = self_correction_regex.captures(&text) {
-            let replacement = caps.get(1).unwrap().as_str().trim();
-            let full_match = self_correction_regex.find(&text).unwrap();
-            let trigger = text[full_match.start()..full_match.start() + caps.get(0).unwrap().as_str().len() - replacement.len()].to_lowercase();
-            let before = text[..full_match.start()].trim();
+        for _ in 0..5 {
+            if let Some(caps) = self_correction_regex.captures(&text) {
+                let replacement = caps.get(1).unwrap().as_str().trim();
+                let full_match = self_correction_regex.find(&text).unwrap();
+                let trigger = text[full_match.start()..full_match.start() + caps.get(0).unwrap().as_str().len() - replacement.len()].to_lowercase();
+                let before = text[..full_match.start()].trim();
 
-            let is_full_restart = trigger.contains("start over")
-                || trigger.contains("scratch all that")
-                || trigger.contains("delete all that")
-                || trigger.contains("clear that");
+                let is_full_restart = trigger.contains("start over")
+                    || trigger.contains("scratch all that")
+                    || trigger.contains("delete all that")
+                    || trigger.contains("clear that")
+                    || trigger.contains("cancel that");
 
-            if is_full_restart {
-                text = replacement.to_string();
-            } else if let Some(pivot_resolved) = resolve_pivot_backtrack(before, replacement) {
-                text = pivot_resolved;
-            } else {
-                let before_words: Vec<&str> = before.split_whitespace().collect();
-                let repl_words: Vec<&str> = replacement.split_whitespace().collect();
+                if is_full_restart {
+                    text = replacement.to_string();
+                } else if let Some(pivot_resolved) = resolve_pivot_backtrack(before, replacement) {
+                    text = pivot_resolved;
+                } else {
+                    let before_words: Vec<&str> = before.split_whitespace().collect();
+                    let repl_words: Vec<&str> = replacement.split_whitespace().collect();
 
-                if before_words.len() >= 2 && !repl_words.is_empty() {
-                    let shares_start = before_words.first().map(|w| w.to_lowercase()) == repl_words.first().map(|w| w.to_lowercase());
-                    if !shares_start {
-                        let prefix = before_words[..before_words.len() - 1].join(" ");
-                        text = format!("{} {}", prefix, replacement);
+                    if before_words.len() >= 2 && !repl_words.is_empty() {
+                        let shares_start = before_words.first().map(|w| w.to_lowercase()) == repl_words.first().map(|w| w.to_lowercase());
+                        if !shares_start {
+                            let prefix = before_words[..before_words.len() - 1].join(" ");
+                            text = format!("{} {}", prefix, replacement);
+                        } else {
+                            text = replacement.to_string();
+                        }
                     } else {
                         text = replacement.to_string();
                     }
-                } else {
-                    text = replacement.to_string();
                 }
-            }
-        } else {
-            // Check for bare 'no' pivot backtrack: e.g. "application using rea no chatgpt like application"
-            let bare_no_re = Regex::new(r"(?i)(?:,\s*no[,\s]+|\s+no[,\s]+)(.+)").unwrap();
-            if let Some(caps) = bare_no_re.captures(&text) {
-                let replacement = caps.get(1).unwrap().as_str().trim();
-                let full_match = bare_no_re.find(&text).unwrap();
-                let before = text[..full_match.start()].trim();
+            } else {
+                // Check for bare 'no' pivot backtrack: e.g. "application using rea no chatgpt like application"
+                let bare_no_re = BARE_NO_RE.get_or_init(|| {
+                    Regex::new(r"(?i)(?:,\s*no[,\s]+|\s+no[,\s]+)(.+)").unwrap()
+                });
+                if let Some(caps) = bare_no_re.captures(&text) {
+                    let replacement = caps.get(1).unwrap().as_str().trim();
+                    let full_match = bare_no_re.find(&text).unwrap();
+                    let before = text[..full_match.start()].trim();
 
-                if let Some(pivot_resolved) = resolve_pivot_backtrack(before, replacement) {
-                    text = pivot_resolved;
+                    if let Some(pivot_resolved) = resolve_pivot_backtrack(before, replacement) {
+                        text = pivot_resolved;
+                    } else {
+                        break;
+                    }
+                } else {
+                    break;
                 }
             }
         }
     }
 
-    // 2. Remove verbal filler words (hesitations, e.g. um, uh, nu, na, erm, no no, etc.)
+    // 2. Remove verbal filler words (Card 1: hesitations, discourse markers, thinking words, regional slang, vocal pauses)
     if remove_fillers {
-        let filler_patterns = [
-            // Search-for-words, phrasing & hesitation queries
-            r"(?i)\b(?:what\s+else\s+is\s+there\s*,\s*like\s+what|what\s+else\s+is\s+there|like\s+what\s+is\s+there)\b,?",
-            r"(?i)\b(?:what\s+I\s+mean\s+to\s+say|what\s+I'm\s+saying\s+is|what\s+I\s+meant\s+to\s+say|what\s+I\s+wanted\s+to\s+say|I\s+was\s+gonna\s+say)\b,?",
-            r"(?i)\b(?:how\s+do\s+you\s+say|how\s+can\s+I\s+say|how\s+to\s+say|how\s+should\s+I\s+put\s+it|what\s+do\s+you\s+call\s+it|what\s+is\s+it\s+called|what's\s+it\s+called|what\s+was\s+it\s+called|what\s+was\s+it)\b,?",
-            r"(?i)\b(?:if\s+you\s+get\s+what\s+I\s+mean|if\s+you\s+know\s+what\s+I\s+mean)\b,?",
-            // Pause & thinking hesitations
-            r"(?i)\b(?:let's\s+see|let\s+me\s+see|let\s+me\s+think|lemme\s+see)\b,?",
-            r"(?i)\b(?:give\s+me\s+a\s+second|give\s+me\s+a\s+sec|give\s+me\s+a\s+minute|give\s+me\s+a\s+moment|just\s+a\s+second|just\s+a\s+moment|just\s+a\s+sec|one\s+second|one\s+sec|one\s+moment)\b,?",
-            r"(?i)\b(?:wait\s+a\s+minute|wait\s+a\s+second|wait\s+a\s+sec|wait\s+wait\s+wait|wait\s+wait|hold\s+on\s+a\s+second|hold\s+on\s+a\s+sec|hold\s+on)\b,?",
-            // Vagueness tails & trailing fillers
-            r"(?i)\b(?:and\s+things\s+like\s+that|and\s+that\s+sort\s+of\s+thing|and\s+so\s+on\s+and\s+so\s+forth|and\s+so\s+on|and\s+stuff\s+like\s+that|and\s+all\s+that\s+stuff|and\s+all\s+of\s+that|and\s+all\s+that|or\s+something\s+like\s+that|or\s+something|or\s+whatever\s+it\s+is|or\s+whatever)\b,?",
-            r"(?i)\bload\s*,?\s*plug\s*,?\s*closely\b,?",
-            r"(?i)\b(?:no no wait|no no no|no no)\b,?",
-            // Regional slang particles (Hinglish/Bengali/South Asian conversational particles)
-            r"(?i)\b(?:bhai|accha|matlab|na\s+re|arrey|arre|yaar|toh)\b,?",
-            // Hesitation syllables & combined stutter tokens
-            r"(?i)\b(?:um\s+aa|aa\s+um|um\s+uh|uh\s+um|er\s+um|um\s+er|aa\s+nu|nu\s+aa|nu\s+na|na\s+nu|nu\s+nu|na\s+na)\b,?",
-            r"(?i)\b(?:een|aam|ehm|ehn|uhn|omiyaya)\b,?",
-            r"(?i)\b(um+|uh+|erm+|ah+|aa+|aah+|ahh+|nu+|na+|umm+|uhh+|er+|hmm+|uhm+|em+|ohh+|ooh+|huh+|heh+)\b,?",
-            // Common conversational fillers
-            r"(?i)\b(?:and\s+)?I'm\s+like\b,?",
-            r"(?i)\b(?:and\s+)?I\s+was\s+like\b,?",
-            r"(?i)\b(you know what I mean|you know what I'm saying|you know|basically|actually|literally|sort of|kind of|so yeah|like I mean|to be honest|honestly speaking)\b,?",
-        ];
+        let filler_patterns = FILLER_REGEXES.get_or_init(|| {
+            let raw = [
+                // Search-for-words, phrasing & hesitation queries
+                r"(?i)\b(?:what\s+else\s+is\s+there\s*,\s*like\s+what|what\s+else\s+is\s+there|like\s+what\s+is\s+there)\b,?",
+                r"(?i)\b(?:what\s+I\s+mean\s+to\s+say|what\s+I'm\s+saying\s+is|what\s+I\s+meant\s+to\s+say|what\s+I\s+wanted\s+to\s+say|I\s+was\s+gonna\s+say)\b,?",
+                r"(?i)\b(?:how\s+do\s+you\s+say|how\s+can\s+I\s+say|how\s+to\s+say|how\s+should\s+I\s+put\s+it|what\s+do\s+you\s+call\s+it|what\s+is\s+it\s+called|what's\s+it\s+called|what\s+was\s+it\s+called|what\s+was\s+it)\b,?",
+                r"(?i)\b(?:if\s+you\s+get\s+what\s+I\s+mean|if\s+you\s+know\s+what\s+I\s+mean)\b,?",
+                // Thinking & vocal pause hesitations
+                r"(?i)\b(?:let's\s+see|let\s+me\s+see|let\s+me\s+think|lemme\s+see|(?:wait\s+)?what\s+was\s+I\s+saying|where\s+was\s+I|what\s+was\s+that)\b,?",
+                r"(?i)\b(?:give\s+me\s+a\s+second|give\s+me\s+a\s+sec|give\s+me\s+a\s+minute|give\s+me\s+a\s+moment|just\s+a\s+second|just\s+a\s+moment|just\s+a\s+sec|one\s+second|one\s+sec|one\s+moment)\b,?",
+                r"(?i)\b(?:wait\s+a\s+minute|wait\s+a\s+second|wait\s+a\s+sec|wait\s+wait\s+wait|wait\s+wait|hold\s+on\s+a\s+second|hold\s+on\s+a\s+sec|hold\s+on)\b,?",
+                // Vagueness tails & trailing fillers
+                r"(?i)\b(?:and\s+things\s+like\s+that|and\s+that\s+sort\s+of\s+thing|and\s+so\s+on\s+and\s+so\s+forth|and\s+so\s+on|and\s+stuff\s+like\s+that|and\s+all\s+that\s+stuff|and\s+all\s+of\s+that|and\s+all\s+that|or\s+something\s+like\s+that|or\s+something|or\s+whatever\s+it\s+is|or\s+whatever)\b,?",
+                r"(?i)\bload\s*,?\s*plug\s*,?\s*closely\b,?",
+                r"(?i)\b(?:no no wait|no no no|no no)\b,?",
+                // Regional slang particles (Hinglish/Bengali/South Asian conversational markers)
+                r"(?i)\b(?:bhaiya|bhai|accha\s+accha|accha|matlab\s+ki|matlab|na\s+re|arrey\s+re|arrey|arre\s+yaar|arre|yaar|toh\s+phir|toh|ki\s+na|mane|suno|dekho|samjhe\s+na)\b,?",
+                // Hesitation syllables & combined stutter tokens
+                r"(?i)\b(?:um\s+aa|aa\s+um|um\s+uh|uh\s+um|er\s+um|um\s+er|aa\s+nu|nu\s+aa|nu\s+na|na\s+nu|nu\s+nu|na\s+na)\b,?",
+                r"(?i)\b(?:een|aam|ehm|ehn|uhn|omiyaya|ahem|uh-huh|mhm|mm-hmm|nuh-uh|hmph)\b,?",
+                r"(?i)\b(um+|uh+|erm+|ah+|aa+|aah+|ahh+|nu+|na+|umm+|uhh+|er+|hmm+|uhm+|em+|ohh+|ooh+|huh+|heh+)\b,?",
+                // Common conversational fillers & discourse markers
+                r"(?i)\b(?:and\s+)?I'm\s+like\b,?",
+                r"(?i)\b(?:and\s+)?I\s+was\s+like\b,?",
+                r"(?i)\b(you know what I mean|you know what I'm saying|you know|basically like|literally like|basically|actually|literally|sort of like|kind of like|sort of|kind of|more or less|so yeah|like I mean|like I said|as I said|to be honest|honestly speaking|truth be told|at the end of the day|for what it's worth|in a way|in a sense|so to speak|needless to say|as it were|if you will|anyway so|anyways so)\b,?",
+            ];
+            raw.into_iter().filter_map(|p| Regex::new(p).ok()).collect()
+        });
 
-        for pat in filler_patterns {
-            if let Ok(re) = Regex::new(pat) {
-                text = re.replace_all(&text, "").to_string();
-            }
+        for re in filler_patterns {
+            text = re.replace_all(&text, "").to_string();
         }
 
         // Apply custom user-defined filler words
@@ -957,184 +1005,207 @@ pub fn heuristic_cleanup_full(
         }
     }
 
-    // 3. Remove accidental duplicate repeated words & phrases ("the the" -> "the", "we can we can" -> "we can")
+    // 3. Remove accidental duplicate repeated words & phrases (Card 2: syllable stutters "w- we", 4-word, 3-word, 2-word, single-word)
     if remove_repeats {
+        let syllable_re = SYLLABLE_STUTTER_RE.get_or_init(|| {
+            Regex::new(r"(?i)\b([a-zA-Z]{1,3})[-—]\s*([a-zA-Z]+)\b").unwrap()
+        });
+        text = syllable_re.replace_all(&text, |caps: &regex::Captures| {
+            let prefix = caps[1].to_lowercase();
+            let word = caps[2].to_lowercase();
+            if word.starts_with(&prefix) {
+                caps[2].to_string()
+            } else {
+                caps[0].to_string()
+            }
+        }).to_string();
         text = remove_duplicate_words(&text);
         text = remove_repeated_phrases(&text);
     }
 
     // 4. Format verbal emails and URLs
-    let email_re = Regex::new(r"(?i)\b([a-zA-Z0-9_\-]+)\s+dot\s+([a-zA-Z0-9_\-]+)\s+at\s+([a-zA-Z0-9_\-]+)\s+dot\s+(com|org|net|edu|gov|io|ai|dev|co|in)\b").unwrap();
+    let email_re = EMAIL_RE.get_or_init(|| {
+        Regex::new(r"(?i)\b([a-zA-Z0-9_\-]+)\s+dot\s+([a-zA-Z0-9_\-]+)\s+at\s+([a-zA-Z0-9_\-]+)\s+dot\s+(com|org|net|edu|gov|io|ai|dev|co|in)\b").unwrap()
+    });
     text = email_re.replace_all(&text, "$1.$2@$3.$4").to_string();
 
-    let email_simple_re = Regex::new(r"(?i)\b([a-zA-Z0-9_\-]+)\s+at\s+([a-zA-Z0-9_\-]+)\s+dot\s+(com|org|net|edu|gov|io|ai|dev|co|in)\b").unwrap();
+    let email_simple_re = EMAIL_SIMPLE_RE.get_or_init(|| {
+        Regex::new(r"(?i)\b([a-zA-Z0-9_\-]+)\s+at\s+([a-zA-Z0-9_\-]+)\s+dot\s+(com|org|net|edu|gov|io|ai|dev|co|in)\b").unwrap()
+    });
     text = email_simple_re.replace_all(&text, "$1@$2.$3").to_string();
 
-    let url_re = Regex::new(r"(?i)\bhttps?\s+colon\s+slash\s+slash\b").unwrap();
+    let url_re = URL_RE.get_or_init(|| {
+        Regex::new(r"(?i)\bhttps?\s+colon\s+slash\s+slash\b").unwrap()
+    });
     text = url_re.replace_all(&text, "https://").to_string();
 
-    let www_re = Regex::new(r"(?i)\bwww\s+dot\s+").unwrap();
+    let www_re = WWW_RE.get_or_init(|| {
+        Regex::new(r"(?i)\bwww\s+dot\s+").unwrap()
+    });
     text = www_re.replace_all(&text, "www.").to_string();
 
     // 5. Expand verbal punctuation, percentage, dollar, number, and quote commands
-    let punct_patterns = [
-        (r"(?i)\s+period\b", "."),
-        (r"(?i)\s+full stop\b", "."),
-        (r"(?i)\s+comma\b", ","),
-        (r"(?i)\s+question mark\b", "?"),
-        (r"(?i)\s+(?:exclamation mark|exclamation point)\b", "!"),
-        (r"(?i)\s+colon\b", ":"),
-        (r"(?i)\s+semicolon\b", ";"),
-        (r"(?i)\s+(?:new line|newline)\b", "\n"),
-        // Spoken written percentages & numbers
-        (r"(?i)\b(?:one hundred|hundred)\s+percent\b", "100%"),
-        (r"(?i)\bninety\s+percent\b", "90%"),
-        (r"(?i)\beighty\s+percent\b", "80%"),
-        (r"(?i)\bseventy\s+percent\b", "70%"),
-        (r"(?i)\bsixty\s+percent\b", "60%"),
-        (r"(?i)\bfifty\s+percent\b", "50%"),
-        (r"(?i)\bforty\s+percent\b", "40%"),
-        (r"(?i)\bthirty\s+percent\b", "30%"),
-        (r"(?i)\btwenty\s+five\s+percent\b", "25%"),
-        (r"(?i)\btwenty\s+percent\b", "20%"),
-        (r"(?i)\bfifteen\s+percent\b", "15%"),
-        (r"(?i)\bten\s+percent\b", "10%"),
-        (r"(?i)\bfive\s+percent\b", "5%"),
-        (r"(?i)\bzero\s+percent\b", "0%"),
-        (r"(?i)\b([0-9]+)\s+percent\b", "$1%"),
-        // Spoken written currency
-        (r"(?i)\b(?:one hundred|hundred)\s+dollars?\b", "$$100"),
-        (r"(?i)\bfifty\s+dollars?\b", "$$50"),
-        (r"(?i)\btwenty\s+dollars?\b", "$$20"),
-        (r"(?i)\bten\s+dollars?\b", "$$10"),
-        (r"(?i)\bfive\s+dollars?\b", "$$5"),
-        (r"(?i)\bone\s+dollar\b", "$$1"),
-        (r"(?i)\b([0-9]+)\s+dollars?\b", "$$$1"),
-        (r"(?i)\b([0-9]+)\s+euros?\b", "€$1"),
-        (r"(?i)\b([0-9]+)\s+pounds?\b", "£$1"),
-        // Spoken numbers (#1, #5, etc.)
-        (r"(?i)\bnumber\s+([0-9]+)\b", "#$1"),
-        (r"(?i)\bnumber\s+one\b", "#1"),
-        (r"(?i)\bnumber\s+two\b", "#2"),
-        (r"(?i)\bnumber\s+three\b", "#3"),
-        (r"(?i)\bnumber\s+four\b", "#4"),
-        (r"(?i)\bnumber\s+five\b", "#5"),
-        (r"(?i)\bnumber\s+six\b", "#6"),
-        (r"(?i)\bnumber\s+seven\b", "#7"),
-        (r"(?i)\bnumber\s+eight\b", "#8"),
-        (r"(?i)\bnumber\s+nine\b", "#9"),
-        (r"(?i)\bnumber\s+ten\b", "#10"),
-        // Spoken step, part, option, and item numbering
-        (r"(?i)\bstep\s+([0-9]+)\b", "Step $1"),
-        (r"(?i)\bstep\s+one\b", "Step 1"),
-        (r"(?i)\bstep\s+two\b", "Step 2"),
-        (r"(?i)\bstep\s+three\b", "Step 3"),
-        (r"(?i)\bstep\s+four\b", "Step 4"),
-        (r"(?i)\bstep\s+five\b", "Step 5"),
-        (r"(?i)\bpart\s+([0-9]+)\b", "Part $1"),
-        (r"(?i)\bpart\s+one\b", "Part 1"),
-        (r"(?i)\bpart\s+two\b", "Part 2"),
-        (r"(?i)\bpart\s+three\b", "Part 3"),
-        (r"(?i)\boption\s+([0-9]+)\b", "Option $1"),
-        (r"(?i)\boption\s+one\b", "Option 1"),
-        (r"(?i)\boption\s+two\b", "Option 2"),
-        (r"(?i)\bitem\s+([0-9]+)\b", "Item $1"),
-        (r"(?i)\bitem\s+one\b", "Item 1"),
-        (r"(?i)\bitem\s+two\b", "Item 2"),
-        // Spoken time formatting ("five thirty PM" -> "5:30 PM", "ten AM" -> "10:00 AM", etc.)
-        (r"(?i)\b(?:twelve|12)\s+thirty\s+(AM|PM)\b", "12:30 $1"),
-        (r"(?i)\b(?:eleven|11)\s+thirty\s+(AM|PM)\b", "11:30 $1"),
-        (r"(?i)\b(?:ten|10)\s+thirty\s+(AM|PM)\b", "10:30 $1"),
-        (r"(?i)\b(?:nine|9)\s+thirty\s+(AM|PM)\b", "9:30 $1"),
-        (r"(?i)\b(?:eight|8)\s+thirty\s+(AM|PM)\b", "8:30 $1"),
-        (r"(?i)\b(?:seven|7)\s+thirty\s+(AM|PM)\b", "7:30 $1"),
-        (r"(?i)\b(?:six|6)\s+thirty\s+(AM|PM)\b", "6:30 $1"),
-        (r"(?i)\b(?:five|5)\s+thirty\s+(AM|PM)\b", "5:30 $1"),
-        (r"(?i)\b(?:four|4)\s+thirty\s+(AM|PM)\b", "4:30 $1"),
-        (r"(?i)\b(?:three|3)\s+thirty\s+(AM|PM)\b", "3:30 $1"),
-        (r"(?i)\b(?:two|2)\s+thirty\s+(AM|PM)\b", "2:30 $1"),
-        (r"(?i)\b(?:one|1)\s+thirty\s+(AM|PM)\b", "1:30 $1"),
-        (r"(?i)\btwelve\s+(AM|PM)\b", "12 $1"),
-        (r"(?i)\beleven\s+(AM|PM)\b", "11 $1"),
-        (r"(?i)\bten\s+(AM|PM)\b", "10 $1"),
-        (r"(?i)\bnine\s+(AM|PM)\b", "9 $1"),
-        (r"(?i)\beight\s+(AM|PM)\b", "8 $1"),
-        (r"(?i)\bseven\s+(AM|PM)\b", "7 $1"),
-        (r"(?i)\bsix\s+(AM|PM)\b", "6 $1"),
-        (r"(?i)\bfive\s+(AM|PM)\b", "5 $1"),
-        (r"(?i)\bfour\s+(AM|PM)\b", "4 $1"),
-        (r"(?i)\bthree\s+(AM|PM)\b", "3 $1"),
-        (r"(?i)\btwo\s+(AM|PM)\b", "2 $1"),
-        (r"(?i)\bone\s+(AM|PM)\b", "1 $1"),
-        (r"(?i)\b([0-9]+)\s+o'?clock\b", "$1:00"),
-        // Spoken large numbers
-        (r"(?i)\b(?:one|1)\s+thousand\b", "1,000"),
-        (r"(?i)\b(?:two|2)\s+thousand\b", "2,000"),
-        (r"(?i)\b(?:five|5)\s+thousand\b", "5,000"),
-        (r"(?i)\b(?:ten|10)\s+thousand\b", "10,000"),
-        (r"(?i)\b(?:one|1)\s+million\b", "1 million"),
-        (r"(?i)\b(?:two|2)\s+million\b", "2 million"),
-        // Spoken math operations
-        (r"\b([0-9]+)\s+plus\s+([0-9]+)\b", "$1 + $2"),
-        (r"\b([0-9]+)\s+minus\s+([0-9]+)\b", "$1 - $2"),
-        (r"\b([0-9]+)\s+equals\s+([0-9]+)\b", "$1 = $2"),
-    ];
+    let punct_patterns = PUNCT_PATTERNS.get_or_init(|| {
+        let raw = [
+            (r"(?i)\s+period\b", "."),
+            (r"(?i)\s+full stop\b", "."),
+            (r"(?i)\s+comma\b", ","),
+            (r"(?i)\s+question mark\b", "?"),
+            (r"(?i)\s+(?:exclamation mark|exclamation point)\b", "!"),
+            (r"(?i)\s+colon\b", ":"),
+            (r"(?i)\s+semicolon\b", ";"),
+            (r"(?i)\s+(?:new line|newline)\b", "\n"),
+            // Spoken written percentages & numbers
+            (r"(?i)\b(?:one hundred|hundred)\s+percent\b", "100%"),
+            (r"(?i)\bninety\s+percent\b", "90%"),
+            (r"(?i)\beighty\s+percent\b", "80%"),
+            (r"(?i)\bseventy\s+percent\b", "70%"),
+            (r"(?i)\bsixty\s+percent\b", "60%"),
+            (r"(?i)\bfifty\s+percent\b", "50%"),
+            (r"(?i)\bforty\s+percent\b", "40%"),
+            (r"(?i)\bthirty\s+percent\b", "30%"),
+            (r"(?i)\btwenty\s+five\s+percent\b", "25%"),
+            (r"(?i)\btwenty\s+percent\b", "20%"),
+            (r"(?i)\bfifteen\s+percent\b", "15%"),
+            (r"(?i)\bten\s+percent\b", "10%"),
+            (r"(?i)\bfive\s+percent\b", "5%"),
+            (r"(?i)\bzero\s+percent\b", "0%"),
+            (r"(?i)\b([0-9]+)\s+percent\b", "$1%"),
+            // Spoken written currency
+            (r"(?i)\b(?:one hundred|hundred)\s+dollars?\b", "$$100"),
+            (r"(?i)\bfifty\s+dollars?\b", "$$50"),
+            (r"(?i)\btwenty\s+dollars?\b", "$$20"),
+            (r"(?i)\bten\s+dollars?\b", "$$10"),
+            (r"(?i)\bfive\s+dollars?\b", "$$5"),
+            (r"(?i)\bone\s+dollar\b", "$$1"),
+            (r"(?i)\b([0-9]+)\s+dollars?\b", "$$$1"),
+            (r"(?i)\b([0-9]+)\s+euros?\b", "€$1"),
+            (r"(?i)\b([0-9]+)\s+pounds?\b", "£$1"),
+            // Spoken numbers (#1, #5, etc.)
+            (r"(?i)\bnumber\s+([0-9]+)\b", "#$1"),
+            (r"(?i)\bnumber\s+one\b", "#1"),
+            (r"(?i)\bnumber\s+two\b", "#2"),
+            (r"(?i)\bnumber\s+three\b", "#3"),
+            (r"(?i)\bnumber\s+four\b", "#4"),
+            (r"(?i)\bnumber\s+five\b", "#5"),
+            (r"(?i)\bnumber\s+six\b", "#6"),
+            (r"(?i)\bnumber\s+seven\b", "#7"),
+            (r"(?i)\bnumber\s+eight\b", "#8"),
+            (r"(?i)\bnumber\s+nine\b", "#9"),
+            (r"(?i)\bnumber\s+ten\b", "#10"),
+            // Spoken step, part, option, and item numbering
+            (r"(?i)\bstep\s+([0-9]+)\b", "Step $1"),
+            (r"(?i)\bstep\s+one\b", "Step 1"),
+            (r"(?i)\bstep\s+two\b", "Step 2"),
+            (r"(?i)\bstep\s+three\b", "Step 3"),
+            (r"(?i)\bstep\s+four\b", "Step 4"),
+            (r"(?i)\bstep\s+five\b", "Step 5"),
+            (r"(?i)\bpart\s+([0-9]+)\b", "Part $1"),
+            (r"(?i)\bpart\s+one\b", "Part 1"),
+            (r"(?i)\bpart\s+two\b", "Part 2"),
+            (r"(?i)\bpart\s+three\b", "Part 3"),
+            (r"(?i)\boption\s+([0-9]+)\b", "Option $1"),
+            (r"(?i)\boption\s+one\b", "Option 1"),
+            (r"(?i)\boption\s+two\b", "Option 2"),
+            (r"(?i)\bitem\s+([0-9]+)\b", "Item $1"),
+            (r"(?i)\bitem\s+one\b", "Item 1"),
+            (r"(?i)\bitem\s+two\b", "Item 2"),
+            // Spoken time formatting ("five thirty PM" -> "5:30 PM", "ten AM" -> "10:00 AM", etc.)
+            (r"(?i)\b(?:twelve|12)\s+thirty\s+(AM|PM)\b", "12:30 $1"),
+            (r"(?i)\b(?:eleven|11)\s+thirty\s+(AM|PM)\b", "11:30 $1"),
+            (r"(?i)\b(?:ten|10)\s+thirty\s+(AM|PM)\b", "10:30 $1"),
+            (r"(?i)\b(?:nine|9)\s+thirty\s+(AM|PM)\b", "9:30 $1"),
+            (r"(?i)\b(?:eight|8)\s+thirty\s+(AM|PM)\b", "8:30 $1"),
+            (r"(?i)\b(?:seven|7)\s+thirty\s+(AM|PM)\b", "7:30 $1"),
+            (r"(?i)\b(?:six|6)\s+thirty\s+(AM|PM)\b", "6:30 $1"),
+            (r"(?i)\b(?:five|5)\s+thirty\s+(AM|PM)\b", "5:30 $1"),
+            (r"(?i)\b(?:four|4)\s+thirty\s+(AM|PM)\b", "4:30 $1"),
+            (r"(?i)\b(?:three|3)\s+thirty\s+(AM|PM)\b", "3:30 $1"),
+            (r"(?i)\b(?:two|2)\s+thirty\s+(AM|PM)\b", "2:30 $1"),
+            (r"(?i)\b(?:one|1)\s+thirty\s+(AM|PM)\b", "1:30 $1"),
+            (r"(?i)\btwelve\s+(AM|PM)\b", "12 $1"),
+            (r"(?i)\beleven\s+(AM|PM)\b", "11 $1"),
+            (r"(?i)\bten\s+(AM|PM)\b", "10 $1"),
+            (r"(?i)\bnine\s+(AM|PM)\b", "9 $1"),
+            (r"(?i)\beight\s+(AM|PM)\b", "8 $1"),
+            (r"(?i)\bseven\s+(AM|PM)\b", "7 $1"),
+            (r"(?i)\bsix\s+(AM|PM)\b", "6 $1"),
+            (r"(?i)\bfive\s+(AM|PM)\b", "5 $1"),
+            (r"(?i)\bfour\s+(AM|PM)\b", "4 $1"),
+            (r"(?i)\bthree\s+(AM|PM)\b", "3 $1"),
+            (r"(?i)\btwo\s+(AM|PM)\b", "2 $1"),
+            (r"(?i)\bone\s+(AM|PM)\b", "1 $1"),
+            (r"(?i)\b([0-9]+)\s+o'?clock\b", "$1:00"),
+            // Spoken large numbers
+            (r"(?i)\b(?:one|1)\s+thousand\b", "1,000"),
+            (r"(?i)\b(?:two|2)\s+thousand\b", "2,000"),
+            (r"(?i)\b(?:five|5)\s+thousand\b", "5,000"),
+            (r"(?i)\b(?:ten|10)\s+thousand\b", "10,000"),
+            (r"(?i)\b(?:one|1)\s+million\b", "1 million"),
+            (r"(?i)\b(?:two|2)\s+million\b", "2 million"),
+            // Spoken math operations
+            (r"\b([0-9]+)\s+plus\s+([0-9]+)\b", "$1 + $2"),
+            (r"\b([0-9]+)\s+minus\s+([0-9]+)\b", "$1 - $2"),
+            (r"\b([0-9]+)\s+equals\s+([0-9]+)\b", "$1 = $2"),
+        ];
+        raw.into_iter().filter_map(|(pat, repl)| Regex::new(pat).ok().map(|re| (re, repl))).collect()
+    });
 
-    for (pat, repl) in punct_patterns {
-        if let Ok(re) = Regex::new(pat) {
-            text = re.replace_all(&text, repl).to_string();
-        }
+    for (re, repl) in punct_patterns {
+        text = re.replace_all(&text, *repl).to_string();
     }
 
     // Spoken quotes, parentheses, and brackets
-    let quote_re = Regex::new(r#"(?i)\bopen\s+quotes?\s+(.+?)\s+close\s+quotes?\b"#).unwrap();
+    let quote_re = QUOTE_RE.get_or_init(|| {
+        Regex::new(r#"(?i)\bopen\s+quotes?\s+(.+?)\s+close\s+quotes?\b"#).unwrap()
+    });
     text = quote_re.replace_all(&text, "\"$1\"").to_string();
 
-    let paren_re = Regex::new(r#"(?i)\bopen\s+paren(?:thesis)?\s+(.+?)\s+close\s+paren(?:thesis)?\b"#).unwrap();
+    let paren_re = PAREN_RE.get_or_init(|| {
+        Regex::new(r#"(?i)\bopen\s+paren(?:thesis)?\s+(.+?)\s+close\s+paren(?:thesis)?\b"#).unwrap()
+    });
     text = paren_re.replace_all(&text, "($1)").to_string();
 
-    let bracket_re = Regex::new(r#"(?i)\bopen\s+bracket\s+(.+?)\s+close\s+bracket\b"#).unwrap();
+    let bracket_re = BRACKET_RE.get_or_init(|| {
+        Regex::new(r#"(?i)\bopen\s+bracket\s+(.+?)\s+close\s+bracket\b"#).unwrap()
+    });
     text = bracket_re.replace_all(&text, "[$1]").to_string();
 
     // Clean up duplicate commas or comma followed by period
-    if let Ok(dup_commas) = Regex::new(r",\s*,+") {
-        text = dup_commas.replace_all(&text, ",").to_string();
-    }
-    if let Ok(comma_period) = Regex::new(r",\s*\.") {
-        text = comma_period.replace_all(&text, ".").to_string();
-    }
-    if let Ok(period_comma) = Regex::new(r"\.\s*,") {
-        text = period_comma.replace_all(&text, ".").to_string();
-    }
+    let dup_commas = DUP_COMMAS_RE.get_or_init(|| Regex::new(r",\s*,+").unwrap());
+    text = dup_commas.replace_all(&text, ",").to_string();
+
+    let comma_period = COMMA_PERIOD_RE.get_or_init(|| Regex::new(r",\s*\.").unwrap());
+    text = comma_period.replace_all(&text, ".").to_string();
+
+    let period_comma = PERIOD_COMMA_RE.get_or_init(|| Regex::new(r"\.\s*,").unwrap());
+    text = period_comma.replace_all(&text, ".").to_string();
 
     // Clean up pause commas immediately following conjunctions (e.g. "and, we can" -> "and we can")
-    if let Ok(conj_comma) = Regex::new(r"(?i)\b(and|but|so|or),\s+([a-zA-Z])") {
-        text = conj_comma.replace_all(&text, "$1 $2").to_string();
-    }
+    let conj_comma = CONJ_COMMA_RE.get_or_init(|| Regex::new(r"(?i)\b(and|but|so|or),\s+([a-zA-Z])").unwrap());
+    text = conj_comma.replace_all(&text, "$1 $2").to_string();
 
     // Clean up pause commas around conjunctions (e.g. ", and," -> ", and")
-    if let Ok(dup_conj_comma) = Regex::new(r"(?i),\s*(and|or|but|so)\s*,") {
-        text = dup_conj_comma.replace_all(&text, ", $1").to_string();
-    }
+    let dup_conj_comma = DUP_CONJ_COMMA_RE.get_or_init(|| Regex::new(r"(?i),\s*(and|or|but|so)\s*,").unwrap());
+    text = dup_conj_comma.replace_all(&text, ", $1").to_string();
 
     // Clean up spaces before punctuation
-    if let Ok(space_punct) = Regex::new(r"\s+([,\.?!;:])") {
-        text = space_punct.replace_all(&text, "$1").to_string();
-    }
+    let space_punct = SPACE_PUNCT_RE.get_or_init(|| Regex::new(r"\s+([,\.?!;:])").unwrap());
+    text = space_punct.replace_all(&text, "$1").to_string();
 
-    // 6. Sentence & Grammar Polish (Contractions, multi-sentence capitalization, pronoun 'I', transitions)
+    // 6. Sentence & Grammar Polish (Card 4: Contractions, multi-sentence capitalization, pronoun 'I', transitions, balance quotes/parens)
     if clean_sentences {
         text = polish_sentence_structure(&text);
     }
 
     // 7. Normalize spaces and whitespace while preserving intentional newlines
-    let hspace_re = Regex::new(r"[ \t]+").unwrap();
+    let hspace_re = HSPACE_RE.get_or_init(|| Regex::new(r"[ \t]+").unwrap());
     text = hspace_re.replace_all(&text, " ").to_string();
 
-    let nl_space_re = Regex::new(r" *(\r?\n) *").unwrap();
+    let nl_space_re = NL_SPACE_RE.get_or_init(|| Regex::new(r" *(\r?\n) *").unwrap());
     text = nl_space_re.replace_all(&text, "\n").to_string();
 
-    let multi_nl = Regex::new(r"\n{3,}").unwrap();
+    let multi_nl = MULTI_NL_RE.get_or_init(|| Regex::new(r"\n{3,}").unwrap());
     text = multi_nl.replace_all(&text, "\n\n").trim().to_string();
 
     // 8. Capitalize initial letter and ensure ending punctuation per paragraph (smart question mark or period)
@@ -1159,6 +1230,8 @@ pub fn heuristic_cleanup_full(
                 if !formatted_line.ends_with('?') {
                     formatted_line.push('?');
                 }
+            } else if formatted_line.ends_with('"') || formatted_line.ends_with(')') || formatted_line.ends_with(']') {
+                // Preserved closing quote / bracketed clause without altering interior
             } else if !is_incomplete_sentence(&formatted_line)
                 && !formatted_line.ends_with('.')
                 && !formatted_line.ends_with('?')
@@ -1180,379 +1253,408 @@ pub fn heuristic_cleanup_full(
 pub fn polish_sentence_structure(input: &str) -> String {
     let mut text = input.to_string();
 
-    // 1. Fix lowercase pronoun 'i' and its contractions
-    let pronoun_replacements = [
-        (r"\b(i)\b", "I"),
-        (r"\b(i'm|im)\b", "I'm"),
-        (r"\b(i've|ive)\b", "I've"),
-        (r"\b(i'll)\b", "I'll"),
-        (r"\b(i'd)\b", "I'd"),
-    ];
-    for (pat, repl) in pronoun_replacements {
-        if let Ok(re) = Regex::new(pat) {
-            text = re.replace_all(&text, repl).to_string();
+    // 1. Fix lowercase pronoun 'i' and its contractions (pre-compiled)
+    let pronoun_reps = POLISH_PRONOUNS.get_or_init(|| {
+        let raw = [
+            (r"\b(i)\b", "I"),
+            (r"\b(i'm|im)\b", "I'm"),
+            (r"\b(i've|ive)\b", "I've"),
+            (r"\b(i'll)\b", "I'll"),
+            (r"\b(i'd)\b", "I'd"),
+        ];
+        raw.into_iter().filter_map(|(p, r)| Regex::new(p).ok().map(|re| (re, r))).collect()
+    });
+    for (re, repl) in pronoun_reps {
+        text = re.replace_all(&text, *repl).to_string();
+    }
+
+    // 2. Fix spoken contractions missing apostrophes, tech terminology, and homophones (pre-compiled)
+    let contraction_reps = POLISH_CONTRACTIONS.get_or_init(|| {
+        let raw = [
+            (r"\b(?i)dont\b", "don't"),
+            (r"\b(?i)cant\b", "can't"),
+            (r"\b(?i)wont\b", "won't"),
+            (r"\b(?i)didnt\b", "didn't"),
+            (r"\b(?i)isnt\b", "isn't"),
+            (r"\b(?i)arent\b", "aren't"),
+            (r"\b(?i)hasnt\b", "hasn't"),
+            (r"\b(?i)havent\b", "haven't"),
+            (r"\b(?i)couldnt\b", "couldn't"),
+            (r"\b(?i)shouldnt\b", "shouldn't"),
+            (r"\b(?i)wouldnt\b", "wouldn't"),
+            (r"\b(?i)(?:couldntve|couldn't've)\b", "couldn't have"),
+            (r"\b(?i)(?:shouldntve|shouldn't've)\b", "shouldn't have"),
+            (r"\b(?i)(?:wouldntve|wouldn't've)\b", "wouldn't have"),
+            (r"\b(?i)thats\b", "that's"),
+            (r"\b(?i)whats\b", "what's"),
+            (r"\b(?i)theres\b", "there's"),
+            (r"\b(?i)heres\b", "here's"),
+            (r"\b(?i)lets\b", "let's"),
+            (r"\b(?i)youre\b", "you're"),
+            (r"\b(?i)theyre\b", "they're"),
+            (r"\b(?i)weve\b", "we've"),
+            (r"\b(?i)werent\b", "weren't"),
+            (r"\b(?i)doesnt\b", "doesn't"),
+            (r"\b(?i)couldve\b", "could've"),
+            (r"\b(?i)shouldve\b", "should've"),
+            (r"\b(?i)wouldve\b", "would've"),
+            (r"\b(?i)mustve\b", "must've"),
+            (r"\b(?i)mightve\b", "might've"),
+            (r"\b(?i)wasnt\b", "wasn't"),
+            (r"\b(?i)hadnt\b", "hadn't"),
+            (r"\b(?i)aint\b", "ain't"),
+            (r"\b(?i)youll\b", "you'll"),
+            (r"\b(?i)theyll\b", "they'll"),
+            (r"\b(?i)shell\b", "she'll"),
+            (r"\b(?i)youd\b", "you'd"),
+            (r"\b(?i)theyd\b", "they'd"),
+            (r"\b(?i)hed\b", "he'd"),
+            (r"\b(?i)shed\b", "she'd"),
+            (r"\b(?i)whove\b", "who've"),
+            (r"\b(?i)wheres\b", "where's"),
+            (r"\b(?i)hows\b", "how's"),
+            (r"\b(?i)whatre\b", "what're"),
+            (r"\b(?i)thered\b", "there'd"),
+            (r"\b(?i)someones\b", "someone's"),
+            (r"\b(?i)everyones\b", "everyone's"),
+            (r"\b(?i)nobodys\b", "nobody's"),
+            (r"\b(?i)anyones\b", "anyone's"),
+            (r"\b(?i)alot\b", "a lot"),
+            (r"\b(?i)eachother\b", "each other"),
+            (r"\b(?i)aswell\b", "as well"),
+            (r"\b(?i)infront\b", "in front"),
+            (r"\b(?i)nevermind\b", "never mind"),
+            (r"\b(?i)saterday\b", "Saturday"),
+            (r"\b(?i)wensday\b", "Wednesday"),
+            (r"\b(?i)thrusday\b", "Thursday"),
+            (r"\b(?i)howd\b", "how'd"),
+            (r"\b(?i)whyd\b", "why'd"),
+            (r"\b(?i)whered\b", "where'd"),
+            (r"\b(?i)whatd\b", "what'd"),
+            (r"\b(?i)whod\b", "who'd"),
+            (r"\b(?i)wholl\b", "who'll"),
+            (r"\b(?i)whatll\b", "what'll"),
+            (r"\b(?i)thatll\b", "that'll"),
+            (r"\b(?i)howll\b", "how'll"),
+            (r"\b(?i)itll\b", "it'll"),
+            (r"\b(?i)cmon\b", "c'mon"),
+            // Developer & Tech Term Normalization
+            (r"\b(?i)chatgpt\s+like\s+interface\b", "ChatGPT-like interface"),
+            (r"\b(?i)chatgpt\s+like\b", "ChatGPT-like"),
+            (r"\b(?i)chargey\s+video\s+like\s+interface\b", "ChatGPT-like interface"),
+            (r"\b(?i)chargey\s+video\b", "ChatGPT"),
+            (r"\b(?i)chargey\s+bt\b", "ChatGPT"),
+            (r"\b(?i)chargey\b", "ChatGPT"),
+            (r"\b(?i)chat\s+gbt\b", "ChatGPT"),
+            (r"\b(?i)chat\s+g\s+p\s+t\b", "ChatGPT"),
+            (r"\b(?i)chat\s+g\s+p\b", "ChatGPT"),
+            (r"\b(?i)chat\s+jpt\b", "ChatGPT"),
+            (r"\b(?i)chat\s+j\s+p\s+t\b", "ChatGPT"),
+            (r"\b(?i)check\s+gpt\b", "ChatGPT"),
+            (r"\b(?i)checkgpt\b", "ChatGPT"),
+            (r"\b(?i)chot\s+gpt\b", "ChatGPT"),
+            (r"\b(?i)chotgpt\b", "ChatGPT"),
+            (r"\b(?i)chatt\s+gpt\b", "ChatGPT"),
+            (r"\b(?i)set\s+gpt\b", "ChatGPT"),
+            (r"\b(?i)said\s+gpt\b", "ChatGPT"),
+            (r"\b(?i)shatgpt\b", "ChatGPT"),
+            (r"\b(?i)shat\s+gpt\b", "ChatGPT"),
+            (r"\b(?i)c\s+g\s+p\s+t\b", "ChatGPT"),
+            (r"\b(?i)cgpt\b", "ChatGPT"),
+            // Acoustic Homophones for "and ChatGPT" / "friends and ChatGPT"
+            (r"\b(?i)hello\s+friends,\s*chatgpt\b", "Hello friends and ChatGPT"),
+            (r"\b(?i)hello\s+friend,\s*chatgpt\b", "Hello friend and ChatGPT"),
+            (r"\b(?i)hello\s+friends\s+and\s+chatgpt\b", "Hello friends and ChatGPT"),
+            (r"\b(?i)hello\s+friend\s+and\s+chatgpt\b", "Hello friend and ChatGPT"),
+            (r"\b(?i)friends,\s*cellocegivity\b", "friends and ChatGPT"),
+            (r"\b(?i)friend,\s*cellocegivity\b", "friend and ChatGPT"),
+            (r"\b(?i)friends\s+and\s+cellocegivity\b", "friends and ChatGPT"),
+            (r"\b(?i)friend\s+and\s+cellocegivity\b", "friend and ChatGPT"),
+            (r"\b(?i)friends\s+cellocegivity\b", "friends and ChatGPT"),
+            (r"\b(?i)friend\s+cellocegivity\b", "friend and ChatGPT"),
+            (r"\b(?i)and\s+cellocegivity\b", "and ChatGPT"),
+            (r"\b(?i)cellocegivity\b", "and ChatGPT"),
+            (r"\b(?i)cello\s+cegivity\b", "and ChatGPT"),
+            (r"\b(?i)cegivity\b", "ChatGPT"),
+            (r"\b(?i)chatgpt\b", "ChatGPT"),
+            (r"\b(?i)heck\s+lot\b", "Hey Claude"),
+            (r"\b(?i)take\s+a\s+lot\s+my\s+name\b", "Hey Claude, my name"),
+            (r"\b(?i)take\s+claude\b", "Hey Claude"),
+            (r"\b(?i)take\s+claudia\b", "Hey Claude"),
+            (r"\b(?i)take\s+claud\b", "Hey Claude"),
+            (r"\b(?i)an\s+i-claudia\b", "in Claude"),
+            (r"\b(?i)i\s+claudia\b", "in Claude"),
+            (r"\b(?i)omi\s*hey\s+claude\b", "Hey Claude"),
+            (r"\b(?i)omi\s*claude\b", "Claude"),
+            // WhatsApp acoustic homophones
+            (r"\b(?i)how\s+(?:the\s+)?what's\s+up\s+works\b", "how WhatsApp works"),
+            (r"\b(?i)(?:the\s+)?what's\s+up\s+works\b", "WhatsApp works"),
+            (r"\b(?i)what's\s+up\s+and\s+creative\b", "WhatsApp and creative"),
+            (r"\b(?i)\bwhat's\s+up\s+(?:web|app|group|chat|call|status)\b", "WhatsApp $1"),
+            // Microsoft Office & Productivity Suite Normalizations
+            (r"\b(?i)microsoft\s+osu\s+system\b", "Microsoft Office system"),
+            (r"\b(?i)microsoft\s+osu\b", "Microsoft Office"),
+            (r"\b(?i)osu\s+system\b", "Office system"),
+            (r"\b(?i)microsoft\s+office\b", "Microsoft Office"),
+            (r"\b(?i)windows\s+11\b", "Windows 11"),
+            (r"\b(?i)a\s+operating\s+system\b", "an operating system"),
+            // Indefinite article grammar corrections ("a" before vowel sounds)
+            (r"\b(?i)\ba\s+(operating\s+system|application|api|sdk|interface|update|issue|error|exception|endpoint|object|instance|array|integration|algorithm|optimization|option|os)\b", "an $1"),
+            (r"\b(?i)by\s+windows\s+11\b", "for Windows 11"),
+            (r"\b(?i)by\s+windows\b", "for Windows"),
+            // Developer & Tech Homophones
+            (r"\b(?i)pool\s+requests?\b", "pull request"),
+            (r"\b(?i)front\s+end\b", "frontend"),
+            (r"\b(?i)back\s+end\b", "backend"),
+            (r"\b(?i)full\s+stack\b", "full-stack"),
+            (r"\b(?i)open\s+source\b", "open-source"),
+            (r"\b(?i)(?:pie\s+thon|py\s+thon)\b", "Python"),
+            (r"\b(?i)dock\s+er\b", "Docker"),
+            (r"\b(?i)docker\b", "Docker"),
+            (r"\b(?i)git\s+hub\b", "GitHub"),
+            (r"\b(?i)you\s+tube\b", "YouTube"),
+            (r"\b(?i)(?:next\s+js|nextjs)\b", "Next.js"),
+            (r"\b(?i)(?:node\s+js|nodejs)\b", "Node.js"),
+            (r"\b(?i)(?:react\s+js|reactjs)\b", "React"),
+            (r"\b(?i)(?:cloud\s+flare|cloud\s+flayer)\b", "Cloudflare"),
+            (r"\b(?i)micro\s+soft\b", "Microsoft"),
+            (r"\b(?i)power\s+point\b", "PowerPoint"),
+            (r"\b(?i)(?:ex\s+cel|ex\s+cell)\b", "Excel"),
+            (r"\b(?i)out\s+look\b", "Outlook"),
+            // "Word to win" / "like win" in Office Context
+            (r"\b(?i)like\s+a\s+mail\s*,\s*like\s+win\b", "like Mail, like Word"),
+            (r"\b(?i)like\s+mail\s*,\s*like\s+win\b", "like Mail, like Word"),
+            (r"\b(?i)like\s+win\s*,\s*what\s+else\s+is\s+there\b", "like Word, what else is there"),
+            (r"\b(?i)(?:like\s+)?(?:mail|email|outlook)\s*,\s*like\s+win\b", "Mail, like Word"),
+            (r"\b(?i)\bwin\s*,\s*(?:what\s+else\s+is\s+there\s*,\s*like\s+what\s+)?(?:like\s+)?powerpoint\b", "Word, PowerPoint"),
+            (r"\b(?i)\bwin\s*,\s*(?:and\s+)?(?:like\s+)?powerpoint\b", "Word, PowerPoint"),
+            (r"\b(?i)powerpoint\s+excel\b", "PowerPoint, Excel"),
+            (r"\b(?i)powerpoint\b", "PowerPoint"),
+            (r"\b(?i)excel\b", "Excel"),
+            (r"\b(?i)outlook\b", "Outlook"),
+            (r"\b(?i)claude\b", "Claude"),
+            (r"\b(?i)gemini\b", "Gemini"),
+            (r"\b(?i)javascript\b", "JavaScript"),
+            (r"\b(?i)typescript\b", "TypeScript"),
+            (r"\b(?i)github\b", "GitHub"),
+            (r"\b(?i)youtube\b", "YouTube"),
+            (r"\b(?i)vscode\b", "VS Code"),
+            (r"\b(?i)vs\s+code\b", "VS Code"),
+            (r"\b(?i)api\b", "API"),
+            (r"\b(?i)apis\b", "APIs"),
+            (r"\b(?i)sdk\b", "SDK"),
+            (r"\b(?i)sdks\b", "SDKs"),
+            (r"\b(?i)ui\b", "UI"),
+            (r"\b(?i)ux\b", "UX"),
+            (r"\b(?i)url\b", "URL"),
+            (r"\b(?i)urls\b", "URLs"),
+            (r"\b(?i)json\b", "JSON"),
+            (r"\b(?i)html\b", "HTML"),
+            (r"\b(?i)css\b", "CSS"),
+            (r"\b(?i)sql\b", "SQL"),
+            (r"\b(?i)sqlite\b", "SQLite"),
+            (r"\b(?i)tauri\b", "Tauri"),
+            (r"\b(?i)rea\b", "REA"),
+            (r"\b(?i)windows\b", "Windows"),
+            (r"\b(?i)macos\b", "macOS"),
+            (r"\b(?i)pr\b", "PR"),
+            (r"\b(?i)prs\b", "PRs"),
+            (r"\b(?i)mr\b", "MR"),
+            (r"\b(?i)mrs\b", "MRs"),
+            (r"\b(?i)llm\b", "LLM"),
+            (r"\b(?i)llms\b", "LLMs"),
+            (r"\b(?i)gpu\b", "GPU"),
+            (r"\b(?i)gpus\b", "GPUs"),
+            (r"\b(?i)cpu\b", "CPU"),
+            (r"\b(?i)cpus\b", "CPUs"),
+            (r"\b(?i)ram\b", "RAM"),
+            (r"\b(?i)ssd\b", "SSD"),
+            (r"\b(?i)ssds\b", "SSDs"),
+            (r"\b(?i)os\b", "OS"),
+            (r"\b(?i)cli\b", "CLI"),
+            (r"\b(?i)gui\b", "GUI"),
+            (r"\b(?i)uuid\b", "UUID"),
+            (r"\b(?i)graphql\b", "GraphQL"),
+            (r"\b(?i)postgresql\b", "PostgreSQL"),
+            (r"\b(?i)postgres\b", "Postgres"),
+            (r"\b(?i)mongodb\b", "MongoDB"),
+            (r"\b(?i)redis\b", "Redis"),
+            (r"\b(?i)nginx\b", "Nginx"),
+            (r"\b(?i)linux\b", "Linux"),
+            (r"\b(?i)ubuntu\b", "Ubuntu"),
+            (r"\b(?i)vitest\b", "Vitest"),
+            (r"\b(?i)vite\b", "Vite"),
+            (r"\b(?i)webpack\b", "Webpack"),
+            (r"\b(?i)http\b", "HTTP"),
+            (r"\b(?i)https\b", "HTTPS"),
+            (r"\b(?i)ssh\b", "SSH"),
+            (r"\b(?i)ssl\b", "SSL"),
+            (r"\b(?i)tls\b", "TLS"),
+            (r"\b(?i)dns\b", "DNS"),
+            (r"\b(?i)tcp\b", "TCP"),
+            (r"\b(?i)udp\b", "UDP"),
+            (r"\b(?i)ci\s*/\s*cd\b", "CI/CD"),
+            (r"\b(?i)ci\s+cd\b", "CI/CD"),
+            (r"\b(?i)saas\b", "SaaS"),
+            (r"\b(?i)stt\b", "STT"),
+            (r"\b(?i)tts\b", "TTS"),
+            (r"\b(?i)vad\b", "VAD"),
+            (r"\b(?i)nlp\b", "NLP"),
+            // Phonetic Name & App Brand Fixes
+            (r"\b(?i)a\s+m\s+i\s+y\s+o\b", "Amiyo"),
+            (r"\b(?i)my\s+name\s+is\s+zumio\s+gari\b", "My name is Amiyo Garai"),
+            (r"\b(?i)my\s+name\s+is\s+amiyo\s+gari\b", "My name is Amiyo Garai"),
+            (r"\b(?i)my\s+name\s+is\s+zumio\b", "My name is Amiyo"),
+            (r"\b(?i)zumio\s+gari\b", "Amiyo Garai"),
+            (r"\b(?i)zumio\s+garai\b", "Amiyo Garai"),
+            (r"\b(?i)zomio\s+gari\b", "Amiyo Garai"),
+            (r"\b(?i)zomio\s+garai\b", "Amiyo Garai"),
+            (r"\b(?i)zumiyo\s+gari\b", "Amiyo Garai"),
+            (r"\b(?i)zumiyo\s+garai\b", "Amiyo Garai"),
+            (r"\b(?i)zumiya\s+gari\b", "Amiyo Garai"),
+            (r"\b(?i)zomiya\s+gari\b", "Amiyo Garai"),
+            (r"\b(?i)amiyo\s+gari\b", "Amiyo Garai"),
+            (r"\b(?i)amiya\s+gari\b", "Amiyo Garai"),
+            (r"\b(?i)omiya\s+gari\b", "Amiyo Garai"),
+            (r"\b(?i)omiyo\s+gari\b", "Amiyo Garai"),
+            (r"\b(?i)ameyo\s+gari\b", "Amiyo Garai"),
+            (r"\b(?i)omyagurai\b", "Amiyo Garai"),
+            (r"\b(?i)omiya\s+gare\b", "Amiyo Garai"),
+            (r"\b(?i)amiya\s+gare\b", "Amiyo Garai"),
+            (r"\b(?i)omegra\b", "Amiyo Garai"),
+            (r"\b(?i)ineira\b", "Amiyo Garai"),
+            (r"\b(?i)zumio\b", "Amiyo"),
+            (r"\b(?i)zomio\b", "Amiyo"),
+            (r"\b(?i)zumiyo\b", "Amiyo"),
+            (r"\b(?i)zumiya\b", "Amiyo"),
+            (r"\b(?i)zomiya\b", "Amiyo"),
+            (r"\b(?i)zumeo\b", "Amiyo"),
+            (r"\b(?i)zomeo\b", "Amiyo"),
+            (r"\b(?i)omiya\b", "Amiyo"),
+            (r"\b(?i)omiyo\b", "Amiyo"),
+            (r"\b(?i)amio\b", "Amiyo"),
+            (r"\b(?i)ameyo\b", "Amiyo"),
+            (r"\b(?i)ameio\b", "Amiyo"),
+            (r"\b(?i)amiya\b", "Amiyo"),
+            (r"\b(?i)ameya\b", "Amiyo"),
+            (r"\b(?i)amiyo\b", "Amiyo"),
+            (r"\b(?i)omiya\s+flow\b", "AMIYO FLOW"),
+            (r"\b(?i)omiyo\s+flow\b", "AMIYO FLOW"),
+            (r"\b(?i)amiyo\s+flow\b", "AMIYO FLOW"),
+            // Advanced Speech Auto-Correction & Typo Repair
+            (r"\b(?i)i\s+won't\s+build\b", "I want to build"),
+            (r"\b(?i)i\s+want\s+build\b", "I want to build"),
+            (r"\b(?i)stantance\b", "sentence"),
+            (r"\b(?i)seplling\b", "spelling"),
+            (r"\b(?i)removwe\b", "remove"),
+            (r"\b(?i)teh\b", "the"),
+            (r"\b(?i)recieve\b", "receive"),
+            (r"\b(?i)recieved\b", "received"),
+            (r"\b(?i)recieving\b", "receiving"),
+            (r"\b(?i)seperate\b", "separate"),
+            (r"\b(?i)seperated\b", "separated"),
+            (r"\b(?i)untill\b", "until"),
+            (r"\b(?i)definately\b", "definitely"),
+            (r"\b(?i)occured\b", "occurred"),
+            (r"\b(?i)thier\b", "their"),
+            (r"\b(?i)wierd\b", "weird"),
+            (r"\b(?i)tommorow\b", "tomorrow"),
+            (r"\b(?i)tommorrow\b", "tomorrow"),
+            (r"\b(?i)goverment\b", "government"),
+            (r"\b(?i)enviroment\b", "environment"),
+            (r"\b(?i)refering\b", "referring"),
+            (r"\b(?i)writting\b", "writing"),
+            (r"\b(?i)commited\b", "committed"),
+            (r"\b(?i)collegue\b", "colleague"),
+            (r"\b(?i)existense\b", "existence"),
+            (r"\b(?i)succesful\b", "successful"),
+            (r"\b(?i)succesfully\b", "successfully"),
+            (r"\b(?i)begining\b", "beginning"),
+            (r"\b(?i)neccessary\b", "necessary"),
+            (r"\b(?i)unneccessary\b", "unnecessary"),
+            (r"\b(?i)truely\b", "truly"),
+            (r"\b(?i)accomodate\b", "accommodate"),
+            (r"\b(?i)concious\b", "conscious"),
+            (r"\b(?i)pronounciation\b", "pronunciation"),
+            // Spoken grammar, idiom and stutter corrections
+            (r"\b(?i)where\s+is\s+ends\b", "where it ends"),
+            (r"\b(?i)where\s+is\s+ended\b", "where it ended"),
+            (r"\b(?i)and\s+and\b", "and"),
+            (r"\b(?i)this\s+this\b", "this"),
+            (r"\b(?i)that\s+that\b", "that"),
+            (r"\b(?i)in\s+in\b", "in"),
+            (r"\b(?i)to\s+to\b", "to"),
+            (r"\b(?i)for\s+for\b", "for"),
+            (r"\b(?i)with\s+with\b", "with"),
+            (r"\b(?i)is\s+is\b", "is"),
+            (r"\b(?i)we\s+we\b", "we"),
+            (r"\b(?i)the\s+the\b", "the"),
+        ];
+        raw.into_iter().filter_map(|(p, r)| Regex::new(p).ok().map(|re| (re, r))).collect()
+    });
+    for (re, repl) in contraction_reps {
+        text = re.replace_all(&text, *repl).to_string();
+    }
+
+    // 3. Ensure a space follows commas, semicolons, and colons when followed directly by a letter (pre-compiled)
+    let missing_space = POLISH_MISSING_SPACE.get_or_init(|| Regex::new(r"([,;:])([a-zA-Z])").unwrap());
+    text = missing_space.replace_all(&text, "$1 $2").to_string();
+
+    // 4. Eliminate duplicate punctuation (pre-compiled)
+    let dup_punct_reps = POLISH_DUP_PUNCT.get_or_init(|| {
+        let raw = [
+            (r"\.{2,}", "."),
+            (r",{2,}", ","),
+            (r"\?{2,}", "?"),
+            (r"!{2,}", "!"),
+        ];
+        raw.into_iter().filter_map(|(p, r)| Regex::new(p).ok().map(|re| (re, r))).collect()
+    });
+    for (re, repl) in dup_punct_reps {
+        text = re.replace_all(&text, *repl).to_string();
+    }
+
+    // 5. Add comma after introductory transition phrases if missing (pre-compiled)
+    let intro_transitions = POLISH_INTRO_TRANSITIONS.get_or_init(|| {
+        let raw = [
+            (r"(?i)\b(however|therefore|furthermore|moreover|meanwhile|in addition|first of all|finally|for example|in fact|as a result)\s+([a-zA-Z])", "$1, $2"),
+        ];
+        raw.into_iter().filter_map(|(p, r)| Regex::new(p).ok().map(|re| (re, r))).collect()
+    });
+    for (re, repl) in intro_transitions {
+        text = re.replace_all(&text, *repl).to_string();
+    }
+
+    // 6. Sentence-boundary capitalization (pre-compiled)
+    let sent_re = POLISH_SENT_RE.get_or_init(|| Regex::new(r"(?:^|[.!?]\s+)([a-z])").unwrap());
+    text = sent_re.replace_all(&text, |caps: &regex::Captures| {
+        caps[0].to_uppercase()
+    }).to_string();
+
+    // 7. Ensure email addresses remain clean lowercase (pre-compiled)
+    let email_fix = POLISH_EMAIL_FIX.get_or_init(|| Regex::new(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}").unwrap());
+    text = email_fix.replace_all(&text, |caps: &regex::Captures| {
+        caps[0].to_lowercase()
+    }).to_string();
+
+    // 8. Auto-balance quotes, parentheses, and brackets for complete sentences
+    let quote_count = text.chars().filter(|&c| c == '"').count();
+    if quote_count % 2 != 0 {
+        text.push('"');
+    }
+    let open_parens = text.chars().filter(|&c| c == '(').count();
+    let close_parens = text.chars().filter(|&c| c == ')').count();
+    if open_parens > close_parens {
+        for _ in 0..(open_parens - close_parens) {
+            text.push(')');
         }
     }
-
-    // 2. Fix common spoken contractions missing apostrophes
-    let contraction_replacements = [
-        (r"\b(?i)dont\b", "don't"),
-        (r"\b(?i)cant\b", "can't"),
-        (r"\b(?i)wont\b", "won't"),
-        (r"\b(?i)didnt\b", "didn't"),
-        (r"\b(?i)isnt\b", "isn't"),
-        (r"\b(?i)arent\b", "aren't"),
-        (r"\b(?i)hasnt\b", "hasn't"),
-        (r"\b(?i)havent\b", "haven't"),
-        (r"\b(?i)couldnt\b", "couldn't"),
-        (r"\b(?i)shouldnt\b", "shouldn't"),
-        (r"\b(?i)wouldnt\b", "wouldn't"),
-        (r"\b(?i)thats\b", "that's"),
-        (r"\b(?i)whats\b", "what's"),
-        (r"\b(?i)theres\b", "there's"),
-        (r"\b(?i)heres\b", "here's"),
-        (r"\b(?i)lets\b", "let's"),
-        (r"\b(?i)youre\b", "you're"),
-        (r"\b(?i)theyre\b", "they're"),
-        (r"\b(?i)weve\b", "we've"),
-        (r"\b(?i)werent\b", "weren't"),
-        (r"\b(?i)doesnt\b", "doesn't"),
-        (r"\b(?i)couldve\b", "could've"),
-        (r"\b(?i)shouldve\b", "should've"),
-        (r"\b(?i)wouldve\b", "would've"),
-        (r"\b(?i)mustve\b", "must've"),
-        (r"\b(?i)mightve\b", "might've"),
-        (r"\b(?i)wasnt\b", "wasn't"),
-        (r"\b(?i)hadnt\b", "hadn't"),
-        (r"\b(?i)aint\b", "ain't"),
-        (r"\b(?i)youll\b", "you'll"),
-        (r"\b(?i)theyll\b", "they'll"),
-        (r"\b(?i)shell\b", "she'll"),
-        (r"\b(?i)youd\b", "you'd"),
-        (r"\b(?i)theyd\b", "they'd"),
-        (r"\b(?i)hed\b", "he'd"),
-        (r"\b(?i)shed\b", "she'd"),
-        (r"\b(?i)alot\b", "a lot"),
-        (r"\b(?i)eachother\b", "each other"),
-        (r"\b(?i)aswell\b", "as well"),
-        (r"\b(?i)infront\b", "in front"),
-        (r"\b(?i)nevermind\b", "never mind"),
-        (r"\b(?i)saterday\b", "Saturday"),
-        (r"\b(?i)wensday\b", "Wednesday"),
-        (r"\b(?i)thrusday\b", "Thursday"),
-        // Additional spoken contractions
-        (r"\b(?i)howd\b", "how'd"),
-        (r"\b(?i)whyd\b", "why'd"),
-        (r"\b(?i)whered\b", "where'd"),
-        (r"\b(?i)whatd\b", "what'd"),
-        (r"\b(?i)whod\b", "who'd"),
-        (r"\b(?i)wholl\b", "who'll"),
-        (r"\b(?i)whatll\b", "what'll"),
-        (r"\b(?i)thatll\b", "that'll"),
-        (r"\b(?i)howll\b", "how'll"),
-        (r"\b(?i)itll\b", "it'll"),
-        (r"\b(?i)cmon\b", "c'mon"),
-        // Developer & Tech Term Normalization
-        (r"\b(?i)chatgpt\s+like\s+interface\b", "ChatGPT-like interface"),
-        (r"\b(?i)chatgpt\s+like\b", "ChatGPT-like"),
-        (r"\b(?i)chargey\s+video\s+like\s+interface\b", "ChatGPT-like interface"),
-        (r"\b(?i)chargey\s+video\b", "ChatGPT"),
-        (r"\b(?i)chargey\s+bt\b", "ChatGPT"),
-        (r"\b(?i)chargey\b", "ChatGPT"),
-        (r"\b(?i)chat\s+gbt\b", "ChatGPT"),
-        (r"\b(?i)chat\s+g\s+p\s+t\b", "ChatGPT"),
-        (r"\b(?i)chat\s+g\s+p\b", "ChatGPT"),
-        (r"\b(?i)chat\s+jpt\b", "ChatGPT"),
-        (r"\b(?i)chat\s+j\s+p\s+t\b", "ChatGPT"),
-        (r"\b(?i)check\s+gpt\b", "ChatGPT"),
-        (r"\b(?i)checkgpt\b", "ChatGPT"),
-        (r"\b(?i)chot\s+gpt\b", "ChatGPT"),
-        (r"\b(?i)chotgpt\b", "ChatGPT"),
-        (r"\b(?i)chatt\s+gpt\b", "ChatGPT"),
-        (r"\b(?i)set\s+gpt\b", "ChatGPT"),
-        (r"\b(?i)said\s+gpt\b", "ChatGPT"),
-        (r"\b(?i)shatgpt\b", "ChatGPT"),
-        (r"\b(?i)shat\s+gpt\b", "ChatGPT"),
-        (r"\b(?i)c\s+g\s+p\s+t\b", "ChatGPT"),
-        (r"\b(?i)cgpt\b", "ChatGPT"),
-        // Acoustic Homophones for "and ChatGPT" / "friends and ChatGPT"
-        (r"\b(?i)hello\s+friends,\s*chatgpt\b", "Hello friends and ChatGPT"),
-        (r"\b(?i)hello\s+friend,\s*chatgpt\b", "Hello friend and ChatGPT"),
-        (r"\b(?i)hello\s+friends\s+and\s+chatgpt\b", "Hello friends and ChatGPT"),
-        (r"\b(?i)hello\s+friend\s+and\s+chatgpt\b", "Hello friend and ChatGPT"),
-        (r"\b(?i)friends,\s*cellocegivity\b", "friends and ChatGPT"),
-        (r"\b(?i)friend,\s*cellocegivity\b", "friend and ChatGPT"),
-        (r"\b(?i)friends\s+and\s+cellocegivity\b", "friends and ChatGPT"),
-        (r"\b(?i)friend\s+and\s+cellocegivity\b", "friend and ChatGPT"),
-        (r"\b(?i)friends\s+cellocegivity\b", "friends and ChatGPT"),
-        (r"\b(?i)friend\s+cellocegivity\b", "friend and ChatGPT"),
-        (r"\b(?i)and\s+cellocegivity\b", "and ChatGPT"),
-        (r"\b(?i)cellocegivity\b", "and ChatGPT"),
-        (r"\b(?i)cello\s+cegivity\b", "and ChatGPT"),
-        (r"\b(?i)cegivity\b", "ChatGPT"),
-        (r"\b(?i)chatgpt\b", "ChatGPT"),
-        (r"\b(?i)heck\s+lot\b", "Hey Claude"),
-        (r"\b(?i)take\s+a\s+lot\s+my\s+name\b", "Hey Claude, my name"),
-        (r"\b(?i)take\s+claude\b", "Hey Claude"),
-        (r"\b(?i)take\s+claudia\b", "Hey Claude"),
-        (r"\b(?i)take\s+claud\b", "Hey Claude"),
-        (r"\b(?i)an\s+i-claudia\b", "in Claude"),
-        (r"\b(?i)i\s+claudia\b", "in Claude"),
-        (r"\b(?i)omi\s*hey\s+claude\b", "Hey Claude"),
-        (r"\b(?i)omi\s*claude\b", "Claude"),
-        // WhatsApp acoustic homophones
-        (r"\b(?i)how\s+(?:the\s+)?what's\s+up\s+works\b", "how WhatsApp works"),
-        (r"\b(?i)(?:the\s+)?what's\s+up\s+works\b", "WhatsApp works"),
-        (r"\b(?i)what's\s+up\s+and\s+creative\b", "WhatsApp and creative"),
-        (r"\b(?i)\bwhat's\s+up\b(?=.*(?:user\s+manual|chatgpt|claude|windows|app|software|features|message|messaging|chat))", "WhatsApp"),
-        (r"\b(?i)\bwhat's\s+up\s+(?:web|app|group|chat|call|status)\b", "WhatsApp $1"),
-        // Microsoft Office & Productivity Suite Normalizations
-        (r"\b(?i)microsoft\s+osu\s+system\b", "Microsoft Office system"),
-        (r"\b(?i)microsoft\s+osu\b", "Microsoft Office"),
-        (r"\b(?i)osu\s+system\b", "Office system"),
-        (r"\b(?i)microsoft\s+office\b", "Microsoft Office"),
-        (r"\b(?i)windows\s+11\b", "Windows 11"),
-        (r"\b(?i)a\s+operating\s+system\b", "an operating system"),
-        // Indefinite article grammar corrections ("a" before vowel sounds)
-        (r"\b(?i)\ba\s+(operating\s+system|application|api|sdk|interface|update|issue|error|exception|endpoint|object|instance|array|integration|algorithm|optimization|option)\b", "an $1"),
-        (r"\b(?i)by\s+windows\s+11\b", "for Windows 11"),
-        (r"\b(?i)by\s+windows\b", "for Windows"),
-        // Developer & Tech Homophones
-        (r"\b(?i)pool\s+requests?\b", "pull request"),
-        (r"\b(?i)front\s+end\b", "frontend"),
-        (r"\b(?i)back\s+end\b", "backend"),
-        (r"\b(?i)full\s+stack\b", "full-stack"),
-        (r"\b(?i)open\s+source\b", "open-source"),
-        (r"\b(?i)(?:pie\s+thon|py\s+thon)\b", "Python"),
-        (r"\b(?i)dock\s+er\b", "Docker"),
-        (r"\b(?i)docker\b", "Docker"),
-        (r"\b(?i)git\s+hub\b", "GitHub"),
-        (r"\b(?i)you\s+tube\b", "YouTube"),
-        (r"\b(?i)(?:next\s+js|nextjs)\b", "Next.js"),
-        (r"\b(?i)(?:node\s+js|nodejs)\b", "Node.js"),
-        (r"\b(?i)(?:react\s+js|reactjs)\b", "React"),
-        (r"\b(?i)(?:cloud\s+flare|cloud\s+flayer)\b", "Cloudflare"),
-        (r"\b(?i)micro\s+soft\b", "Microsoft"),
-        (r"\b(?i)power\s+point\b", "PowerPoint"),
-        (r"\b(?i)(?:ex\s+cel|ex\s+cell)\b", "Excel"),
-        (r"\b(?i)out\s+look\b", "Outlook"),
-        // "Word to win" / "like win" in Office Context
-        (r"\b(?i)like\s+a\s+mail\s*,\s*like\s+win\b", "like Mail, like Word"),
-        (r"\b(?i)like\s+mail\s*,\s*like\s+win\b", "like Mail, like Word"),
-        (r"\b(?i)like\s+win\s*,\s*what\s+else\s+is\s+there\b", "like Word, what else is there"),
-        (r"\b(?i)like\s+win\b(?=.*(?:powerpoint|excel|office|microsoft))", "like Word"),
-        (r"\b(?i)(?:mail|email|outlook)\s*,\s*like\s+win\b", "Mail, like Word"),
-        (r"\b(?i)\bwin\s*,\s*(?:what\s+else\s+is\s+there\s*,\s*like\s+what\s+)?(?:like\s+)?powerpoint\b", "Word, PowerPoint"),
-        (r"\b(?i)\bwin\s*,\s*(?:and\s+)?(?:like\s+)?powerpoint\b", "Word, PowerPoint"),
-        (r"\b(?i)powerpoint\s+excel\b", "PowerPoint, Excel"),
-        (r"\b(?i)powerpoint\b", "PowerPoint"),
-        (r"\b(?i)excel\b", "Excel"),
-        (r"\b(?i)outlook\b", "Outlook"),
-        (r"\b(?i)claude\b", "Claude"),
-        (r"\b(?i)gemini\b", "Gemini"),
-        (r"\b(?i)javascript\b", "JavaScript"),
-        (r"\b(?i)typescript\b", "TypeScript"),
-        (r"\b(?i)github\b", "GitHub"),
-        (r"\b(?i)youtube\b", "YouTube"),
-        (r"\b(?i)vscode\b", "VS Code"),
-        (r"\b(?i)vs\s+code\b", "VS Code"),
-        (r"\b(?i)api\b", "API"),
-        (r"\b(?i)apis\b", "APIs"),
-        (r"\b(?i)sdk\b", "SDK"),
-        (r"\b(?i)sdks\b", "SDKs"),
-        (r"\b(?i)ui\b", "UI"),
-        (r"\b(?i)ux\b", "UX"),
-        (r"\b(?i)url\b", "URL"),
-        (r"\b(?i)urls\b", "URLs"),
-        (r"\b(?i)json\b", "JSON"),
-        (r"\b(?i)html\b", "HTML"),
-        (r"\b(?i)css\b", "CSS"),
-        (r"\b(?i)sql\b", "SQL"),
-        (r"\b(?i)sqlite\b", "SQLite"),
-        (r"\b(?i)tauri\b", "Tauri"),
-        (r"\b(?i)rea\b", "REA"),
-        (r"\b(?i)windows\b", "Windows"),
-        (r"\b(?i)macos\b", "macOS"),
-        (r"\b(?i)pr\b", "PR"),
-        (r"\b(?i)prs\b", "PRs"),
-        (r"\b(?i)mr\b", "MR"),
-        (r"\b(?i)mrs\b", "MRs"),
-        (r"\b(?i)llm\b", "LLM"),
-        (r"\b(?i)llms\b", "LLMs"),
-        (r"\b(?i)gpu\b", "GPU"),
-        (r"\b(?i)gpus\b", "GPUs"),
-        (r"\b(?i)cpu\b", "CPU"),
-        (r"\b(?i)cpus\b", "CPUs"),
-        (r"\b(?i)ram\b", "RAM"),
-        (r"\b(?i)ssd\b", "SSD"),
-        (r"\b(?i)ssds\b", "SSDs"),
-        (r"\b(?i)os\b", "OS"),
-        (r"\b(?i)cli\b", "CLI"),
-        (r"\b(?i)gui\b", "GUI"),
-        (r"\b(?i)uuid\b", "UUID"),
-        (r"\b(?i)graphql\b", "GraphQL"),
-        (r"\b(?i)postgresql\b", "PostgreSQL"),
-        (r"\b(?i)postgres\b", "Postgres"),
-        (r"\b(?i)mongodb\b", "MongoDB"),
-        (r"\b(?i)redis\b", "Redis"),
-        (r"\b(?i)nginx\b", "Nginx"),
-        (r"\b(?i)linux\b", "Linux"),
-        (r"\b(?i)ubuntu\b", "Ubuntu"),
-        (r"\b(?i)vitest\b", "Vitest"),
-        (r"\b(?i)vite\b", "Vite"),
-        (r"\b(?i)webpack\b", "Webpack"),
-        (r"\b(?i)http\b", "HTTP"),
-        (r"\b(?i)https\b", "HTTPS"),
-        (r"\b(?i)ssh\b", "SSH"),
-        (r"\b(?i)ssl\b", "SSL"),
-        (r"\b(?i)tls\b", "TLS"),
-        (r"\b(?i)dns\b", "DNS"),
-        (r"\b(?i)tcp\b", "TCP"),
-        (r"\b(?i)udp\b", "UDP"),
-        (r"\b(?i)ci\s*/\s*cd\b", "CI/CD"),
-        (r"\b(?i)ci\s+cd\b", "CI/CD"),
-        (r"\b(?i)saas\b", "SaaS"),
-        (r"\b(?i)stt\b", "STT"),
-        (r"\b(?i)tts\b", "TTS"),
-        (r"\b(?i)vad\b", "VAD"),
-        (r"\b(?i)nlp\b", "NLP"),
-        // Phonetic Name & App Brand Fixes
-        (r"\b(?i)a\s+m\s+i\s+y\s+o\b", "Amiyo"),
-        (r"\b(?i)my\s+name\s+is\s+zumio\s+gari\b", "My name is Amiyo Garai"),
-        (r"\b(?i)my\s+name\s+is\s+amiyo\s+gari\b", "My name is Amiyo Garai"),
-        (r"\b(?i)my\s+name\s+is\s+zumio\b", "My name is Amiyo"),
-        (r"\b(?i)zumio\s+gari\b", "Amiyo Garai"),
-        (r"\b(?i)zumio\s+garai\b", "Amiyo Garai"),
-        (r"\b(?i)zomio\s+gari\b", "Amiyo Garai"),
-        (r"\b(?i)zomio\s+garai\b", "Amiyo Garai"),
-        (r"\b(?i)zumiyo\s+gari\b", "Amiyo Garai"),
-        (r"\b(?i)zumiyo\s+garai\b", "Amiyo Garai"),
-        (r"\b(?i)zumiya\s+gari\b", "Amiyo Garai"),
-        (r"\b(?i)zomiya\s+gari\b", "Amiyo Garai"),
-        (r"\b(?i)amiyo\s+gari\b", "Amiyo Garai"),
-        (r"\b(?i)amiya\s+gari\b", "Amiyo Garai"),
-        (r"\b(?i)omiya\s+gari\b", "Amiyo Garai"),
-        (r"\b(?i)omiyo\s+gari\b", "Amiyo Garai"),
-        (r"\b(?i)ameyo\s+gari\b", "Amiyo Garai"),
-        (r"\b(?i)omyagurai\b", "Amiyo Garai"),
-        (r"\b(?i)omiya\s+gare\b", "Amiyo Garai"),
-        (r"\b(?i)amiya\s+gare\b", "Amiyo Garai"),
-        (r"\b(?i)omegra\b", "Amiyo Garai"),
-        (r"\b(?i)ineira\b", "Amiyo Garai"),
-        (r"\b(?i)zumio\b", "Amiyo"),
-        (r"\b(?i)zomio\b", "Amiyo"),
-        (r"\b(?i)zumiyo\b", "Amiyo"),
-        (r"\b(?i)zumiya\b", "Amiyo"),
-        (r"\b(?i)zomiya\b", "Amiyo"),
-        (r"\b(?i)zumeo\b", "Amiyo"),
-        (r"\b(?i)zomeo\b", "Amiyo"),
-        (r"\b(?i)omiya\b", "Amiyo"),
-        (r"\b(?i)omiyo\b", "Amiyo"),
-        (r"\b(?i)amio\b", "Amiyo"),
-        (r"\b(?i)ameyo\b", "Amiyo"),
-        (r"\b(?i)ameio\b", "Amiyo"),
-        (r"\b(?i)amiya\b", "Amiyo"),
-        (r"\b(?i)ameya\b", "Amiyo"),
-        (r"\b(?i)amiyo\b", "Amiyo"),
-        (r"\b(?i)omiya\s+flow\b", "AMIYO FLOW"),
-        (r"\b(?i)omiyo\s+flow\b", "AMIYO FLOW"),
-        (r"\b(?i)amiyo\s+flow\b", "AMIYO FLOW"),
-        // Advanced Speech Auto-Correction & Typo Repair
-        (r"\b(?i)i\s+won't\s+build\b", "I want to build"),
-        (r"\b(?i)i\s+want\s+build\b", "I want to build"),
-        (r"\b(?i)stantance\b", "sentence"),
-        (r"\b(?i)seplling\b", "spelling"),
-        (r"\b(?i)removwe\b", "remove"),
-        (r"\b(?i)teh\b", "the"),
-        (r"\b(?i)recieve\b", "receive"),
-        (r"\b(?i)recieved\b", "received"),
-        (r"\b(?i)recieving\b", "receiving"),
-        (r"\b(?i)seperate\b", "separate"),
-        (r"\b(?i)seperated\b", "separated"),
-        (r"\b(?i)untill\b", "until"),
-        (r"\b(?i)definately\b", "definitely"),
-        (r"\b(?i)occured\b", "occurred"),
-        (r"\b(?i)thier\b", "their"),
-        (r"\b(?i)wierd\b", "weird"),
-        (r"\b(?i)tommorow\b", "tomorrow"),
-        (r"\b(?i)tommorrow\b", "tomorrow"),
-        (r"\b(?i)goverment\b", "government"),
-        (r"\b(?i)enviroment\b", "environment"),
-        (r"\b(?i)refering\b", "referring"),
-        (r"\b(?i)writting\b", "writing"),
-        (r"\b(?i)commited\b", "committed"),
-        (r"\b(?i)collegue\b", "colleague"),
-        (r"\b(?i)existense\b", "existence"),
-        (r"\b(?i)succesful\b", "successful"),
-        (r"\b(?i)succesfully\b", "successfully"),
-        (r"\b(?i)begining\b", "beginning"),
-        (r"\b(?i)neccessary\b", "necessary"),
-        (r"\b(?i)unneccessary\b", "unnecessary"),
-        (r"\b(?i)truely\b", "truly"),
-        (r"\b(?i)accomodate\b", "accommodate"),
-        (r"\b(?i)concious\b", "conscious"),
-        (r"\b(?i)pronounciation\b", "pronunciation"),
-        // Spoken grammar, idiom and stutter corrections
-        (r"\b(?i)where\s+is\s+ends\b", "where it ends"),
-        (r"\b(?i)where\s+is\s+ended\b", "where it ended"),
-        (r"\b(?i)and\s+and\b", "and"),
-        (r"\b(?i)this\s+this\b", "this"),
-        (r"\b(?i)that\s+that\b", "that"),
-        (r"\b(?i)in\s+in\b", "in"),
-        (r"\b(?i)to\s+to\b", "to"),
-        (r"\b(?i)for\s+for\b", "for"),
-        (r"\b(?i)with\s+with\b", "with"),
-        (r"\b(?i)is\s+is\b", "is"),
-        (r"\b(?i)we\s+we\b", "we"),
-        (r"\b(?i)the\s+the\b", "the"),
-    ];
-    for (pat, repl) in contraction_replacements {
-        if let Ok(re) = Regex::new(pat) {
-            text = re.replace_all(&text, repl).to_string();
+    let open_brackets = text.chars().filter(|&c| c == '[').count();
+    let close_brackets = text.chars().filter(|&c| c == ']').count();
+    if open_brackets > close_brackets {
+        for _ in 0..(open_brackets - close_brackets) {
+            text.push(']');
         }
-    }
-
-    // 3. Ensure a space follows commas, semicolons, and colons when followed directly by a letter
-    if let Ok(missing_space) = Regex::new(r"([,;:])([a-zA-Z])") {
-        text = missing_space.replace_all(&text, "$1 $2").to_string();
-    }
-
-    // 4. Eliminate duplicate punctuation (".." -> ".", ",," -> ",", "??" -> "?", "!!" -> "!")
-    let dup_punct = [
-        (r"\.{2,}", "."),
-        (r",{2,}", ","),
-        (r"\?{2,}", "?"),
-        (r"!{2,}", "!"),
-    ];
-    for (pat, repl) in dup_punct {
-        if let Ok(re) = Regex::new(pat) {
-            text = re.replace_all(&text, repl).to_string();
-        }
-    }
-
-    // 5. Add comma after introductory transition phrases if missing
-    let intro_transitions = [
-        (r"(?i)\b(however|therefore|furthermore|moreover|meanwhile|in addition|first of all|finally|for example|in fact|as a result)\s+([a-zA-Z])", "$1, $2"),
-    ];
-    for (pat, repl) in intro_transitions {
-        if let Ok(re) = Regex::new(pat) {
-            text = re.replace_all(&text, repl).to_string();
-        }
-    }
-
-    // 6. Sentence-boundary capitalization:
-    // Capitalize every letter following [.?!]\s+ (sentence boundary with space)
-    if let Ok(sent_re) = Regex::new(r"(?:^|[.!?]\s+)([a-z])") {
-        text = sent_re.replace_all(&text, |caps: &regex::Captures| {
-            caps[0].to_uppercase()
-        }).to_string();
-    }
-
-    // 7. Ensure email addresses remain clean lowercase
-    if let Ok(email_fix) = Regex::new(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}") {
-        text = email_fix.replace_all(&text, |caps: &regex::Captures| {
-            caps[0].to_lowercase()
-        }).to_string();
     }
 
     text
@@ -1593,7 +1695,7 @@ pub fn remove_duplicate_words(input: &str) -> String {
     result.join(" ")
 }
 
-/// Deduplicates adjacent repeated 2-word or 3-word phrases ("we can we can" -> "we can", "we can do we can do" -> "we can do")
+/// Deduplicates adjacent repeated 2-word, 3-word, or 4-word phrases
 pub fn remove_repeated_phrases(input: &str) -> String {
     let words: Vec<&str> = input.split_whitespace().collect();
     if words.len() < 4 {
@@ -1603,7 +1705,45 @@ pub fn remove_repeated_phrases(input: &str) -> String {
     let mut result: Vec<String> = Vec::new();
     let mut i = 0;
     while i < words.len() {
-        // First check 3-word phrase repeat: i, i+1, i+2 == i+3, i+4, i+5
+        // 1. Check 4-word phrase repeat: i..i+4 == i+4..i+8
+        if i + 7 < words.len() {
+            let w1 = words[i].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let w2 = words[i + 1].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let w3 = words[i + 2].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let w4 = words[i + 3].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let w5 = words[i + 4].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let w6 = words[i + 5].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let w7 = words[i + 6].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let w8 = words[i + 7].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+
+            if !w1.is_empty() && !w2.is_empty() && !w3.is_empty() && !w4.is_empty()
+                && w1 == w5 && w2 == w6 && w3 == w7 && w4 == w8
+            {
+                let mut first_w4 = words[i + 3].to_string();
+                if first_w4.ends_with(',') {
+                    first_w4.pop();
+                }
+                result.push(words[i].to_string());
+                result.push(words[i + 1].to_string());
+                result.push(words[i + 2].to_string());
+                result.push(first_w4);
+                i += 8;
+                while i + 3 < words.len() {
+                    let nw1 = words[i].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+                    let nw2 = words[i + 1].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+                    let nw3 = words[i + 2].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+                    let nw4 = words[i + 3].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+                    if nw1 == w1 && nw2 == w2 && nw3 == w3 && nw4 == w4 {
+                        i += 4;
+                    } else {
+                        break;
+                    }
+                }
+                continue;
+            }
+        }
+
+        // 2. Check 3-word phrase repeat: i, i+1, i+2 == i+3, i+4, i+5
         if i + 5 < words.len() {
             let w1 = words[i].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
             let w2 = words[i + 1].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
@@ -1635,7 +1775,7 @@ pub fn remove_repeated_phrases(input: &str) -> String {
             }
         }
 
-        // Then check 2-word phrase repeat: i, i+1 == i+2, i+3
+        // 3. Check 2-word phrase repeat: i, i+1 == i+2, i+3
         if i + 3 < words.len() {
             let w1 = words[i].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
             let w2 = words[i + 1].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();

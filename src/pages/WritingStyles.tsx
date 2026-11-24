@@ -428,38 +428,44 @@ function simulateCleanup(
 
   // 1. Spoken self corrections
   if (removeCorrections) {
-    const clauseMatch = text.match(
-      /(?:^|[.!?\n]\s*)(?:.+?)[,\s]+(wait let me start over|let me start over|start over|scratch all that|actually what I meant was|correction please|I mean to say|no no wait|no no no|no no|no wait|scratch that|sorry I meant|actually no|wait no|no sorry|sorry no|oops I meant|or rather|correction|let me rephrase|strike that|I mean)[,\s]+(.+)/i
-    );
-    if (clauseMatch && clauseMatch[2]) {
-      const trigger = (clauseMatch[1] || '').toLowerCase();
-      const repl = clauseMatch[2].trim();
-      const matchIndex = clauseMatch.index ?? 0;
-      const before = text.slice(0, matchIndex).trim();
+    for (let iter = 0; iter < 5; iter++) {
+      const clauseMatch = text.match(
+        /(?:^|[.!?\n]\s*)(?:.+?)[,\s]+(wait let me start over|let me start over|start over|scratch all that|actually what I meant was|correction please|I mean to say|no no wait|no no no|no no|no wait|scratch that last word|scratch that|sorry scratch that|sorry I meant|actually no|wait no|no sorry|sorry no|oops I meant|or rather|rather|make that|whoops|my bad|wait let me rephrase|replace that with|cancel that|disregard that|correction|let me rephrase|strike that|I mean)[,\s]+(.+)/i
+      );
+      if (clauseMatch && clauseMatch[2]) {
+        const trigger = (clauseMatch[1] || '').toLowerCase();
+        const repl = clauseMatch[2].trim();
+        const matchIndex = clauseMatch.index ?? 0;
+        const before = text.slice(0, matchIndex).trim();
 
-      const isFullRestart = trigger.includes("start over")
-        || trigger.includes("scratch all that")
-        || trigger.includes("delete all that")
-        || trigger.includes("clear that");
+        const isFullRestart = trigger.includes("start over")
+          || trigger.includes("scratch all that")
+          || trigger.includes("delete all that")
+          || trigger.includes("clear that");
 
-      if (isFullRestart) {
-        text = repl;
-      } else {
-        const pivotResolved = resolvePivotBacktrack(before, repl);
-        if (pivotResolved) {
-          text = pivotResolved;
-        } else {
+        if (isFullRestart) {
           text = repl;
+        } else {
+          const pivotResolved = resolvePivotBacktrack(before, repl);
+          if (pivotResolved) {
+            text = pivotResolved;
+          } else {
+            text = repl;
+          }
         }
-      }
-    } else {
-      const bareNoMatch = text.match(/(?:,\s*no[,\s]+|\s+no[,\s]+)(.+)/i);
-      if (bareNoMatch && bareNoMatch[1] && bareNoMatch.index !== undefined) {
-        const repl = bareNoMatch[1].trim();
-        const before = text.slice(0, bareNoMatch.index).trim();
-        const pivotResolved = resolvePivotBacktrack(before, repl);
-        if (pivotResolved) {
-          text = pivotResolved;
+      } else {
+        const bareNoMatch = text.match(/(?:,\s*no[,\s]+|\s+no[,\s]+)(.+)/i);
+        if (bareNoMatch && bareNoMatch[1] && bareNoMatch.index !== undefined) {
+          const repl = bareNoMatch[1].trim();
+          const before = text.slice(0, bareNoMatch.index).trim();
+          const pivotResolved = resolvePivotBacktrack(before, repl);
+          if (pivotResolved) {
+            text = pivotResolved;
+          } else {
+            break;
+          }
+        } else {
+          break;
         }
       }
     }
@@ -472,6 +478,7 @@ function simulateCleanup(
     text = text.replace(/\b(?:what\s+I\s+mean\s+to\s+say|what\s+I'm\s+saying\s+is|what\s+I\s+meant\s+to\s+say|what\s+I\s+wanted\s+to\s+say|I\s+was\s+gonna\s+say)\b,?/gi, '');
     text = text.replace(/\b(?:how\s+do\s+you\s+say|how\s+can\s+I\s+say|how\s+to\s+say|how\s+should\s+I\s+put\s+it|what\s+do\s+you\s+call\s+it|what\s+is\s+it\s+called|what's\s+it\s+called|what\s+was\s+it\s+called|what\s+was\s+it)\b,?/gi, '');
     text = text.replace(/\b(?:if\s+you\s+get\s+what\s+I\s+mean|if\s+you\s+know\s+what\s+I\s+mean)\b,?/gi, '');
+    text = text.replace(/\b(?:at\s+the\s+end\s+of\s+the\s+day|more\s+or\s+less|for\s+what\s+it's\s+worth|what\s+was\s+I\s+saying|where\s+was\s+I)\b,?/gi, '');
     // Pause & thinking hesitations
     text = text.replace(/\b(?:let's\s+see|let\s+me\s+see|let\s+me\s+think|lemme\s+see)\b,?/gi, '');
     text = text.replace(/\b(?:give\s+me\s+a\s+second|give\s+me\s+a\s+sec|give\s+me\s+a\s+minute|give\s+me\s+a\s+moment|just\s+a\s+second|just\s+a\s+moment|just\s+a\s+sec|one\s+second|one\s+sec|one\s+moment)\b,?/gi, '');
@@ -480,8 +487,9 @@ function simulateCleanup(
     text = text.replace(/\b(?:and\s+things\s+like\s+that|and\s+that\s+sort\s+of\s+thing|and\s+so\s+on\s+and\s+so\s+forth|and\s+so\s+on|and\s+stuff\s+like\s+that|and\s+all\s+that\s+stuff|and\s+all\s+of\s+that|and\s+all\s+that|or\s+something\s+like\s+that|or\s+something|or\s+whatever\s+it\s+is|or\s+whatever)\b,?/gi, '');
     text = text.replace(/\bload\s*,?\s*plug\s*,?\s*closely\b,?/gi, '');
     text = text.replace(/\b(?:no no wait|no no no|no no)\b,?/gi, '');
-    // Regional slang particles
-    text = text.replace(/\b(?:bhai|accha|matlab|na\s+re|arrey|arre|yaar|toh)\b,?/gi, '');
+    // Regional slang particles & vocal throat clears
+    text = text.replace(/\b(?:bhai|accha|matlab|na\s+re|arrey|arre\s+yaar|arre|yaar|toh\s+phir|toh|ki\s+na|mane)\b,?/gi, '');
+    text = text.replace(/\b(?:ahem|uh-huh|mhm)\b,?/gi, '');
     // Hesitation syllables & combined stutter tokens
     text = text.replace(/\b(?:um\s+aa|aa\s+um|um\s+uh|uh\s+um|er\s+um|um\s+er|aa\s+nu|nu\s+aa|nu\s+na|na\s+nu|nu\s+nu|na\s+na)\b,?/gi, '');
     text = text.replace(/\b(?:een|aam|ehm|ehn|uhn|omiyaya)\b,?/gi, '');
@@ -501,6 +509,10 @@ function simulateCleanup(
 
   // 3. Repeated stutters
   if (removeRepeats) {
+    // Syllable stutters ("w- we can" -> "we can", "th- the" -> "the", "I- I" -> "I")
+    text = text.replace(/\b([a-zA-Z]{1,3})[-—]\s*(\1[a-zA-Z]*)\b/gi, '$2');
+    // 4-word phrase repeat (strip trailing pause comma)
+    text = text.replace(/\b([a-zA-Z0-9]+)\s+([a-zA-Z0-9]+)\s+([a-zA-Z0-9]+)\s+([a-zA-Z0-9]+),?\s+\1\s+\2\s+\3\s+\4\b/gi, '$1 $2 $3 $4');
     // 3-word phrase repeat (strip trailing pause comma)
     text = text.replace(/\b([a-zA-Z0-9]+)\s+([a-zA-Z0-9]+)\s+([a-zA-Z0-9]+),?\s+\1\s+\2\s+\3\b/gi, '$1 $2 $3');
     // 2-word phrase repeat (strip trailing pause comma)
@@ -646,6 +658,9 @@ function simulateCleanup(
       [/\bcouldnt\b/gi, "couldn't"],
       [/\bshouldnt\b/gi, "shouldn't"],
       [/\bwouldnt\b/gi, "wouldn't"],
+      [/\b(?:couldntve|couldn't've)\b/gi, "couldn't have"],
+      [/\b(?:shouldntve|shouldn't've)\b/gi, "shouldn't have"],
+      [/\b(?:wouldntve|wouldn't've)\b/gi, "wouldn't have"],
       [/\bthats\b/gi, "that's"],
       [/\bwhats\b/gi, "what's"],
       [/\btheres\b/gi, "there's"],
@@ -671,6 +686,15 @@ function simulateCleanup(
       [/\btheyd\b/gi, "they'd"],
       [/\bhed\b/gi, "he'd"],
       [/\bshed\b/gi, "she'd"],
+      [/\bwhove\b/gi, "who've"],
+      [/\bwheres\b/gi, "where's"],
+      [/\bhows\b/gi, "how's"],
+      [/\bwhatre\b/gi, "what're"],
+      [/\bthered\b/gi, "there'd"],
+      [/\bsomeones\b/gi, "someone's"],
+      [/\beveryones\b/gi, "everyone's"],
+      [/\bnobodys\b/gi, "nobody's"],
+      [/\banyones\b/gi, "anyone's"],
       [/\balot\b/gi, "a lot"],
       [/\beachother\b/gi, "each other"],
       [/\baswell\b/gi, "as well"],
@@ -962,6 +986,22 @@ function simulateCleanup(
 
     // Ensure email addresses remain clean lowercase
     text = text.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, (match) => match.toLowerCase());
+
+    // Auto-balance quotes, parentheses, and brackets for complete sentences
+    const quoteCount = (text.match(/"/g) || []).length;
+    if (quoteCount % 2 !== 0) {
+      text += '"';
+    }
+    const openParens = (text.match(/\(/g) || []).length;
+    const closeParens = (text.match(/\)/g) || []).length;
+    if (openParens > closeParens) {
+      text += ')'.repeat(openParens - closeParens);
+    }
+    const openBrackets = (text.match(/\[/g) || []).length;
+    const closeBrackets = (text.match(/\]/g) || []).length;
+    if (openBrackets > closeBrackets) {
+      text += ']'.repeat(openBrackets - closeBrackets);
+    }
   }
 
   // Clean spacing and line breaks
@@ -981,6 +1021,8 @@ function simulateCleanup(
         if (!cap.endsWith('?')) {
           cap += '?';
         }
+      } else if (cap.endsWith('"') || cap.endsWith(')') || cap.endsWith(']')) {
+        // preserve
       } else if (!isIncompleteSentence(cap) && !/[.!?:]$/.test(cap)) {
         cap += '.';
       }
@@ -1136,6 +1178,22 @@ export const WritingStyles: React.FC = () => {
       label: 'Irritation Words & Tech Normalization',
       text: 'Take Claude, we need a API and a SDK for pool request, how do you say, let me think we can build with next js and dock er and stuff like that',
     },
+    {
+      label: 'Syllables & 4-Word Stutters',
+      text: 'w- we can we can deploy the production app we can deploy the production app now',
+    },
+    {
+      label: 'Self-Correction & Backtracks',
+      text: 'schedule five no make that six servers for Friday or rather Monday',
+    },
+    {
+      label: 'Expanded Contractions & Quote Balancing',
+      text: 'we couldntve known where hes going. "open the app and test it',
+    },
+    {
+      label: 'Regional Slang & Thinking Pauses',
+      text: 'arre yaar what was I saying we should deploy to production toh phir',
+    },
   ];
 
   const QUICK_SUGGESTIONS = ['like', 'literally', 'yaar', 'arre', 'toh', 'I mean', 'basically', 'actually', 'bhai', 'accha'];
@@ -1280,13 +1338,13 @@ export const WritingStyles: React.FC = () => {
                 </div>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed min-h-[36px]">
-                Filters out hesitations like <span className="text-amber-300 font-mono">um, aa, aah, nu, na, uh, erm, ah, you know</span>, and custom fillers.
+                Filters out hesitations, throat clears, and regional slang like <span className="text-amber-300 font-mono">um, aa, nu, na, uh, erm, you know, yaar, toh phir</span>.
               </p>
             </div>
             <div className="text-[10px] bg-slate-950/90 rounded-lg p-2.5 border border-slate-800/80 font-mono text-slate-400 min-h-[52px] flex flex-col justify-center">
               <span className="text-slate-600 block text-[9px]">Preview:</span>
               <span>
-                "um hello nu we can start" →{' '}
+                "um hello nu we can start toh phir" →{' '}
                 <span className="text-amber-300 font-medium">"Hello we can start."</span>
               </span>
             </div>
@@ -1336,13 +1394,13 @@ export const WritingStyles: React.FC = () => {
                 </div>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed min-h-[36px]">
-                Deduplicates repeated single words and 2-word phrases like <span className="text-cyan-300 font-mono">"the the"</span> and <span className="text-cyan-300 font-mono">"we can we can"</span>.
+                Deduplicates hyphenated stutters (<span className="text-cyan-300 font-mono">"w- we"</span>), single words, and multi-word phrases (<span className="text-cyan-300 font-mono">"we can we can"</span>).
               </p>
             </div>
             <div className="text-[10px] bg-slate-950/90 rounded-lg p-2.5 border border-slate-800/80 font-mono text-slate-400 min-h-[52px] flex flex-col justify-center">
               <span className="text-slate-600 block text-[9px]">Preview:</span>
               <span>
-                "we can we can deploy" →{' '}
+                "w- we can we can deploy" →{' '}
                 <span className="text-cyan-300 font-medium">"We can deploy."</span>
               </span>
             </div>
@@ -1392,13 +1450,13 @@ export const WritingStyles: React.FC = () => {
                 </div>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed min-h-[36px]">
-                Detects backtrack phrases like <span className="text-emerald-300 font-mono">"no wait"</span>, <span className="text-emerald-300 font-mono">"scratch that"</span>, keeping your true speech.
+                Detects backtrack phrases like <span className="text-emerald-300 font-mono">"no wait"</span>, <span className="text-emerald-300 font-mono">"or rather"</span>, <span className="text-emerald-300 font-mono">"make that"</span>, keeping your true speech.
               </p>
             </div>
             <div className="text-[10px] bg-slate-950/90 rounded-lg p-2.5 border border-slate-800/80 font-mono text-slate-400 min-h-[52px] flex flex-col justify-center">
               <span className="text-slate-600 block text-[9px]">Preview:</span>
               <span>
-                "Friday no wait Monday" →{' '}
+                "Friday or rather Monday" →{' '}
                 <span className="text-emerald-300 font-medium">"Monday."</span>
               </span>
             </div>
@@ -1448,14 +1506,14 @@ export const WritingStyles: React.FC = () => {
                 </div>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed min-h-[36px]">
-                Capitalizes all sentences, fixes pronoun <span className="text-violet-300 font-mono">"I"</span>, repairs contractions (<span className="text-violet-300 font-mono">don't, can't</span>), and balances punctuation.
+                Capitalizes all sentences, fixes pronoun <span className="text-violet-300 font-mono">"I"</span>, repairs contractions (<span className="text-violet-300 font-mono">don't, couldn't have</span>), and balances quotes.
               </p>
             </div>
             <div className="text-[10px] bg-slate-950/90 rounded-lg p-2.5 border border-slate-800/80 font-mono text-slate-400 min-h-[52px] flex flex-col justify-center">
               <span className="text-slate-600 block text-[9px]">Preview:</span>
               <span>
-                "we arrived. it works. dont worry" →{' '}
-                <span className="text-violet-300 font-medium">"We arrived. It works. Don't worry."</span>
+                "we couldntve failed. \"dont worry" →{' '}
+                <span className="text-violet-300 font-medium">"We couldn't have failed. Don't worry."</span>
               </span>
             </div>
           </div>

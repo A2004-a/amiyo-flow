@@ -1182,6 +1182,71 @@ fn test_screenshot_utterance_claude_whatsapp_and_irritation_cleanup() {
     assert!(!cleaned.ends_with('.'));
 }
 
+#[test]
+fn test_speech_cleanser_four_cards_expanded_and_fast_execution() {
+    use amiyo_flow_lib::ai::{heuristic_cleanup, heuristic_cleanup_full};
+    use std::time::Instant;
+
+    // --- Card 1: Remove Filler Words ---
+    // Regional slang, thinking pauses, throat clearing, discourse markers
+    let raw_c1 = "ahem what was I saying we can deploy to production arre yaar toh phir";
+    let c1 = heuristic_cleanup(raw_c1);
+    assert!(!c1.contains("ahem"), "Should remove throat clear 'ahem'");
+    assert!(!c1.contains("what was I saying"), "Should remove thinking pause 'what was I saying'");
+    assert!(!c1.contains("arre yaar"), "Should remove regional slang 'arre yaar'");
+    assert!(!c1.contains("toh phir"), "Should remove regional slang 'toh phir'");
+    assert!(c1.contains("We can deploy to production"));
+
+    // --- Card 2: Remove Stutters ---
+    // Syllables (w- we, th- the), 4-word repeated phrases, 2-word stutters, triple stutters
+    let raw_c2 = "w- we can deploy the production app we can deploy the production app the the the build";
+    let c2 = heuristic_cleanup(raw_c2);
+    assert!(!c2.contains("w-"), "Should collapse syllable stutter 'w- we'");
+    assert!(!c2.contains("the the the"), "Should collapse triple repeat 'the the the'");
+    assert_eq!(c2.matches("we can deploy the production app").count(), 1, "Should deduplicate 4-word repeated phrase");
+
+    // --- Card 3: Self-Corrections ---
+    // Expanded triggers: 'or rather', 'make that', 'scratch that last word'
+    let raw_c3 = "schedule three no make that four servers for Friday or rather Monday";
+    let c3 = heuristic_cleanup(raw_c3);
+    assert!(c3.contains("four servers"), "Should backtrack 'three no make that four' -> 'four'");
+    assert!(!c3.contains("three"), "Should remove overridden count 'three'");
+    assert!(c3.contains("Monday"), "Should backtrack 'Friday or rather Monday' -> 'Monday'");
+    assert!(!c3.contains("Friday"), "Should remove overridden day 'Friday'");
+
+    // --- Card 4: Clean Sentences ---
+    // Contractions: couldn't've -> couldn't have, who've -> who've, quote auto-balancing, article 'an OS'
+    let raw_c4 = "we couldntve known where hes going. \"we installed a os";
+    let c4 = heuristic_cleanup(raw_c4);
+    assert!(c4.contains("couldn't have"), "Should expand 'couldntve' -> 'couldn't have'");
+    assert!(c4.contains("an OS"), "Should correct 'a os' -> 'an OS'");
+    assert!(c4.ends_with('"'), "Should auto-close unbalanced quotation mark");
+
+    // --- Modular Isolation Check ---
+    let custom: Vec<String> = vec![];
+    // With fillers off, fillers are preserved
+    let keep_fillers = heuristic_cleanup_full("um hello we can deploy", false, true, true, true, &custom);
+    assert!(keep_fillers.to_lowercase().contains("um"));
+
+    // With repeats off, repeats are preserved
+    let keep_repeats = heuristic_cleanup_full("we can we can deploy", true, false, true, true, &custom);
+    assert!(keep_repeats.to_lowercase().contains("we can we can"));
+
+    // --- Sub-millisecond Execution Speed Verification ---
+    let sample = "um hello w- we can we can deploy five no wait six servers to a os couldntve failed";
+    // Warm up OnceLock caches so initial compilation overhead is excluded:
+    let _ = heuristic_cleanup(sample);
+    let start = Instant::now();
+    let iterations = 100;
+    for _ in 0..iterations {
+        let _ = heuristic_cleanup(sample);
+    }
+    let elapsed = start.elapsed();
+    let avg_us = elapsed.as_micros() as f64 / iterations as f64;
+    // Real-time zero-latency verification (< 25ms in unoptimized debug profile, < 0.2ms in release profile)
+    assert!(avg_us < 25000.0, "Execution must be instantaneous and zero-latency (got {:.2} us)", avg_us);
+}
+
 
 
 

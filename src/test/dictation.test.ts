@@ -222,4 +222,31 @@ describe('AMIYO FLOW Frontend Store & Pipeline Tests', () => {
     expect(cssContent).toContain('::-webkit-scrollbar');
     expect(cssContent).toContain('scrollbar-width: thin');
   });
+
+  it('verifies all 4 expanded speech cleanser modules in WritingStyles', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const wsContent = fs.readFileSync(path.resolve(__dirname, '../pages/WritingStyles.tsx'), 'utf-8');
+
+    // Card 1: Remove Filler Words (hesitations, throat clears, thinking pauses, regional slang)
+    expect(wsContent).toContain('Remove Filler Words');
+    expect(wsContent).toContain('ahem');
+    expect(wsContent).toContain('what was I saying');
+    expect(wsContent).toContain('arre yaar');
+
+    // Card 2: Remove Stutters (syllable stutters, 4-word, 3-word, 2-word, single repeats)
+    expect(wsContent).toContain('Remove Stutters');
+    expect(wsContent).toContain('w- we');
+
+    // Card 3: Self-Corrections (backtrack triggers: or rather, make that, scratch that last word)
+    expect(wsContent).toContain('Self-Corrections');
+    expect(wsContent).toContain('or rather');
+    expect(wsContent).toContain('make that');
+
+    // Card 4: Clean Sentences (expanded contractions, quote & bracket balancing, pronoun I)
+    expect(wsContent).toContain('Clean Sentences');
+    expect(wsContent).toContain("couldn't have");
+    expect(wsContent).toContain('quoteCount');
+    expect(wsContent).toContain('openParens');
+  });
 });
