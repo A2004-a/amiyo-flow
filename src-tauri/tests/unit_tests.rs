@@ -457,3 +457,62 @@ fn test_headless_python_detection_and_silent_command() {
         }
     }
 }
+
+#[test]
+fn test_interrogative_question_and_currency_formatting() {
+    use amiyo_flow_lib::ai::{heuristic_cleanup, is_interrogative_sentence};
+
+    // 1. Interrogative Questions
+    assert!(is_interrogative_sentence("what time is our next team meeting"));
+    assert!(is_interrogative_sentence("can you review the pull request"));
+    assert!(is_interrogative_sentence("could we check the logs"));
+    assert!(is_interrogative_sentence("is this the latest release"));
+    assert!(is_interrogative_sentence("how do we deploy the application"));
+    assert!(!is_interrogative_sentence("what we need is more time"));
+    assert!(!is_interrogative_sentence("how it works is simple"));
+
+    let q1 = heuristic_cleanup("what time is our next team meeting");
+    assert_eq!(q1, "What time is our next team meeting?");
+
+    let q2 = heuristic_cleanup("what time is the meeting period");
+    assert_eq!(q2, "What time is the meeting?");
+
+    let q3 = heuristic_cleanup("can you review the pull request");
+    assert_eq!(q3, "Can you review the pull request?");
+
+    let not_q = heuristic_cleanup("what we need is more time");
+    assert_eq!(not_q, "What we need is more time.");
+
+    // 2. Currency, percentage, numbers, and quotes
+    let curr1 = heuristic_cleanup("the price is 50 dollars for 10 percent discount");
+    assert!(curr1.contains("$50"));
+    assert!(curr1.contains("10%"));
+
+    let curr2 = heuristic_cleanup("we need twenty percent off fifty dollars");
+    assert!(curr2.contains("20%"));
+    assert!(curr2.contains("$50"));
+
+    let quote = heuristic_cleanup("open quote hello world close quote");
+    assert!(quote.contains("\"hello world\""));
+
+    let paren = heuristic_cleanup("open paren important note close paren");
+    assert!(paren.contains("(important note)"));
+
+    let num1 = heuristic_cleanup("check ticket number 5");
+    assert!(num1.contains("#5"));
+
+    let num2 = heuristic_cleanup("we are number one");
+    assert!(num2.contains("#1"));
+
+    // 3. Contraction & Run-Together Repairs
+    let cont = heuristic_cleanup("he doesnt know they couldve won alot of games");
+    assert!(cont.contains("doesn't"));
+    assert!(cont.contains("could've"));
+    assert!(cont.contains("a lot"));
+
+    let run_together = heuristic_cleanup("nevermind they were infront of eachother");
+    assert!(run_together.to_lowercase().contains("never mind"));
+    assert!(run_together.contains("in front"));
+    assert!(run_together.contains("each other"));
+}
+

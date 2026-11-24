@@ -478,6 +478,61 @@ async fn run_local_llama_inference(
     Ok(cleaned)
 }
 
+/// Checks if an utterance or sentence is an interrogative question
+pub fn is_interrogative_sentence(sentence: &str) -> bool {
+    let trimmed = sentence.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+
+    let lower = trimmed.to_lowercase();
+    let words: Vec<&str> = lower.split_whitespace().collect();
+    if words.is_empty() {
+        return false;
+    }
+
+    let clean_first = words[0].trim_matches(|c: char| !c.is_alphanumeric());
+
+    // 1. Single-word question starters (What, Why, How, Who, Where, When, Which, Whose, Whom)
+    let single_starters = [
+        "what", "why", "how", "who", "where", "when", "which", "whose", "whom"
+    ];
+    if single_starters.contains(&clean_first) {
+        // Exclude declarative noun/relative clauses: "what we need...", "how it works...", "what I want..."
+        if words.len() >= 2 && (words[1] == "we" || words[1] == "it" || words[1] == "they" || words[1] == "i") {
+            return false;
+        }
+        // Exclude clauses with "you" followed by copula: "what you said was...", "what you need is..."
+        if words.len() >= 3 && words[1] == "you" && words[2..].iter().any(|&w| w == "is" || w == "was" || w == "are" || w == "were") {
+            return false;
+        }
+        return true;
+    }
+
+    // 2. Auxiliary modal question starters (e.g. "can you", "would it", "is this", etc.)
+    if words.len() >= 2 {
+        let clean_second = words[1].trim_matches(|c: char| !c.is_alphanumeric());
+        let first_two = format!("{} {}", clean_first, clean_second);
+        let aux_starters = [
+            "can you", "can we", "can i", "could you", "could we", "could i",
+            "would you", "would we", "would it", "would that", "would this",
+            "should we", "should i", "should you", "should it",
+            "is it", "is there", "is that", "is this", "is he", "is she", "is the",
+            "are you", "are we", "are they", "are there", "are the",
+            "do you", "do we", "do they", "does it", "does he", "does she", "does the",
+            "did you", "did we", "did they", "did it", "did the",
+            "will you", "will we", "will it", "will that", "will the",
+            "have you", "have we", "have they", "has it", "has anyone", "has someone", "has the",
+            "may i", "may we", "shall we", "shall i",
+        ];
+        if aux_starters.contains(&first_two.as_str()) {
+            return true;
+        }
+    }
+
+    false
+}
+
 /// Local Deterministic Heuristic Normalizer with customizable cleaning options
 pub fn heuristic_cleanup_with_options(
     input: &str,
@@ -512,7 +567,9 @@ pub fn heuristic_cleanup_full(
 
     // 1. Spoken self-corrections ("no wait...", "scratch that...", "I mean...", "actually no...")
     if remove_corrections {
-        let self_correction_regex = Regex::new(r"(?i)\b(?:no wait|scratch that|sorry I meant|actually no|wait no|I mean)[,\s]+(.+)").unwrap();
+        let self_correction_regex = Regex::new(
+            r"(?i)\b(?:no wait|scratch that|sorry I meant|actually no|wait no|no sorry|sorry no|oops I meant|or rather|correction|let me rephrase|strike that|I mean)[,\s]+(.+)"
+        ).unwrap();
         if let Some(caps) = self_correction_regex.captures(&text) {
             let replacement = caps.get(1).unwrap().as_str().trim();
             let full_match = self_correction_regex.find(&text).unwrap();
@@ -579,7 +636,7 @@ pub fn heuristic_cleanup_full(
     let www_re = Regex::new(r"(?i)\bwww\s+dot\s+").unwrap();
     text = www_re.replace_all(&text, "www.").to_string();
 
-    // 5. Expand verbal punctuation commands
+    // 5. Expand verbal punctuation, percentage, dollar, number, and quote commands
     let punct_patterns = [
         (r"(?i)\s+period\b", "."),
         (r"(?i)\s+full stop\b", "."),
@@ -589,6 +646,44 @@ pub fn heuristic_cleanup_full(
         (r"(?i)\s+colon\b", ":"),
         (r"(?i)\s+semicolon\b", ";"),
         (r"(?i)\s+(?:new line|newline)\b", "\n"),
+        // Spoken written percentages & numbers
+        (r"(?i)\b(?:one hundred|hundred)\s+percent\b", "100%"),
+        (r"(?i)\bninety\s+percent\b", "90%"),
+        (r"(?i)\beighty\s+percent\b", "80%"),
+        (r"(?i)\bseventy\s+percent\b", "70%"),
+        (r"(?i)\bsixty\s+percent\b", "60%"),
+        (r"(?i)\bfifty\s+percent\b", "50%"),
+        (r"(?i)\bforty\s+percent\b", "40%"),
+        (r"(?i)\bthirty\s+percent\b", "30%"),
+        (r"(?i)\btwenty\s+five\s+percent\b", "25%"),
+        (r"(?i)\btwenty\s+percent\b", "20%"),
+        (r"(?i)\bfifteen\s+percent\b", "15%"),
+        (r"(?i)\bten\s+percent\b", "10%"),
+        (r"(?i)\bfive\s+percent\b", "5%"),
+        (r"(?i)\bzero\s+percent\b", "0%"),
+        (r"(?i)\b([0-9]+)\s+percent\b", "$1%"),
+        // Spoken written currency
+        (r"(?i)\b(?:one hundred|hundred)\s+dollars?\b", "$$100"),
+        (r"(?i)\bfifty\s+dollars?\b", "$$50"),
+        (r"(?i)\btwenty\s+dollars?\b", "$$20"),
+        (r"(?i)\bten\s+dollars?\b", "$$10"),
+        (r"(?i)\bfive\s+dollars?\b", "$$5"),
+        (r"(?i)\bone\s+dollar\b", "$$1"),
+        (r"(?i)\b([0-9]+)\s+dollars?\b", "$$$1"),
+        (r"(?i)\b([0-9]+)\s+euros?\b", "€$1"),
+        (r"(?i)\b([0-9]+)\s+pounds?\b", "£$1"),
+        // Spoken numbers (#1, #5, etc.)
+        (r"(?i)\bnumber\s+([0-9]+)\b", "#$1"),
+        (r"(?i)\bnumber\s+one\b", "#1"),
+        (r"(?i)\bnumber\s+two\b", "#2"),
+        (r"(?i)\bnumber\s+three\b", "#3"),
+        (r"(?i)\bnumber\s+four\b", "#4"),
+        (r"(?i)\bnumber\s+five\b", "#5"),
+        (r"(?i)\bnumber\s+six\b", "#6"),
+        (r"(?i)\bnumber\s+seven\b", "#7"),
+        (r"(?i)\bnumber\s+eight\b", "#8"),
+        (r"(?i)\bnumber\s+nine\b", "#9"),
+        (r"(?i)\bnumber\s+ten\b", "#10"),
     ];
 
     for (pat, repl) in punct_patterns {
@@ -596,6 +691,16 @@ pub fn heuristic_cleanup_full(
             text = re.replace_all(&text, repl).to_string();
         }
     }
+
+    // Spoken quotes, parentheses, and brackets
+    let quote_re = Regex::new(r#"(?i)\bopen\s+quotes?\s+(.+?)\s+close\s+quotes?\b"#).unwrap();
+    text = quote_re.replace_all(&text, "\"$1\"").to_string();
+
+    let paren_re = Regex::new(r#"(?i)\bopen\s+paren(?:thesis)?\s+(.+?)\s+close\s+paren(?:thesis)?\b"#).unwrap();
+    text = paren_re.replace_all(&text, "($1)").to_string();
+
+    let bracket_re = Regex::new(r#"(?i)\bopen\s+bracket\s+(.+?)\s+close\s+bracket\b"#).unwrap();
+    text = bracket_re.replace_all(&text, "[$1]").to_string();
 
     // Clean up spaces before punctuation
     if let Ok(space_punct) = Regex::new(r"\s+([,\.?!;:])") {
@@ -617,7 +722,7 @@ pub fn heuristic_cleanup_full(
     let multi_nl = Regex::new(r"\n{3,}").unwrap();
     text = multi_nl.replace_all(&text, "\n\n").trim().to_string();
 
-    // 8. Capitalize initial letter and ensure ending punctuation per paragraph
+    // 8. Capitalize initial letter and ensure ending punctuation per paragraph (smart question mark or period)
     if !text.is_empty() {
         let mut lines = Vec::new();
         for line in text.split('\n') {
@@ -630,7 +735,14 @@ pub fn heuristic_cleanup_full(
             let first = chars.next().unwrap().to_uppercase().to_string();
             let rest: String = chars.collect();
             let mut formatted_line = format!("{}{}", first, rest);
-            if !formatted_line.ends_with('.') && !formatted_line.ends_with('?') && !formatted_line.ends_with('!') && !formatted_line.ends_with(':') && !formatted_line.ends_with(';') {
+            if is_interrogative_sentence(&formatted_line) {
+                if formatted_line.ends_with('.') {
+                    formatted_line.pop();
+                }
+                if !formatted_line.ends_with('?') {
+                    formatted_line.push('?');
+                }
+            } else if !formatted_line.ends_with('.') && !formatted_line.ends_with('?') && !formatted_line.ends_with('!') && !formatted_line.ends_with(':') && !formatted_line.ends_with(';') {
                 formatted_line.push('.');
             }
             lines.push(formatted_line);
@@ -681,6 +793,17 @@ pub fn polish_sentence_structure(input: &str) -> String {
         (r"\b(?i)theyre\b", "they're"),
         (r"\b(?i)weve\b", "we've"),
         (r"\b(?i)werent\b", "weren't"),
+        (r"\b(?i)doesnt\b", "doesn't"),
+        (r"\b(?i)couldve\b", "could've"),
+        (r"\b(?i)shouldve\b", "should've"),
+        (r"\b(?i)wouldve\b", "would've"),
+        (r"\b(?i)mustve\b", "must've"),
+        (r"\b(?i)mightve\b", "might've"),
+        (r"\b(?i)alot\b", "a lot"),
+        (r"\b(?i)eachother\b", "each other"),
+        (r"\b(?i)aswell\b", "as well"),
+        (r"\b(?i)infront\b", "in front"),
+        (r"\b(?i)nevermind\b", "never mind"),
     ];
     for (pat, repl) in contraction_replacements {
         if let Ok(re) = Regex::new(pat) {

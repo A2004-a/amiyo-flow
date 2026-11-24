@@ -30,6 +30,51 @@ interface StyleDefinition {
   exampleOutput: string;
 }
 
+function isInterrogativeSentence(sentence: string): boolean {
+  const trimmed = sentence.trim();
+  if (!trimmed) return false;
+  const words = trimmed.toLowerCase().split(/\s+/);
+  if (words.length === 0) return false;
+  const cleanFirst = words[0].replace(/[^a-z0-9]/g, '');
+
+  const singleStarters = ['what', 'why', 'how', 'who', 'where', 'when', 'which', 'whose', 'whom'];
+  if (singleStarters.includes(cleanFirst)) {
+    if (words.length >= 2 && ['we', 'it', 'they', 'i'].includes(words[1])) {
+      return false;
+    }
+    if (
+      words.length >= 3 &&
+      words[1] === 'you' &&
+      words.slice(2).some((w) => ['is', 'was', 'are', 'were'].includes(w))
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  if (words.length >= 2) {
+    const cleanSecond = words[1].replace(/[^a-z0-9]/g, '');
+    const firstTwo = `${cleanFirst} ${cleanSecond}`;
+    const auxStarters = [
+      'can you', 'can we', 'can i', 'could you', 'could we', 'could i',
+      'would you', 'would we', 'would it', 'would that', 'would this',
+      'should we', 'should i', 'should you', 'should it',
+      'is it', 'is there', 'is that', 'is this', 'is he', 'is she', 'is the',
+      'are you', 'are we', 'are they', 'are there', 'are the',
+      'do you', 'do we', 'do they', 'does it', 'does he', 'does she', 'does the',
+      'did you', 'did we', 'did they', 'did it', 'did the',
+      'will you', 'will we', 'will it', 'will that', 'will the',
+      'have you', 'have we', 'have they', 'has it', 'has anyone', 'has someone', 'has the',
+      'may i', 'may we', 'shall we', 'shall i',
+    ];
+    if (auxStarters.includes(firstTwo)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function simulateCleanup(
   input: string,
   removeFillers: boolean,
@@ -45,11 +90,13 @@ function simulateCleanup(
   if (removeCorrections) {
     // Pass A: Mid-sentence quick 1-2 word substitution ("five no wait six", "Friday no wait Monday")
     text = text.replace(
-      /\b([a-zA-Z0-9$€£#]+(?:\s+(?:AM|PM|am|pm))?)[,\s]+(?:no wait|scratch that|I mean|actually no|wait no|sorry I meant|or rather|correction)[,\s]+([a-zA-Z0-9$€£#]+(?:\s+(?:AM|PM|am|pm))?)\b/gi,
+      /\b([a-zA-Z0-9$€£#]+(?:\s+(?:AM|PM|am|pm))?)[,\s]+(?:no wait|scratch that|I mean|actually no|wait no|no sorry|sorry no|sorry I meant|oops I meant|or rather|correction|let me rephrase|strike that)[,\s]+([a-zA-Z0-9$€£#]+(?:\s+(?:AM|PM|am|pm))?)\b/gi,
       '$2'
     );
     // Pass B: Clause-level backtrack replacement
-    const clauseMatch = text.match(/(?:^|[.!?\n]\s*)(?:.+?)[,\s]+(?:no wait|scratch that|sorry I meant|actually no|I mean)[,\s]+(.+)/i);
+    const clauseMatch = text.match(
+      /(?:^|[.!?\n]\s*)(?:.+?)[,\s]+(?:no wait|scratch that|sorry I meant|actually no|wait no|no sorry|sorry no|oops I meant|or rather|correction|let me rephrase|strike that|I mean)[,\s]+(.+)/i
+    );
     if (clauseMatch && clauseMatch[1]) {
       text = clauseMatch[1];
     }
@@ -76,7 +123,7 @@ function simulateCleanup(
     text = text.replace(/\b([a-zA-Z0-9]+)\s+\1\b/gi, '$1');
   }
 
-  // 4. Verbal punctuation
+  // 4. Verbal punctuation, numbers, percentages, currency, quotes
   text = text
     .replace(/\s+period\b/gi, '.')
     .replace(/\s+full stop\b/gi, '.')
@@ -85,7 +132,43 @@ function simulateCleanup(
     .replace(/\s+(?:exclamation mark|exclamation point)\b/gi, '!')
     .replace(/\s+colon\b/gi, ':')
     .replace(/\s+semicolon\b/gi, ';')
-    .replace(/\s+(?:new line|newline)\b/gi, '\n');
+    .replace(/\s+(?:new line|newline)\b/gi, '\n')
+    // Spoken written percentages & numbers
+    .replace(/\b(?:one hundred|hundred)\s+percent\b/gi, '100%')
+    .replace(/\bninety\s+percent\b/gi, '90%')
+    .replace(/\beighty\s+percent\b/gi, '80%')
+    .replace(/\bseventy\s+percent\b/gi, '70%')
+    .replace(/\bsixty\s+percent\b/gi, '60%')
+    .replace(/\bfifty\s+percent\b/gi, '50%')
+    .replace(/\bforty\s+percent\b/gi, '40%')
+    .replace(/\bthirty\s+percent\b/gi, '30%')
+    .replace(/\btwenty\s+five\s+percent\b/gi, '25%')
+    .replace(/\btwenty\s+percent\b/gi, '20%')
+    .replace(/\bfifteen\s+percent\b/gi, '15%')
+    .replace(/\bten\s+percent\b/gi, '10%')
+    .replace(/\bfive\s+percent\b/gi, '5%')
+    .replace(/\bzero\s+percent\b/gi, '0%')
+    .replace(/\b([0-9]+)\s+percent\b/gi, '$1%')
+    // Spoken written currency
+    .replace(/\b(?:one hundred|hundred)\s+dollars?\b/gi, '$$100')
+    .replace(/\bfifty\s+dollars?\b/gi, '$$50')
+    .replace(/\btwenty\s+dollars?\b/gi, '$$20')
+    .replace(/\bten\s+dollars?\b/gi, '$$10')
+    .replace(/\bfive\s+dollars?\b/gi, '$$5')
+    .replace(/\bone\s+dollar\b/gi, '$$1')
+    .replace(/\b([0-9]+)\s+dollars?\b/gi, '$$$1')
+    .replace(/\b([0-9]+)\s+euros?\b/gi, '€$1')
+    .replace(/\b([0-9]+)\s+pounds?\b/gi, '£$1')
+    // Spoken numbers (#1, #5, etc.)
+    .replace(/\bnumber\s+([0-9]+)\b/gi, '#$1')
+    .replace(/\bnumber\s+one\b/gi, '#1')
+    .replace(/\bnumber\s+two\b/gi, '#2')
+    .replace(/\bnumber\s+three\b/gi, '#3')
+    .replace(/\bnumber\s+four\b/gi, '#4')
+    .replace(/\bnumber\s+five\b/gi, '#5')
+    .replace(/\bopen\s+quotes?\s+(.+?)\s+close\s+quotes?\b/gi, '"$1"')
+    .replace(/\bopen\s+paren(?:thesis)?\s+(.+?)\s+close\s+paren(?:thesis)?\b/gi, '($1)')
+    .replace(/\bopen\s+bracket\s+(.+?)\s+close\s+bracket\b/gi, '[$1]');
 
   // Spaces before punctuation
   text = text.replace(/\s+([,\.?!;:])/g, '$1');
@@ -122,6 +205,17 @@ function simulateCleanup(
       [/\btheyre\b/gi, "they're"],
       [/\bweve\b/gi, "we've"],
       [/\bwerent\b/gi, "weren't"],
+      [/\bdoesnt\b/gi, "doesn't"],
+      [/\bcouldve\b/gi, "could've"],
+      [/\bshouldve\b/gi, "should've"],
+      [/\bwouldve\b/gi, "would've"],
+      [/\bmustve\b/gi, "must've"],
+      [/\bmightve\b/gi, "might've"],
+      [/\balot\b/gi, "a lot"],
+      [/\beachother\b/gi, "each other"],
+      [/\baswell\b/gi, "as well"],
+      [/\binfront\b/gi, "in front"],
+      [/\bnevermind\b/gi, "never mind"],
     ];
     for (const [re, repl] of contractions) {
       text = text.replace(re, repl);
@@ -146,13 +240,20 @@ function simulateCleanup(
   // Clean spacing and line breaks
   text = text.replace(/[ \t]+/g, ' ').replace(/ *(\r?\n) */g, '\n').trim();
 
-  // Paragraph formatting and capitalization
+  // Paragraph formatting and capitalization (smart question mark / period)
   if (text.length > 0) {
     const lines = text.split('\n').map((line) => {
       const trimmed = line.trim();
       if (!trimmed) return '';
       let cap = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
-      if (!/[.!?:]$/.test(cap)) {
+      if (isInterrogativeSentence(cap)) {
+        if (cap.endsWith('.')) {
+          cap = cap.slice(0, -1);
+        }
+        if (!cap.endsWith('?')) {
+          cap += '?';
+        }
+      } else if (!/[.!?:]$/.test(cap)) {
         cap += '.';
       }
       return cap;
@@ -237,6 +338,10 @@ export const WritingStyles: React.FC = () => {
     {
       label: 'Sentence & Grammar Polish',
       text: 'we deployed the server. it works smoothly. dont worry i told them we cant fail period',
+    },
+    {
+      label: 'Question & Number Polish',
+      text: 'what time is the team meeting can you check the 50 dollars invoice for 10 percent discount period',
     },
     {
       label: 'Custom Word Cleanser',

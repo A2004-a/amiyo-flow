@@ -1,14 +1,14 @@
 # AMIYO FLOW — COMPREHENSIVE QUALITY, FEATURE & TEST REPORT
 
-This report consolidates the complete quality assurance suite for AMIYO FLOW: the Master Feature Registry (F001–F136), Automated Test Evidence (55/55 passing tests), Structured Bug Tracker (BUG-001–BUG-036), and Semantic Release Changelog.
+This report consolidates the complete quality assurance suite for AMIYO FLOW: the Master Feature Registry (F001–F136), Automated Test Evidence (56/56 passing tests), Structured Bug Tracker (BUG-001–BUG-036), and Semantic Release Changelog.
 
 ---
 
-## 1. Automated Test Execution Evidence (55/55 PASSED)
+## 1. Automated Test Execution Evidence (56/56 PASSED)
 
 - **Test Date**: 2026-11-24
 - **Host Environment**: Windows 11 x64, Intel/AMD architecture, 8GB–16GB RAM
-- **Native Rust Tests (`cargo test`)**: **41 / 41 PASSED** (17 in `lib.rs`, 24 in `unit_tests.rs`)
+- **Native Rust Tests (`cargo test`)**: **42 / 42 PASSED** (17 in `lib.rs`, 25 in `unit_tests.rs`)
 - **Frontend Vitest Tests (`npm test`)**: **14 / 14 PASSED** (`src/test/dictation.test.ts`)
 - **Frontend Production Build (`npm run build`)**: **PASSED** (1,609 modules bundled with 0 errors)
 - **Installer Build (`npx tauri build`)**: **PASSED** (`AMIYO FLOW_1.0.9_x64-setup.exe`)
@@ -18,6 +18,7 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 
 | Test Identifier | Category | Acceptance Criteria | Execution Result | Status |
 |---|---|---|---|---|
+| `test_interrogative_question_and_currency_formatting` | Phase 5 | Detects interrogative questions (`?`), formats spoken currency (`$50`), percentages (`10%`, `20%`), numbers (`#1`, `#5`), quotes, parentheses, and spoken contractions | All questions, numbers, quotes, and contractions validated | **PASSED** |
 | `test_audio_engine_vad_configuration` | Phase 2 | Verifies AudioEngine real-time VAD initialization & sample rate binding | VadConfig sample rate and silence duration calibrated | **PASSED** |
 | `test_nu_na_and_regional_filler_removal` | Phase 5 | Strips conversational fillers ("um", "nu", "na", "uh") | "um hello nu na we should do this" $\rightarrow$ "Hello we should do this." | **PASSED** |
 | `test_repeated_phrase_removal` | Phase 5 | Deduplicates 2-word repeated stutters ("we can we can") | "we can we can deploy" $\rightarrow$ "We can deploy." | **PASSED** |
@@ -198,13 +199,31 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
   - **Backend SQLite Persistence (`update_meeting`)**: Added ACID `update_meeting` SQL query and Tauri IPC command to ensure changes to title, summary, decisions, and action items persist permanently across application reboots.
 
 ### [1.0.9] — 2026-11-24
+- **Intelligent Question Detection & Punctuation Polish**:
+  - Implemented `is_interrogative_sentence` identifying modal auxiliaries (`Can you`, `Could we`, `Would it`, `Is this`, `Are they`, `Do you`, `Will you`) and wh-words (`What`, `Why`, `How`, `Who`, `Where`, `When`, `Which`).
+  - Automatically terminates questions with `?` instead of `.` even when spoken without saying "question mark".
+  - Gracefully converts trailing STT periods on interrogative sentences (`"What time is the meeting."` $\rightarrow$ `"What time is the meeting?"`), while preserving declarative noun clauses (`"What we need is more time."`).
+- **Spoken Currency, Numerical, Percentage & Quotation Formatting**:
+  - Automatically formats spoken percentages: `"20 percent"` / `"twenty percent"` $\rightarrow$ `"20%"`.
+  - Automatically formats spoken currency: `"50 dollars"` / `"fifty dollars"` $\rightarrow$ `"$50"`, plus euros and pounds.
+  - Automatically formats spoken issue/ticket numbers: `"number 5"` / `"number five"` $\rightarrow$ `"#5"`, `"number one"` $\rightarrow$ `"#1"`.
+  - Automatically formats spoken quotes, parentheses, and brackets: `"open quote hello world close quote"` $\rightarrow$ `"\"hello world\""`, `"open paren important note close paren"` $\rightarrow$ `"(important note)"`, `"open bracket code close bracket"` $\rightarrow$ `"[code]"`.
+- **Expanded Contraction & Run-Together Repairs**:
+  - Added spoken repairs for `doesnt` $\rightarrow$ `doesn't`, `couldve` $\rightarrow$ `could've`, `shouldve` $\rightarrow$ `should've`, `wouldve` $\rightarrow$ `would've`, `mustve` $\rightarrow$ `must've`, `mightve` $\rightarrow$ `might've`.
+  - Added run-together spoken repairs: `alot` $\rightarrow$ `a lot`, `eachother` $\rightarrow$ `each other`, `aswell` $\rightarrow$ `as well`, `infront` $\rightarrow$ `in front`, `nevermind` $\rightarrow$ `never mind`.
+- **Expanded Spoken Self-Correction Triggers**:
+  - Added verbal repair phrases: `no sorry`, `sorry no`, `oops I meant`, `strike that`, `let me rephrase`, `or rather`.
+- **Live Simulator Playground & Preset**:
+  - Added `Question & Number Polish` preset chip with interactive simulation in `WritingStyles.tsx`.
+- **Automated Test Coverage (56/56 Tests Passed)**:
+  - Added unit test `test_interrogative_question_and_currency_formatting` in `src-tauri/tests/unit_tests.rs`.
+  - Achieved 100% green test pass across 42 Rust unit/integration tests and 14 Vitest frontend tests.
 - **Interactive Speech Cleanser & Smart Sentence Polish Suite**:
   - **Smart Sentence & Grammar Polish**: Added a 4th modular cleaner card (`Sentence & Grammar Polish`) featuring multi-sentence boundary capitalization after `[.!?]`, pronoun `I` & contraction repair (`don't`, `can't`, `won't`, `didn't`, `isn't`, `it's`, `we've`), transition commas (`However,`, `Therefore,`), and punctuation spacing hygiene.
   - **Mid-Sentence Intelligent Backtracking**: Enhanced `heuristic_cleanup_full` to distinguish between full clause restarts (`"deploy on Friday no wait deploy on Monday"`) and mid-sentence word corrections (`"we need five no wait six servers"`), preserving the preceding sentence context while updating the corrected token.
   - **Symmetrically Equalized 4-Card Suite**: Upgraded the disfluency filters into a 4-card responsive layout with uniform heights (`h-full flex flex-col justify-between`), glowing active/disabled status pills (`ACTIVE` in Amber/Cyan/Emerald/Violet vs `OFF`), and fixed preview containers (`min-h-[52px]`).
   - **Personalized Custom Filler Words & Regional Slang Filter**: Added interactive tag and chip manager allowing users to eliminate custom fillers (e.g. "like", "literally", "yaar", "arre", "toh", "I mean") alongside built-in particles (`um`, `uh`, `nu`, `na`, `erm`, `you know`, `actually`, `basically`). Includes one-click quick add suggestions, removable tags (`×`), and Enter-driven input field that persists to SQLite.
-  - **⚡ Live Cleanser Simulator & Token Playground**: Embedded real-time interactive testing workbench directly in `WritingStyles.tsx`. Features 0ms instant local deterministic simulation mirroring `heuristic_cleanup_full`, 1-click test scenario presets (`Stutters & Hesitations`, `Spoken Self-Correction`, `Sentence & Grammar Polish`, `Custom Word Cleanser`), editable raw speech input, live cleaned output box, and real-time word reduction percentage metrics (`-X% disfluency`).
-  - **Comprehensive Test Suite Expansion**: Added unit tests `test_sentence_polish_and_grammar_cleanup` and `test_mid_sentence_self_correction` in `src-tauri/tests/unit_tests.rs`; expanded automated test suite to 55/55 green tests (41 Rust tests + 14 Vitest tests).
+  - **⚡ Live Cleanser Simulator & Token Playground**: Embedded real-time interactive testing workbench directly in `WritingStyles.tsx`. Features 0ms instant local deterministic simulation mirroring `heuristic_cleanup_full`, 1-click test scenario presets (`Stutters & Hesitations`, `Spoken Self-Correction`, `Sentence & Grammar Polish`, `Custom Word Cleanser`, `Question & Number Polish`), editable raw speech input, live cleaned output box, and real-time word reduction percentage metrics (`-X% disfluency`).
 - **Elimination of Clipboard Overwrite Race Conditions (BUG-030)**:
   - Transitioned default insertion mechanism to native Win32 `SendInput(KEYEVENTF_UNICODE)` (Direct Unicode Keystrokes).
   - Characters are typed directly into the active cursor in Claude, ChatGPT, VS Code, and browsers at 0ms latency without modifying, clearing, or reading the OS clipboard.
@@ -214,11 +233,8 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
   - Configured `cmd.stderr(Stdio::null())` in `spawn_stt_worker` to prevent the 4096-byte Windows pipe buffer from filling with PyTorch/CTranslate2 logging output.
   - Completely resolves freezing/hanging on successive dictations ("worked first time, but next time slow/stopped working").
   - Optimized `transcribe_daemon.py` with `vad_filter=True`, `condition_on_previous_text=False`, `beam_size=1`, and `temperature=0.0` for deterministic sub-150ms transcription.
-- **Heuristic AI Natural Language Preservation**:
-  - Refined `self_correction_regex` to strictly match conversational repair clauses (`no wait`, `scratch that`, `I mean`) instead of destroying sentences containing common words like `actually` and `sorry`.
-  - Removed `like` and `literally` from blind filler word deletion, ensuring verbs ("I like this feature") and comparisons are never corrupted.
 - **Production NSIS Release Installers Generated**:
-  - Bundled fresh optimized release installer binaries: `AMIYO FLOW_1.0.8_x64-setup.exe` and `AMIYO FLOW_1.0.0_x64-setup.exe`.
+  - Bundled fresh optimized release installer binaries: `AMIYO FLOW_1.0.9_x64-setup.exe`, `AMIYO FLOW_1.0.8_x64-setup.exe`, and `AMIYO FLOW_1.0.0_x64-setup.exe`.
 
 ### [1.0.8] — 2026-11-23
 - **Zero-Friction Meeting Recording & Dynamic Natural Language Extraction**:
