@@ -419,7 +419,7 @@ fn test_writing_styles_transformation() {
     assert_eq!(casual, "See you later");
 
     let prompt = apply_style_formatting("Write a rust function", "AI Prompt", "");
-    assert!(prompt.starts_with("Instructions: "));
+    assert_eq!(prompt, "Write a rust function");
 
     let raw = apply_style_formatting("Raw text unchanged.", "Raw", "");
     assert_eq!(raw, "Raw text unchanged.");
@@ -550,7 +550,7 @@ fn test_pivot_backtrack_and_irritation_words() {
 
     // 1. Pivot Phrase Backtrack (discards digression and rewinds to pivot phrase)
     let b1 = heuristic_cleanup("and i try to build chatgpt like application using rea no chatgpt like application");
-    assert!(b1.contains("ChatGPT like application"));
+    assert!(b1.contains("ChatGPT-like application") || b1.contains("ChatGPT like application"));
     assert!(!b1.to_lowercase().contains("using rea"));
 
     let b2 = heuristic_cleanup("we want to build a react native app for mobile no react native desktop app");
@@ -736,6 +736,29 @@ fn test_vad_conversational_silence_incomplete_clause_and_continuation_stitching(
     // 6. Complete terminal sentence gets clean terminal punctuation
     let complete_sentence = heuristic_cleanup("deploy it to windows desktop");
     assert_eq!(complete_sentence, "Deploy it to Windows desktop.");
+}
+
+#[test]
+fn test_chatgpt_interface_and_claude_phonetic_recognition() {
+    use amiyo_flow_lib::ai::{apply_style_formatting, heuristic_cleanup};
+
+    // 1. Verify phonetic mapping: "heck lot i want to build a chargey video like interface" -> "Hey Claude, I want to build a ChatGPT-like interface."
+    let res = heuristic_cleanup("heck lot i want to build a chargey video like interface");
+    assert!(res.contains("Hey Claude"));
+    assert!(res.contains("ChatGPT-like interface"));
+
+    // 2. Verify "i won't build" when spoken in context converts to "I want to build"
+    let res2 = heuristic_cleanup("i won't build a chatgpt like application");
+    assert!(res2.contains("I want to build a ChatGPT-like application"));
+
+    // 3. Verify creator name variants in speech: "omyagurai", "ineira", "omegra"
+    assert!(heuristic_cleanup("my name is omyagurai").contains("Amiyo Garai"));
+    assert!(heuristic_cleanup("my name is ineira").contains("Amiyo Garai"));
+
+    // 4. Verify AI Prompt style does NOT prefix "Instructions: "
+    let prompt_styled = apply_style_formatting("I want to build a ChatGPT-like interface", "AI Prompt", "");
+    assert_eq!(prompt_styled, "I want to build a ChatGPT-like interface");
+    assert!(!prompt_styled.contains("Instructions:"));
 }
 
 

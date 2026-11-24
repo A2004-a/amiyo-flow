@@ -230,7 +230,7 @@ pub async fn transcribe_audio(
 
     // 2. High-performance on-device faster-whisper INT8 inference via local Python
     if let Some(python_path) = find_python() {
-        match run_faster_whisper(&python_path, model_name, &wav_bytes, language).await {
+        match run_faster_whisper(&python_path, model_name, &wav_bytes, language, dictionary_prompt).await {
             Ok(t) => {
                 return Ok(t.trim().to_string());
             }
@@ -322,12 +322,16 @@ def transcribe():
     model_name = sys.argv[1]
     wav_path = sys.argv[2]
     lang = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] not in ("auto", "", "None") else None
+    prompt = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] not in ("auto", "", "None") else None
 
     clean_model = model_name
     if clean_model.startswith("ggml-"):
         clean_model = clean_model[5:]
     if clean_model.endswith(".bin"):
         clean_model = clean_model[:-4]
+
+    base_prompt = "Amiyo Garai, AMIYO FLOW, Hey Claude, ChatGPT, interface, operating system, Windows, Python, TypeScript, API, REA"
+    initial_prompt = (base_prompt + ", " + prompt.strip()) if prompt and prompt.strip() else base_prompt
 
     try:
         from faster_whisper import WhisperModel
@@ -342,23 +346,13 @@ def transcribe():
         segments, _ = model.transcribe(
             wav_path,
             language=lang,
+            initial_prompt=initial_prompt,
             beam_size=1,
-            vad_filter=True,
+            vad_filter=False,
             condition_on_previous_text=False,
             temperature=0.0
         )
         text = " ".join(s.text.strip() for s in segments if s.text).strip()
-        if not text:
-            # Fallback without VAD filter to catch quiet or short single-word utterances
-            segments, _ = model.transcribe(
-                wav_path,
-                language=lang,
-                beam_size=1,
-                vad_filter=False,
-                condition_on_previous_text=False,
-                temperature=0.0
-            )
-            text = " ".join(s.text.strip() for s in segments if s.text).strip()
         print(text.strip())
     except Exception as e:
         sys.stderr.write(str(e))
@@ -439,31 +433,29 @@ for line in sys.stdin:
             sys.stdout.flush()
         elif cmd == "transcribe":
             wav_path = req.get("wav")
-            model_name = req.get("model", "tiny.en")
+            model_name = req.get("model", "base.en")
             lang = req.get("lang")
             if lang in ("auto", "", "None"):
                 lang = None
+            prompt = req.get("prompt")
+            base_prompt = "Amiyo Garai, AMIYO FLOW, Hey Claude, ChatGPT, interface, operating system, Windows, Python, TypeScript, API, REA"
+            if prompt and isinstance(prompt, str) and prompt.strip():
+                initial_prompt = base_prompt + ", " + prompt.strip()
+            else:
+                initial_prompt = base_prompt
+
             model = get_model(model_name)
+            # Transcribe full recorded audio without aggressive Silero VAD dropping mid-sentence segments
             segments, _ = model.transcribe(
                 wav_path,
                 language=lang,
+                initial_prompt=initial_prompt,
                 beam_size=1,
-                vad_filter=True,
+                vad_filter=False,
                 condition_on_previous_text=False,
                 temperature=0.0
             )
             text = " ".join(s.text.strip() for s in segments if s.text).strip()
-            if not text:
-                # Fallback without VAD filter to catch quiet or short single-word utterances
-                segments, _ = model.transcribe(
-                    wav_path,
-                    language=lang,
-                    beam_size=1,
-                    vad_filter=False,
-                    condition_on_previous_text=False,
-                    temperature=0.0
-                )
-                text = " ".join(s.text.strip() for s in segments if s.text).strip()
             sys.stdout.write(json.dumps({"status": "ok", "text": text}) + "\n")
             sys.stdout.flush()
         else:
@@ -511,6 +503,7 @@ async fn run_faster_whisper(
     model_name: &str,
     wav_bytes: &[u8],
     language: Option<&str>,
+    dictionary_prompt: Option<&str>,
 ) -> Result<String, String> {
     let temp_audio_dir = std::env::temp_dir().join("amiyo_flow");
     let _ = fs::create_dir_all(&temp_audio_dir);
@@ -540,7 +533,8 @@ async fn run_faster_whisper(
                 "cmd": "transcribe",
                 "wav": temp_audio_file.to_string_lossy(),
                 "model": model_name,
-                "lang": language
+                "lang": language,
+                "prompt": dictionary_prompt
             });
 
             if writeln!(worker.stdin, "{}", req).is_ok() && worker.stdin.flush().is_ok() {
@@ -569,7 +563,15 @@ async fn run_faster_whisper(
     if let Some(l) = language {
         if l != "auto" && !l.is_empty() {
             cmd.arg(l);
+        } else {
+            cmd.arg("auto");
         }
+    } else {
+        cmd.arg("auto");
+    }
+
+    if let Some(dp) = dictionary_prompt {
+        cmd.arg(dp);
     }
 
     let output = cmd

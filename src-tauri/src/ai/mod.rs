@@ -1074,7 +1074,19 @@ pub fn polish_sentence_structure(input: &str) -> String {
         (r"\b(?i)itll\b", "it'll"),
         (r"\b(?i)cmon\b", "c'mon"),
         // Developer & Tech Term Normalization
+        (r"\b(?i)chatgpt\s+like\s+interface\b", "ChatGPT-like interface"),
+        (r"\b(?i)chatgpt\s+like\b", "ChatGPT-like"),
+        (r"\b(?i)chargey\s+video\s+like\s+interface\b", "ChatGPT-like interface"),
+        (r"\b(?i)chargey\s+video\b", "ChatGPT"),
+        (r"\b(?i)chargey\s+bt\b", "ChatGPT"),
+        (r"\b(?i)chargey\b", "ChatGPT"),
+        (r"\b(?i)chat\s+gbt\b", "ChatGPT"),
+        (r"\b(?i)chat\s+g\s+p\s+t\b", "ChatGPT"),
         (r"\b(?i)chatgpt\b", "ChatGPT"),
+        (r"\b(?i)heck\s+lot\b", "Hey Claude"),
+        (r"\b(?i)take\s+a\s+lot\s+my\s+name\b", "Hey Claude, my name"),
+        (r"\b(?i)an\s+i-claudia\b", "in Claude"),
+        (r"\b(?i)i\s+claudia\b", "in Claude"),
         (r"\b(?i)claude\b", "Claude"),
         (r"\b(?i)gemini\b", "Gemini"),
         (r"\b(?i)javascript\b", "JavaScript"),
@@ -1104,6 +1116,11 @@ pub fn polish_sentence_structure(input: &str) -> String {
         (r"\b(?i)prs\b", "PRs"),
         // Phonetic Name & App Brand Fixes
         (r"\b(?i)a\s+m\s+i\s+y\s+o\b", "Amiyo"),
+        (r"\b(?i)omyagurai\b", "Amiyo Garai"),
+        (r"\b(?i)omiya\s+gare\b", "Amiyo Garai"),
+        (r"\b(?i)amiya\s+gare\b", "Amiyo Garai"),
+        (r"\b(?i)omegra\b", "Amiyo Garai"),
+        (r"\b(?i)ineira\b", "Amiyo Garai"),
         (r"\b(?i)omiya\b", "Amiyo"),
         (r"\b(?i)omiyo\b", "Amiyo"),
         (r"\b(?i)amio\b", "Amiyo"),
@@ -1116,6 +1133,9 @@ pub fn polish_sentence_structure(input: &str) -> String {
         (r"\b(?i)omiyo\s+flow\b", "AMIYO FLOW"),
         (r"\b(?i)amiyo\s+flow\b", "AMIYO FLOW"),
         // Advanced Speech Auto-Correction & Typo Repair
+        (r"\b(?i)i\s+won't\s+build\b", "I want to build"),
+        (r"\b(?i)i\s+want\s+build\b", "I want to build"),
+        (r"\b(?i)stantance\b", "sentence"),
         (r"\b(?i)seplling\b", "spelling"),
         (r"\b(?i)removwe\b", "remove"),
         (r"\b(?i)teh\b", "the"),
@@ -1344,7 +1364,7 @@ pub fn apply_style_formatting(text: &str, style: &str, _target_app: &str) -> Str
             dev
         }
         "ai prompt" => {
-            format!("Instructions: {}", text)
+            text.trim().to_string()
         }
         "academic" => {
             let mut s = text.trim().to_string();
