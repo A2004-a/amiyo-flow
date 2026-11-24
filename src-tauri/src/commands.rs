@@ -103,7 +103,26 @@ pub async fn start_recording(app_handle: AppHandle, state: State<'_, AppState>) 
         stt::warmup_engine();
     });
 
-    if let Err(e) = state.audio.start_recording(app_handle.clone()) {
+    let settings = state.db.get_all_settings().unwrap_or_default();
+    let vad_enabled = settings.get("vad_enabled").map(|v| v != "false").unwrap_or(true);
+    let silence_cutoff_ms: u64 = settings
+        .get("silence_cutoff_ms")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(1800);
+
+    let vad_config = if vad_enabled {
+        Some(crate::audio::vad::VadConfig {
+            sample_rate: 16000,
+            frame_size_ms: 30,
+            energy_threshold_ratio: 2.5,
+            zcr_speech_threshold: 0.08,
+            silence_cutoff_ms,
+        })
+    } else {
+        None
+    };
+
+    if let Err(e) = state.audio.start_recording_with_vad(app_handle.clone(), vad_config) {
         let _ = app_handle.emit("amiyo-dictation-failed", &e);
         let pill_h = app_handle.clone();
         tokio::spawn(async move {

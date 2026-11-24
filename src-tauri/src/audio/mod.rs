@@ -17,6 +17,36 @@ pub struct AudioDeviceInfo {
     pub is_default: bool,
 }
 
+#[inline]
+fn process_vad_samples(
+    mono_samples: &[f32],
+    vad: &mut vad::VoiceActivityDetector,
+    sample_accum: &mut Vec<i16>,
+    frame_samples: usize,
+    has_emitted_auto_stop: &mut bool,
+    emit_handle: &AppHandle,
+) {
+    if *has_emitted_auto_stop {
+        return;
+    }
+
+    for &s in mono_samples {
+        let s_i16 = (s * 32767.0).clamp(-32768.0, 32767.0) as i16;
+        sample_accum.push(s_i16);
+    }
+
+    while sample_accum.len() >= frame_samples && !*has_emitted_auto_stop {
+        let (_is_speech, should_auto_stop) = vad.process_frame(&sample_accum[..frame_samples]);
+        sample_accum.drain(..frame_samples);
+
+        if should_auto_stop {
+            *has_emitted_auto_stop = true;
+            let _ = emit_handle.emit("amiyo-vad-auto-stop", ());
+            break;
+        }
+    }
+}
+
 pub struct AudioEngine {
     samples_buffer: Arc<Mutex<Vec<f32>>>,
     is_recording: Arc<AtomicBool>,
@@ -93,6 +123,14 @@ impl AudioEngine {
     }
 
     pub fn start_recording(&self, app_handle: AppHandle) -> Result<(), String> {
+        self.start_recording_with_vad(app_handle, None)
+    }
+
+    pub fn start_recording_with_vad(
+        &self,
+        app_handle: AppHandle,
+        mut vad_config: Option<vad::VadConfig>,
+    ) -> Result<(), String> {
         if self.is_recording() {
             self.cancel();
         }
@@ -134,6 +172,10 @@ impl AudioEngine {
 
         *self.sample_rate.lock() = config.sample_rate.0;
 
+        if let Some(ref mut vc) = vad_config {
+            vc.sample_rate = config.sample_rate.0;
+        }
+
         self.samples_buffer.lock().clear();
         self.is_recording.store(true, Ordering::SeqCst);
         self.is_paused.store(false, Ordering::SeqCst);
@@ -147,6 +189,7 @@ impl AudioEngine {
         let is_recording_flag = Arc::clone(&self.is_recording);
         let is_paused_flag = Arc::clone(&self.is_paused);
         let channels = config.channels as usize;
+        let frame_samples = ((config.sample_rate.0 as usize * 30) / 1000).max(1);
 
         // Dedicated audio capture thread that owns cpal::Stream
         thread::spawn(move || {
@@ -156,6 +199,11 @@ impl AudioEngine {
 
             let emit_handle = app_handle.clone();
             let mut last_emit_instant = std::time::Instant::now();
+
+            let (mut vad_f32, mut accum_f32, mut stop_f32) = (vad_config.clone().map(vad::VoiceActivityDetector::new), Vec::with_capacity(1600), false);
+            let (mut vad_i16, mut accum_i16, mut stop_i16) = (vad_config.clone().map(vad::VoiceActivityDetector::new), Vec::with_capacity(1600), false);
+            let (mut vad_i32, mut accum_i32, mut stop_i32) = (vad_config.clone().map(vad::VoiceActivityDetector::new), Vec::with_capacity(1600), false);
+            let (mut vad_u16, mut accum_u16, mut stop_u16) = (vad_config.map(vad::VoiceActivityDetector::new), Vec::with_capacity(1600), false);
 
             let stream_result = match sample_format {
                 SampleFormat::F32 => device.build_input_stream(
@@ -185,6 +233,10 @@ impl AudioEngine {
                         }
 
                         buffer_clone.lock().extend_from_slice(&mono_samples);
+
+                        if let Some(ref mut vad) = vad_f32 {
+                            process_vad_samples(&mono_samples, vad, &mut accum_f32, frame_samples, &mut stop_f32, &emit_handle);
+                        }
                     },
                     err_fn,
                     None,
@@ -217,6 +269,10 @@ impl AudioEngine {
                         }
 
                         buffer_clone.lock().extend_from_slice(&mono_samples);
+
+                        if let Some(ref mut vad) = vad_i16 {
+                            process_vad_samples(&mono_samples, vad, &mut accum_i16, frame_samples, &mut stop_i16, &emit_handle);
+                        }
                     },
                     err_fn,
                     None,
@@ -249,6 +305,10 @@ impl AudioEngine {
                         }
 
                         buffer_clone.lock().extend_from_slice(&mono_samples);
+
+                        if let Some(ref mut vad) = vad_i32 {
+                            process_vad_samples(&mono_samples, vad, &mut accum_i32, frame_samples, &mut stop_i32, &emit_handle);
+                        }
                     },
                     err_fn,
                     None,
@@ -281,6 +341,10 @@ impl AudioEngine {
                         }
 
                         buffer_clone.lock().extend_from_slice(&mono_samples);
+
+                        if let Some(ref mut vad) = vad_u16 {
+                            process_vad_samples(&mono_samples, vad, &mut accum_u16, frame_samples, &mut stop_u16, &emit_handle);
+                        }
                     },
                     err_fn,
                     None,

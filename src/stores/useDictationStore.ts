@@ -139,6 +139,17 @@ export const useDictationStore = create<DictationStore>((set, get) => ({
       })
     );
 
+    // Backend VAD hands-free silence auto-stop
+    unlistens.push(
+      onDictationEvent('amiyo-vad-auto-stop', () => {
+        const { state } = get();
+        const isMeeting = useWorkspaceStore.getState().isMeetingRecording;
+        if (state === 'recording' && !isMeeting) {
+          get().stopRecording();
+        }
+      })
+    );
+
     // Backend processing started
     unlistens.push(
       onDictationEvent('amiyo-processing-started', () => {

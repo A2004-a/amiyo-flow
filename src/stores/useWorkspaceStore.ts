@@ -18,10 +18,12 @@ interface WorkspaceStore {
   analytics: AnalyticsSummary;
   searchTerm: string;
   selectedHistoryItem: HistoryItem | null;
+  isMeetingRecording: boolean;
 
   setActivePage: (page: PageId) => void;
   setSearchTerm: (term: string) => void;
   setSelectedHistoryItem: (item: HistoryItem | null) => void;
+  setIsMeetingRecording: (rec: boolean) => void;
 
   loadAll: () => Promise<void>;
   loadHistory: () => Promise<void>;
@@ -57,10 +59,12 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   },
   searchTerm: '',
   selectedHistoryItem: null,
+  isMeetingRecording: false,
 
   setActivePage: (page) => set({ activePage: page }),
   setSearchTerm: (term) => set({ searchTerm: term }),
   setSelectedHistoryItem: (item) => set({ selectedHistoryItem: item }),
+  setIsMeetingRecording: (rec) => set({ isMeetingRecording: rec }),
 
   loadAll: async () => {
     await Promise.all([

@@ -1,14 +1,14 @@
 # AMIYO FLOW — COMPREHENSIVE QUALITY, FEATURE & TEST REPORT
 
-This report consolidates the complete quality assurance suite for AMIYO FLOW: the Master Feature Registry (F001–F136), Automated Test Evidence (51/51 passing tests), Structured Bug Tracker (BUG-001–BUG-036), and Semantic Release Changelog.
+This report consolidates the complete quality assurance suite for AMIYO FLOW: the Master Feature Registry (F001–F136), Automated Test Evidence (52/52 passing tests), Structured Bug Tracker (BUG-001–BUG-036), and Semantic Release Changelog.
 
 ---
 
-## 1. Automated Test Execution Evidence (51/51 PASSED)
+## 1. Automated Test Execution Evidence (52/52 PASSED)
 
 - **Test Date**: 2026-11-24
 - **Host Environment**: Windows 11 x64, Intel/AMD architecture, 8GB–16GB RAM
-- **Native Rust Tests (`cargo test`)**: **37 / 37 PASSED** (17 in `lib.rs`, 20 in `unit_tests.rs`)
+- **Native Rust Tests (`cargo test`)**: **38 / 38 PASSED** (17 in `lib.rs`, 21 in `unit_tests.rs`)
 - **Frontend Vitest Tests (`npm test`)**: **14 / 14 PASSED** (`src/test/dictation.test.ts`)
 - **Frontend Production Build (`npm run build`)**: **PASSED** (1,609 modules bundled with 0 errors)
 - **Installer Build (`npx tauri build`)**: **PASSED** (`AMIYO FLOW_1.0.9_x64-setup.exe`)
@@ -18,6 +18,7 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 
 | Test Identifier | Category | Acceptance Criteria | Execution Result | Status |
 |---|---|---|---|---|
+| `test_audio_engine_vad_configuration` | Phase 2 | Verifies AudioEngine real-time VAD initialization & sample rate binding | VadConfig sample rate and silence duration calibrated | **PASSED** |
 | `test_nu_na_and_regional_filler_removal` | Phase 5 | Strips conversational fillers ("um", "nu", "na", "uh") | "um hello nu na we should do this" $\rightarrow$ "Hello we should do this." | **PASSED** |
 | `test_repeated_phrase_removal` | Phase 5 | Deduplicates 2-word repeated stutters ("we can we can") | "we can we can deploy" $\rightarrow$ "We can deploy." | **PASSED** |
 | `test_disfluency_options_toggle` | Phase 5 | Honors user preferences for disabling/enabling filler/repeat filters | Isolated toggle verification for all 3 cleaner options | **PASSED** |
@@ -120,6 +121,11 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
     - Added dedicated, interactive **Speech Cleanser & Disfluency Removal** card with glowing toggles and live before/after preview badges in `src/pages/WritingStyles.tsx` (`AI Writing Styles & Persona`).
     - Added matching configuration switches under `Settings.tsx` for instant accessibility.
     - Routed settings seamlessly through `clean_transcript_routed_with_options` across local deterministic, local Ollama, and Cloud AI execution modes.
+- **Hands-Free Real-Time Voice Activity Detection (VAD) Auto-Stop**:
+  - Wired `VoiceActivityDetector` directly into the live audio capture stream in `src-tauri/src/audio/mod.rs` across all audio sample formats (`F32`, `I16`, `I32`, `U16`).
+  - Automatically detects speech cessation and emits `amiyo-vad-auto-stop` when silence duration reaches user-configured cutoff (`silence_cutoff_ms`, e.g. 1.8s).
+  - Listens in `useDictationStore.ts` to seamlessly auto-complete, clean, and inject text hands-free without requiring a second shortcut press.
+  - Automatically isolates long-form meetings (`MeetingAssistant.tsx`) so normal inter-speaker pauses are never prematurely cut off.
 
 ### [1.0.14] — 2026-11-24
 - **Hardened Win32 Clipboard Verification (BUG-036)**:

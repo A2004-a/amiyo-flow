@@ -239,6 +239,27 @@ fn test_voice_activity_detection() {
 }
 
 #[test]
+fn test_audio_engine_vad_configuration() {
+    use amiyo_flow_lib::audio::AudioEngine;
+    use amiyo_flow_lib::audio::vad::VadConfig;
+
+    let engine = AudioEngine::new();
+    assert!(!engine.is_recording());
+    assert!(!engine.is_paused());
+
+    let vad_cfg = VadConfig {
+        sample_rate: 16000,
+        frame_size_ms: 30,
+        energy_threshold_ratio: 2.5,
+        zcr_speech_threshold: 0.08,
+        silence_cutoff_ms: 1800,
+    };
+
+    assert_eq!(vad_cfg.silence_cutoff_ms, 1800);
+    assert_eq!(vad_cfg.sample_rate, 16000);
+}
+
+#[test]
 fn test_local_model_enumeration() {
     use amiyo_flow_lib::ai::list_local_llm_models;
     use amiyo_flow_lib::stt::list_local_speech_models;

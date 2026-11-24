@@ -40,7 +40,7 @@ const CATEGORIES = [
 ];
 
 export const MeetingAssistant: React.FC = () => {
-  const { meetings, loadMeetings, updateMeeting, deleteMeeting } = useWorkspaceStore();
+  const { meetings, loadMeetings, updateMeeting, deleteMeeting, setIsMeetingRecording } = useWorkspaceStore();
   const { settings } = useSettingsStore();
 
   // Recording State
@@ -108,6 +108,7 @@ export const MeetingAssistant: React.FC = () => {
     }
 
     setIsRecording(true);
+    setIsMeetingRecording(true);
     setDurationSec(0);
     setLiveNotes('');
     const id = window.setInterval(() => {
@@ -120,6 +121,7 @@ export const MeetingAssistant: React.FC = () => {
     if (intervalId) clearInterval(intervalId);
     setIntervalId(null);
     setIsRecording(false);
+    setIsMeetingRecording(false);
 
     const activeTitle =
       meetingTitle.trim() ||

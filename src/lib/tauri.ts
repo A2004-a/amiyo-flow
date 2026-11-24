@@ -67,6 +67,9 @@ let mockSettings: AppSettings = {
   audio_retention: '0',
   theme: 'dark',
   audio_device: 'default',
+  remove_filler_words: 'true',
+  remove_repeated_words: 'true',
+  remove_self_corrections: 'true',
 };
 
 let mockHistory: HistoryItem[] = [
