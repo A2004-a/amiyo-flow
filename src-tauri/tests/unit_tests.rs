@@ -607,5 +607,68 @@ fn test_high_quality_voice_typing_improvements() {
     assert_eq!(so, "Deploy the latest release.");
 }
 
+#[test]
+fn test_phonetic_name_spelling_autocorrection_and_audio_noise_filter() {
+    use amiyo_flow_lib::ai::heuristic_cleanup;
+    use amiyo_flow_lib::audio::suppress_background_noise_and_filter;
+
+    // 1. Phonetic name repair ("omiya", "omiyo", "amio", "a m i y o" -> "Amiyo")
+    let n1 = heuristic_cleanup("hello omiya how are you");
+    assert!(n1.contains("Amiyo"));
+
+    let n2 = heuristic_cleanup("my name is spelled a m i y o");
+    assert!(n2.contains("Amiyo"));
+
+    let n3 = heuristic_cleanup("testing with amiyo flow application");
+    assert!(n3.contains("AMIYO FLOW"));
+
+    let n4 = heuristic_cleanup("testing with omiya flow application");
+    assert!(n4.contains("AMIYO FLOW"));
+
+    // 2. Hesitation particles "aa", "aah", "um aa"
+    let f1 = heuristic_cleanup("um aa we should start the meeting");
+    assert_eq!(f1, "We should start the meeting.");
+
+    let f2 = heuristic_cleanup("aa the system is ready");
+    assert_eq!(f2, "The system is ready.");
+
+    // 3. Advanced speech autocorrection & typo repair
+    let sp1 = heuristic_cleanup("check the wrong seplling and removwe the extra characters");
+    assert!(sp1.contains("spelling"));
+    assert!(sp1.contains("remove"));
+
+    let sp2 = heuristic_cleanup("we definately recieved the document untill tommorow");
+    assert!(sp2.contains("definitely"));
+    assert!(sp2.contains("received"));
+    assert!(sp2.contains("until"));
+    assert!(sp2.contains("tomorrow"));
+
+    // 4. Acoustic background noise suppression & 80Hz filter verification
+    let sample_rate = 16000u32;
+    let mut audio = Vec::with_capacity(16000);
+    for i in 0..16000 {
+        let t = i as f32 / sample_rate as f32;
+        if i < 8000 {
+            // Background 50Hz hum (amplitude 0.02)
+            let hum = 0.02 * (2.0 * std::f32::consts::PI * 50.0 * t).sin();
+            audio.push(hum);
+        } else {
+            // Speech tone 500Hz
+            let speech = 0.40 * (2.0 * std::f32::consts::PI * 500.0 * t).sin();
+            audio.push(speech);
+        }
+    }
+
+    suppress_background_noise_and_filter(&mut audio, sample_rate);
+
+    // Verify background quiet region has been attenuated
+    let quiet_energy: f32 = audio[1000..7000].iter().map(|&s| s * s).sum::<f32>() / 6000.0;
+    assert!(quiet_energy < 0.0003, "Background hum must be attenuated by high-pass & noise gate");
+
+    // Verify speech region is preserved with healthy amplitude
+    let speech_peak = audio[8000..16000].iter().map(|&s| s.abs()).fold(0.0f32, f32::max);
+    assert!(speech_peak > 0.50, "Speech tone must be preserved and normalized");
+}
+
 
 

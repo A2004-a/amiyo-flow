@@ -757,8 +757,8 @@ pub fn heuristic_cleanup_full(
     if remove_fillers {
         let filler_patterns = [
             r"(?i)\b(?:no no wait|no no no|no no)\b,?",
-            r"(?i)\b(?:um\s+uh|uh\s+um|er\s+um|um\s+er)\b,?",
-            r"(?i)\b(um+|uh+|erm+|ah+|nu+|na+|umm+|uhh+|er+|hmm+)\b,?",
+            r"(?i)\b(?:um\s+aa|aa\s+um|um\s+uh|uh\s+um|er\s+um|um\s+er|aa\s+nu|nu\s+aa)\b,?",
+            r"(?i)\b(um+|uh+|erm+|ah+|aa+|aah+|ahh+|nu+|na+|umm+|uhh+|er+|hmm+|uhm+|em+|ohh+)\b,?",
             r"(?i)\b(you know what I mean|you know what I'm saying|you know|basically|actually|literally|sort of|kind of|so yeah|like I mean)\b,?",
         ];
 
@@ -1056,6 +1056,51 @@ pub fn polish_sentence_structure(input: &str) -> String {
         (r"\b(?i)rea\b", "REA"),
         (r"\b(?i)pr\b", "PR"),
         (r"\b(?i)prs\b", "PRs"),
+        // Phonetic Name & App Brand Fixes
+        (r"\b(?i)a\s+m\s+i\s+y\s+o\b", "Amiyo"),
+        (r"\b(?i)omiya\b", "Amiyo"),
+        (r"\b(?i)omiyo\b", "Amiyo"),
+        (r"\b(?i)amio\b", "Amiyo"),
+        (r"\b(?i)ameyo\b", "Amiyo"),
+        (r"\b(?i)ameio\b", "Amiyo"),
+        (r"\b(?i)amiya\b", "Amiyo"),
+        (r"\b(?i)ameya\b", "Amiyo"),
+        (r"\b(?i)amiyo\b", "Amiyo"),
+        (r"\b(?i)omiya\s+flow\b", "AMIYO FLOW"),
+        (r"\b(?i)omiyo\s+flow\b", "AMIYO FLOW"),
+        (r"\b(?i)amiyo\s+flow\b", "AMIYO FLOW"),
+        // Advanced Speech Auto-Correction & Typo Repair
+        (r"\b(?i)seplling\b", "spelling"),
+        (r"\b(?i)removwe\b", "remove"),
+        (r"\b(?i)teh\b", "the"),
+        (r"\b(?i)recieve\b", "receive"),
+        (r"\b(?i)recieved\b", "received"),
+        (r"\b(?i)recieving\b", "receiving"),
+        (r"\b(?i)seperate\b", "separate"),
+        (r"\b(?i)seperated\b", "separated"),
+        (r"\b(?i)untill\b", "until"),
+        (r"\b(?i)definately\b", "definitely"),
+        (r"\b(?i)occured\b", "occurred"),
+        (r"\b(?i)thier\b", "their"),
+        (r"\b(?i)wierd\b", "weird"),
+        (r"\b(?i)tommorow\b", "tomorrow"),
+        (r"\b(?i)tommorrow\b", "tomorrow"),
+        (r"\b(?i)goverment\b", "government"),
+        (r"\b(?i)enviroment\b", "environment"),
+        (r"\b(?i)refering\b", "referring"),
+        (r"\b(?i)writting\b", "writing"),
+        (r"\b(?i)commited\b", "committed"),
+        (r"\b(?i)collegue\b", "colleague"),
+        (r"\b(?i)existense\b", "existence"),
+        (r"\b(?i)succesful\b", "successful"),
+        (r"\b(?i)succesfully\b", "successfully"),
+        (r"\b(?i)begining\b", "beginning"),
+        (r"\b(?i)neccessary\b", "necessary"),
+        (r"\b(?i)unneccessary\b", "unnecessary"),
+        (r"\b(?i)truely\b", "truly"),
+        (r"\b(?i)accomodate\b", "accommodate"),
+        (r"\b(?i)concious\b", "conscious"),
+        (r"\b(?i)pronounciation\b", "pronunciation"),
     ];
     for (pat, repl) in contraction_replacements {
         if let Ok(re) = Regex::new(pat) {
@@ -1096,6 +1141,13 @@ pub fn polish_sentence_structure(input: &str) -> String {
     if let Ok(sent_re) = Regex::new(r"(?:^|[.!?]\s+)([a-z])") {
         text = sent_re.replace_all(&text, |caps: &regex::Captures| {
             caps[0].to_uppercase()
+        }).to_string();
+    }
+
+    // 7. Ensure email addresses remain clean lowercase
+    if let Ok(email_fix) = Regex::new(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}") {
+        text = email_fix.replace_all(&text, |caps: &regex::Captures| {
+            caps[0].to_lowercase()
         }).to_string();
     }
 

@@ -4,11 +4,11 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 
 ---
 
-## 1. Automated Test Execution Evidence (59/59 PASSED)
+## 1. Automated Test Execution Evidence (60/60 PASSED)
 
 - **Test Date**: 2026-11-24
 - **Host Environment**: Windows 11 x64, Intel/AMD architecture, 8GB–16GB RAM
-- **Native Rust Tests (`cargo test`)**: **45 / 45 PASSED** (17 in `lib.rs`, 28 in `unit_tests.rs`)
+- **Native Rust Tests (`cargo test`)**: **46 / 46 PASSED** (17 in `lib.rs`, 29 in `unit_tests.rs`)
 - **Frontend Vitest Tests (`npm test`)**: **14 / 14 PASSED** (`src/test/dictation.test.ts`)
 - **Frontend Production Build (`npm run build`)**: **PASSED** (1,609 modules bundled with 0 errors)
 - **Installer Build (`npx tauri build`)**: **PASSED** (`AMIYO FLOW_1.0.9_x64-setup.exe`)
@@ -18,6 +18,7 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 
 | Test Identifier | Category | Acceptance Criteria | Execution Result | Status |
 |---|---|---|---|---|
+| `test_phonetic_name_spelling_autocorrection_and_audio_noise_filter` | Phase 2, 5 | 1) Automatically corrects phonetic misrecognitions of creator name ("omiya", "omiyo", "amio", "a m i y o" -> "Amiyo") and app brand ("omiya flow" -> "AMIYO FLOW"); 2) Filters hesitation particles "aa", "aah", "um aa"; 3) Fixes dictation typos ("seplling" -> "spelling", "removwe" -> "remove", "definately" -> "definitely", "recieve" -> "receive"); 4) Applies 80Hz high-pass filter and adaptive spectral noise gate attenuating background noise | Name and brand repaired, spelling corrected, 50Hz hum and noise floor attenuated | **PASSED** |
 | `test_high_quality_voice_typing_improvements` | Phase 5 | Eliminates stutter pause commas ("we, we" -> "we", "we can, we can" -> "we can"), handles complete restart triggers ("wait let me start over" -> discards previous utterance), formats spoken times ("five thirty PM" -> "5:30 PM", "nine PM" -> "9 PM"), formats math operations ("2 plus 2 equals 4" -> "2 + 2 = 4"), large numbers ("ten thousand" -> "10,000"), developer & tech terms ("API", "TypeScript", "GitHub", "Tauri", "REA"), and spoken contractions | Stutter commas stripped, full restarts honored, time, math, tech terms formatted | **PASSED** |
 | `test_spoken_edit_commands` | Phase 5 | Executes verbal in-line editing commands ("change Friday to Saturday", "change all 2 to 4", "replace X with Y") with chaining | Chained and single commands execute and strip cleanly | **PASSED** |
 | `test_pivot_backtrack_and_irritation_words` | Phase 5 | Resolves Pivot Phrase restarts ("using rea no chatgpt like application" $\rightarrow$ rewinds to pivot), eliminates repeated hesitation particles ("no no", "no no wait"), and normalizes misspelled days ("saterday" $\rightarrow$ "Saturday") | Digression excised, pivot re-spliced, Saturday normalized | **PASSED** |
@@ -126,6 +127,8 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 | BUG-040 | Medium | Speech Cleanser | Mid-sentence substitution consuming clause restarts prematurely | Word-level replacement regex swallowed restarts before pivot engine could evaluate | Unified all self-corrections under prioritized `self_correction_regex` + `resolve_pivot_backtrack` | FIXED |
 | BUG-041 | Medium | Speech Polish | Spoken time expanding "3 PM" breaking backward compatibility | AM/PM regex converted "3 PM" to "3:00 PM" | Refined word-only matching before AM/PM | FIXED |
 | BUG-042 | High | Speech Cleanser | Spoken full restart retaining prefix | "we broke the server wait let me start over" kept "We broke the" | Added `is_full_restart` check discarding the entire preceding text buffer | FIXED |
+| BUG-043 | High | Audio DSP | Background room noise, electrical AC 50Hz/60Hz hum, and desk vibration degrading speech recognition | Raw microphone capture fed un-filtered acoustic signal directly to speech-to-text | Implemented `suppress_background_noise_and_filter`: 80Hz IIR high-pass filter, adaptive spectral noise gate (-14dB attenuation during pauses), and -1 dBFS peak normalization | FIXED |
+| BUG-044 | High | Speech Autocorrect | Phonetic misrecognition of creator name as "omiya"/"omiyo"/"a m i y o" and dictation typos ("seplling", "removwe") | Atypical phonetics confused acoustic models; common typing errors remained uncorrected | Added phonetic name normalization ("omiya", "omiyo", "amio", "a m i y o" -> "Amiyo", "omiya flow" -> "AMIYO FLOW"), auto-corrected typos, and expanded filler removal to "aa"/"aah" | FIXED |
 
 ---
 
@@ -252,9 +255,22 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
   - **Expanded Spoken Contractions**: Added speech expansions for `how'd`, `why'd`, `where'd`, `what'd`, `who'd`, `who'll`, `what'll`, `that'll`, `how'll`, `it'll`, `c'mon`, and days `Wednesday` (`wensday`), `Thursday` (`thrusday`).
   - **Leading Punctuation Trimming**: Strips leading commas, colons, and semicolons left behind by removed initial filler words (`", we can start"` $\rightarrow$ `"We can start."`).
   - **Simulator Playground Expansion**: Added `Time, Math & Tech Polish` preset in `WritingStyles.tsx` for real-time verification of these features.
-- **Automated Test Coverage (59/59 Tests Passed)**:
-  - Added unit test `test_high_quality_voice_typing_improvements` in `src-tauri/tests/unit_tests.rs`.
-  - Achieved 100% green test pass across 45 Rust unit/integration tests and 14 Vitest frontend tests.
+- **DSP Acoustic Background Noise Suppression & Filtering (BUG-043)**:
+  - **80Hz High-Pass IIR Filter**: Attenuates sub-80Hz acoustic energy, eliminating 50Hz/60Hz AC electrical hum, desk thumps, PC fan vibrations, and air conditioning rumble before speech audio enters Whisper.
+  - **Adaptive Spectral Noise Gate & Soft Expander**: Dynamically tracks the 20th percentile ambient background noise floor across 20ms frames and gently attenuates inter-word pauses and silence by -14dB with a smooth soft-knee curve, preventing clipped speech while wiping out room hiss.
+  - **Peak Normalization to -1 dBFS**: Digitally normalizes voice peaks to ~0.89 float level, ensuring soft-spoken words achieve optimal signal-to-noise ratio and transcription accuracy.
+- **Phonetic Name & Brand Auto-Correction (BUG-044)**:
+  - Automatically corrects STT phonetic mishearings of the creator's name (`"omiya"`, `"omiyo"`, `"amio"`, `"ameyo"`, `"ameio"`, `"amiya"`, `"ameya"`, `"a m i y o"` $\rightarrow$ **`"Amiyo"`**).
+  - Normalizes compound app brand occurrences (`"omiya flow"`, `"omiyo flow"`, `"amiyo flow"` $\rightarrow$ **`"AMIYO FLOW"`**).
+  - Seeded dictionary defaults and auto-migrated existing SQLite databases with these phonetic autocorrection pairs.
+- **Advanced Dictation Auto-Correction & Typo Repair**:
+  - Automatically fixes common speech typing errors: `"seplling"` $\rightarrow$ `"spelling"`, `"removwe"` $\rightarrow$ `"remove"`, `"teh"` $\rightarrow$ `"the"`, `"definately"` $\rightarrow$ `"definitely"`, `"recieve"` / `"recieved"` $\rightarrow$ `"receive"` / `"received"`, `"seperate"` $\rightarrow$ `"separate"`, `"untill"` $\rightarrow$ `"until"`, `"tommorow"` $\rightarrow$ `"tomorrow"`, `"goverment"` $\rightarrow$ `"government"`, `"enviroment"` $\rightarrow$ `"environment"`, `"truely"` $\rightarrow$ `"truly"`, `"neccessary"` $\rightarrow$ `"necessary"`.
+  - Expanded hesitation filters to catch `"aa"`, `"aah"`, `"ahh"`, `"um aa"`, `"aa um"`, `"uhm"`, `"em"`, `"ohh"`.
+  - Ensured lowercased preservation of email addresses (`amiyo@gmail.com`).
+  - Added the **`Name & Spelling Auto-Correction`** 1-click test scenario preset in `WritingStyles.tsx`.
+- **Automated Test Coverage (60/60 Tests Passed)**:
+  - Added unit test `test_phonetic_name_spelling_autocorrection_and_audio_noise_filter` in `src-tauri/tests/unit_tests.rs`.
+  - Achieved 100% green test pass across 46 Rust unit/integration tests and 14 Vitest frontend tests.
 - **Interactive Speech Cleanser & Smart Sentence Polish Suite**:
   - **Smart Sentence & Grammar Polish**: Added a 4th modular cleaner card (`Sentence & Grammar Polish`) featuring multi-sentence boundary capitalization after `[.!?]`, pronoun `I` & contraction repair (`don't`, `can't`, `won't`, `didn't`, `isn't`, `it's`, `we've`), transition commas (`However,`, `Therefore,`), and punctuation spacing hygiene.
   - **Mid-Sentence Intelligent Backtracking**: Enhanced `heuristic_cleanup_full` to distinguish between full clause restarts (`"deploy on Friday no wait deploy on Monday"`) and mid-sentence word corrections (`"we need five no wait six servers"`), preserving the preceding sentence context while updating the corrected token.

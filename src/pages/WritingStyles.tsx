@@ -226,8 +226,8 @@ function simulateCleanup(
   // 2. Filler words
   if (removeFillers) {
     text = text.replace(/\b(?:no no wait|no no no|no no)\b,?/gi, '');
-    text = text.replace(/\b(?:um\s+uh|uh\s+um|er\s+um|um\s+er)\b,?/gi, '');
-    text = text.replace(/\b(um+|uh+|erm+|ah+|nu+|na+|umm+|uhh+|er+|hmm+)\b,?/gi, '');
+    text = text.replace(/\b(?:um\s+aa|aa\s+um|um\s+uh|uh\s+um|er\s+um|um\s+er|aa\s+nu|nu\s+aa)\b,?/gi, '');
+    text = text.replace(/\b(um+|uh+|erm+|ah+|aa+|aah+|ahh+|nu+|na+|umm+|uhh+|er+|hmm+|uhm+|em+|ohh+)\b,?/gi, '');
     text = text.replace(/\b(you know what I mean|you know what I'm saying|you know|basically|actually|literally|sort of|kind of|so yeah|like I mean)\b,?/gi, '');
     for (const cf of customFillers) {
       const trimmed = cf.trim();
@@ -421,6 +421,51 @@ function simulateCleanup(
       [/\brea\b/gi, "REA"],
       [/\bpr\b/gi, "PR"],
       [/\bprs\b/gi, "PRs"],
+      // Phonetic Name & App Brand Fixes
+      [/\ba\s+m\s+i\s+y\s+o\b/gi, "Amiyo"],
+      [/\bomiya\b/gi, "Amiyo"],
+      [/\bomiyo\b/gi, "Amiyo"],
+      [/\bamio\b/gi, "Amiyo"],
+      [/\bameyo\b/gi, "Amiyo"],
+      [/\bameio\b/gi, "Amiyo"],
+      [/\bamiya\b/gi, "Amiyo"],
+      [/\bameya\b/gi, "Amiyo"],
+      [/\bamiyo\b/gi, "Amiyo"],
+      [/\bomiya\s+flow\b/gi, "AMIYO FLOW"],
+      [/\bomiyo\s+flow\b/gi, "AMIYO FLOW"],
+      [/\bamiyo\s+flow\b/gi, "AMIYO FLOW"],
+      // Advanced Speech Auto-Correction & Typo Repair
+      [/\bseplling\b/gi, "spelling"],
+      [/\bremovwe\b/gi, "remove"],
+      [/\bteh\b/gi, "the"],
+      [/\brecieve\b/gi, "receive"],
+      [/\brecieved\b/gi, "received"],
+      [/\brecieving\b/gi, "receiving"],
+      [/\bseperate\b/gi, "separate"],
+      [/\bseperated\b/gi, "separated"],
+      [/\buntill\b/gi, "until"],
+      [/\bdefinately\b/gi, "definitely"],
+      [/\boccured\b/gi, "occurred"],
+      [/\bthier\b/gi, "their"],
+      [/\bwierd\b/gi, "weird"],
+      [/\btommorow\b/gi, "tomorrow"],
+      [/\btommorrow\b/gi, "tomorrow"],
+      [/\bgoverment\b/gi, "government"],
+      [/\benviroment\b/gi, "environment"],
+      [/\brefering\b/gi, "referring"],
+      [/\bwritting\b/gi, "writing"],
+      [/\bcommited\b/gi, "committed"],
+      [/\bcollegue\b/gi, "colleague"],
+      [/\bexistense\b/gi, "existence"],
+      [/\bsuccesful\b/gi, "successful"],
+      [/\bsuccesfully\b/gi, "successfully"],
+      [/\bbegining\b/gi, "beginning"],
+      [/\bneccessary\b/gi, "necessary"],
+      [/\bunneccessary\b/gi, "unnecessary"],
+      [/\btruely\b/gi, "truly"],
+      [/\baccomodate\b/gi, "accommodate"],
+      [/\bconcious\b/gi, "conscious"],
+      [/\bpronounciation\b/gi, "pronunciation"],
     ];
     for (const [re, repl] of contractions) {
       text = text.replace(re, repl);
@@ -440,6 +485,9 @@ function simulateCleanup(
 
     // Sentence-boundary capitalization
     text = text.replace(/(?:^|[.!?\n]\s+)([a-z])/g, (m) => m.toUpperCase());
+
+    // Ensure email addresses remain clean lowercase
+    text = text.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, (match) => match.toLowerCase());
   }
 
   // Clean spacing and line breaks
@@ -556,6 +604,10 @@ export const WritingStyles: React.FC = () => {
     {
       label: 'Pivot Phrase Backtrack',
       text: 'i try to build chatgpt like application using rea no chatgpt like application',
+    },
+    {
+      label: 'Name & Spelling Auto-Correction',
+      text: 'um aa omiya flow was built with wrong seplling but definately recieved high quality',
     },
     {
       label: 'Time, Math & Tech Polish',
@@ -709,7 +761,7 @@ export const WritingStyles: React.FC = () => {
                 </div>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed min-h-[36px]">
-                Filters out hesitations like <span className="text-amber-300 font-mono">um, nu, na, uh, erm, ah, you know</span>, and custom fillers.
+                Filters out hesitations like <span className="text-amber-300 font-mono">um, aa, aah, nu, na, uh, erm, ah, you know</span>, and custom fillers.
               </p>
             </div>
             <div className="text-[10px] bg-slate-950/90 rounded-lg p-2.5 border border-slate-800/80 font-mono text-slate-400 min-h-[52px] flex flex-col justify-center">

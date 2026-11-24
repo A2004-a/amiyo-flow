@@ -186,6 +186,14 @@ impl Database {
         // Seed default dictionary words
         let default_words = [
             ("Amiyo", "Amiyo", "Names"),
+            ("omiya", "Amiyo", "Phonetics"),
+            ("omiyo", "Amiyo", "Phonetics"),
+            ("amio", "Amiyo", "Phonetics"),
+            ("ameyo", "Amiyo", "Phonetics"),
+            ("amiya", "Amiyo", "Phonetics"),
+            ("omiya flow", "AMIYO FLOW", "Brands"),
+            ("omiyo flow", "AMIYO FLOW", "Brands"),
+            ("amiyo flow", "AMIYO FLOW", "Brands"),
             ("Antigravity", "Antigravity", "Technical"),
             ("Tauri", "Tauri", "Technical"),
             ("Kubernetes", "Kubernetes", "Technical"),
@@ -197,10 +205,10 @@ impl Database {
         for (w, r, c) in default_words.iter() {
             let id = uuid::Uuid::new_v4().to_string();
             let now = chrono::Utc::now().to_rfc3339();
-            conn.execute(
+            let _ = conn.execute(
                 "INSERT OR IGNORE INTO dictionary (id, word, replacement, category, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
                 params![id, w, r, c, now],
-            )?;
+            );
         }
 
         // Seed default snippets
