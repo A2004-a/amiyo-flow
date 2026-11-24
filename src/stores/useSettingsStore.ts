@@ -33,6 +33,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     remove_filler_words: 'true',
     remove_repeated_words: 'true',
     remove_self_corrections: 'true',
+    clean_sentences: 'true',
     custom_filler_words: '',
   },
   devices: [],

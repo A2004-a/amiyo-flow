@@ -92,7 +92,7 @@ fn test_disfluency_options_toggle() {
     assert!(!all_cleaned.to_lowercase().contains("um"));
     assert!(!all_cleaned.to_lowercase().contains("nu"));
     assert!(!all_cleaned.to_lowercase().contains("we can we can"));
-    assert!(all_cleaned.contains("Tomorrow"));
+    assert!(all_cleaned.to_lowercase().contains("tomorrow"));
 
     // With filler removal disabled:
     let keep_fillers = heuristic_cleanup_with_options("um hello nu we can do it", false, true, false);
@@ -121,6 +121,38 @@ fn test_custom_filler_words_removal() {
     assert!(!cleaned.to_lowercase().contains("yaar"));
     assert!(!cleaned.to_lowercase().contains("you know"));
     assert!(cleaned.to_lowercase().contains("push this right now"));
+}
+
+#[test]
+fn test_sentence_polish_and_grammar_cleanup() {
+    use amiyo_flow_lib::ai::polish_sentence_structure;
+
+    let raw = "we deployed the build. it works smoothly. dont worry i told them we cant fail. however we should test period";
+    let polished = polish_sentence_structure(raw);
+
+    assert!(polished.contains("We deployed the build."));
+    assert!(polished.contains("It works smoothly."));
+    assert!(polished.contains("Don't worry"));
+    assert!(polished.contains("I told them"));
+    assert!(polished.contains("can't fail."));
+    assert!(polished.contains("However, we should"));
+}
+
+#[test]
+fn test_mid_sentence_self_correction() {
+    use amiyo_flow_lib::ai::heuristic_cleanup;
+
+    // Mid-sentence value replacement
+    let raw = "we need five no wait six servers for the new cluster period";
+    let cleaned = heuristic_cleanup(raw);
+    assert!(cleaned.contains("We need six servers"));
+    assert!(!cleaned.contains("five"));
+
+    // Date/Day replacement preserving preceding clause
+    let raw2 = "schedule the meeting for Friday no wait Monday at 3 PM period";
+    let cleaned2 = heuristic_cleanup(raw2);
+    assert!(cleaned2.contains("Schedule the meeting for Monday at 3 PM"));
+    assert!(!cleaned2.contains("Friday"));
 }
 
 #[test]

@@ -124,6 +124,7 @@ export interface AppSettings {
   remove_filler_words?: string;
   remove_repeated_words?: string;
   remove_self_corrections?: string;
+  clean_sentences?: string;
   custom_filler_words?: string;
 }
 

@@ -222,6 +222,37 @@ pub async fn clean_transcript_routed_with_custom(
     remove_corrections: bool,
     custom_fillers: &[String],
 ) -> Result<String, String> {
+    clean_transcript_routed_full(
+        router_config,
+        raw_text,
+        style,
+        target_app,
+        dictionary,
+        snippets,
+        auditor,
+        remove_fillers,
+        remove_repeats,
+        remove_corrections,
+        true,
+        custom_fillers,
+    )
+    .await
+}
+
+pub async fn clean_transcript_routed_full(
+    router_config: &router::AiRouterConfig,
+    raw_text: &str,
+    style: &str,
+    target_app: &str,
+    dictionary: &[crate::db::DictionaryItem],
+    snippets: &[crate::db::SnippetItem],
+    auditor: &NetworkAuditor,
+    remove_fillers: bool,
+    remove_repeats: bool,
+    remove_corrections: bool,
+    clean_sentences: bool,
+    custom_fillers: &[String],
+) -> Result<String, String> {
     if raw_text.trim().is_empty() {
         return Ok("".to_string());
     }
@@ -231,7 +262,14 @@ pub async fn clean_transcript_routed_with_custom(
     }
 
     // Step 1: Instant deterministic local pre-clean (0 MB RAM)
-    let pre_cleaned = heuristic_cleanup_with_custom(raw_text, remove_fillers, remove_repeats, remove_corrections, custom_fillers);
+    let pre_cleaned = heuristic_cleanup_full(
+        raw_text,
+        remove_fillers,
+        remove_repeats,
+        remove_corrections,
+        clean_sentences,
+        custom_fillers,
+    );
 
     // Step 2: Personal Dictionary substitution
     let after_dict = apply_dictionary(&pre_cleaned, dictionary);
@@ -447,7 +485,7 @@ pub fn heuristic_cleanup_with_options(
     remove_repeats: bool,
     remove_corrections: bool,
 ) -> String {
-    heuristic_cleanup_with_custom(input, remove_fillers, remove_repeats, remove_corrections, &[])
+    heuristic_cleanup_full(input, remove_fillers, remove_repeats, remove_corrections, true, &[])
 }
 
 /// Local Deterministic Heuristic Normalizer with custom filler word list support
@@ -458,14 +496,41 @@ pub fn heuristic_cleanup_with_custom(
     remove_corrections: bool,
     custom_fillers: &[String],
 ) -> String {
+    heuristic_cleanup_full(input, remove_fillers, remove_repeats, remove_corrections, true, custom_fillers)
+}
+
+/// Local Deterministic Heuristic Normalizer with full modular control including smart sentence polishing
+pub fn heuristic_cleanup_full(
+    input: &str,
+    remove_fillers: bool,
+    remove_repeats: bool,
+    remove_corrections: bool,
+    clean_sentences: bool,
+    custom_fillers: &[String],
+) -> String {
     let mut text = input.to_string();
 
-    // 1. Remove spoken self-corrections ("no wait...", "scratch that...", "I mean...")
+    // 1. Spoken self-corrections ("no wait...", "scratch that...", "I mean...", "actually no...")
     if remove_corrections {
-        let self_correction_regex = Regex::new(r"(?i)\b(?:no wait|scratch that|I mean)[,\s]+(.+)").unwrap();
+        let self_correction_regex = Regex::new(r"(?i)\b(?:no wait|scratch that|sorry I meant|actually no|wait no|I mean)[,\s]+(.+)").unwrap();
         if let Some(caps) = self_correction_regex.captures(&text) {
-            if let Some(replacement) = caps.get(1) {
-                text = replacement.as_str().to_string();
+            let replacement = caps.get(1).unwrap().as_str().trim();
+            let full_match = self_correction_regex.find(&text).unwrap();
+            let before = text[..full_match.start()].trim();
+
+            let before_words: Vec<&str> = before.split_whitespace().collect();
+            let repl_words: Vec<&str> = replacement.split_whitespace().collect();
+
+            if before_words.len() >= 2 && !repl_words.is_empty() {
+                let shares_start = before_words.first().map(|w| w.to_lowercase()) == repl_words.first().map(|w| w.to_lowercase());
+                if !shares_start {
+                    let prefix = before_words[..before_words.len() - 1].join(" ");
+                    text = format!("{} {}", prefix, replacement);
+                } else {
+                    text = replacement.to_string();
+                }
+            } else {
+                text = replacement.to_string();
             }
         }
     }
@@ -537,7 +602,12 @@ pub fn heuristic_cleanup_with_custom(
         text = space_punct.replace_all(&text, "$1").to_string();
     }
 
-    // 6. Normalize spaces and whitespace while preserving intentional newlines
+    // 6. Sentence & Grammar Polish (Contractions, multi-sentence capitalization, pronoun 'I', transitions)
+    if clean_sentences {
+        text = polish_sentence_structure(&text);
+    }
+
+    // 7. Normalize spaces and whitespace while preserving intentional newlines
     let hspace_re = Regex::new(r"[ \t]+").unwrap();
     text = hspace_re.replace_all(&text, " ").to_string();
 
@@ -547,7 +617,7 @@ pub fn heuristic_cleanup_with_custom(
     let multi_nl = Regex::new(r"\n{3,}").unwrap();
     text = multi_nl.replace_all(&text, "\n\n").trim().to_string();
 
-    // 7. Capitalize first letter and ensure ending punctuation per paragraph
+    // 8. Capitalize initial letter and ensure ending punctuation per paragraph
     if !text.is_empty() {
         let mut lines = Vec::new();
         for line in text.split('\n') {
@@ -566,6 +636,92 @@ pub fn heuristic_cleanup_with_custom(
             lines.push(formatted_line);
         }
         text = lines.join("\n");
+    }
+
+    text
+}
+
+/// Polish sentence structure, multi-sentence capitalization, pronoun 'I', and spoken contractions
+pub fn polish_sentence_structure(input: &str) -> String {
+    let mut text = input.to_string();
+
+    // 1. Fix lowercase pronoun 'i' and its contractions
+    let pronoun_replacements = [
+        (r"\b(i)\b", "I"),
+        (r"\b(i'm|im)\b", "I'm"),
+        (r"\b(i've|ive)\b", "I've"),
+        (r"\b(i'll)\b", "I'll"),
+        (r"\b(i'd)\b", "I'd"),
+    ];
+    for (pat, repl) in pronoun_replacements {
+        if let Ok(re) = Regex::new(pat) {
+            text = re.replace_all(&text, repl).to_string();
+        }
+    }
+
+    // 2. Fix common spoken contractions missing apostrophes
+    let contraction_replacements = [
+        (r"\b(?i)dont\b", "don't"),
+        (r"\b(?i)cant\b", "can't"),
+        (r"\b(?i)wont\b", "won't"),
+        (r"\b(?i)didnt\b", "didn't"),
+        (r"\b(?i)isnt\b", "isn't"),
+        (r"\b(?i)arent\b", "aren't"),
+        (r"\b(?i)hasnt\b", "hasn't"),
+        (r"\b(?i)havent\b", "haven't"),
+        (r"\b(?i)couldnt\b", "couldn't"),
+        (r"\b(?i)shouldnt\b", "shouldn't"),
+        (r"\b(?i)wouldnt\b", "wouldn't"),
+        (r"\b(?i)thats\b", "that's"),
+        (r"\b(?i)whats\b", "what's"),
+        (r"\b(?i)theres\b", "there's"),
+        (r"\b(?i)heres\b", "here's"),
+        (r"\b(?i)lets\b", "let's"),
+        (r"\b(?i)youre\b", "you're"),
+        (r"\b(?i)theyre\b", "they're"),
+        (r"\b(?i)weve\b", "we've"),
+        (r"\b(?i)werent\b", "weren't"),
+    ];
+    for (pat, repl) in contraction_replacements {
+        if let Ok(re) = Regex::new(pat) {
+            text = re.replace_all(&text, repl).to_string();
+        }
+    }
+
+    // 3. Ensure a space follows commas, semicolons, and colons when followed directly by a letter
+    if let Ok(missing_space) = Regex::new(r"([,;:])([a-zA-Z])") {
+        text = missing_space.replace_all(&text, "$1 $2").to_string();
+    }
+
+    // 4. Eliminate duplicate punctuation (".." -> ".", ",," -> ",", "??" -> "?", "!!" -> "!")
+    let dup_punct = [
+        (r"\.{2,}", "."),
+        (r",{2,}", ","),
+        (r"\?{2,}", "?"),
+        (r"!{2,}", "!"),
+    ];
+    for (pat, repl) in dup_punct {
+        if let Ok(re) = Regex::new(pat) {
+            text = re.replace_all(&text, repl).to_string();
+        }
+    }
+
+    // 5. Add comma after introductory transition phrases if missing
+    let intro_transitions = [
+        (r"(?i)\b(however|therefore|furthermore|moreover|meanwhile|in addition|first of all|finally|for example|in fact|as a result)\s+([a-zA-Z])", "$1, $2"),
+    ];
+    for (pat, repl) in intro_transitions {
+        if let Ok(re) = Regex::new(pat) {
+            text = re.replace_all(&text, repl).to_string();
+        }
+    }
+
+    // 6. Sentence-boundary capitalization:
+    // Capitalize every letter following [.?!]\s+ (sentence boundary with space)
+    if let Ok(sent_re) = Regex::new(r"(?:^|[.!?]\s+)([a-z])") {
+        text = sent_re.replace_all(&text, |caps: &regex::Captures| {
+            caps[0].to_uppercase()
+        }).to_string();
     }
 
     text

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
   PenTool,
   Check,
+  CheckCheck,
   Briefcase,
   Smile,
   GraduationCap,
@@ -34,16 +35,23 @@ function simulateCleanup(
   removeFillers: boolean,
   removeRepeats: boolean,
   removeCorrections: boolean,
+  cleanSentences: boolean,
   customFillers: string[]
 ): string {
   if (!input.trim()) return '';
   let text = input;
 
-  // 1. Self corrections
+  // 1. Spoken self corrections
   if (removeCorrections) {
-    const correctionMatch = text.match(/\b(?:no wait|scratch that|I mean)[,\s]+(.+)/i);
-    if (correctionMatch && correctionMatch[1]) {
-      text = correctionMatch[1];
+    // Pass A: Mid-sentence quick 1-2 word substitution ("five no wait six", "Friday no wait Monday")
+    text = text.replace(
+      /\b([a-zA-Z0-9$€£#]+(?:\s+(?:AM|PM|am|pm))?)[,\s]+(?:no wait|scratch that|I mean|actually no|wait no|sorry I meant|or rather|correction)[,\s]+([a-zA-Z0-9$€£#]+(?:\s+(?:AM|PM|am|pm))?)\b/gi,
+      '$2'
+    );
+    // Pass B: Clause-level backtrack replacement
+    const clauseMatch = text.match(/(?:^|[.!?\n]\s*)(?:.+?)[,\s]+(?:no wait|scratch that|sorry I meant|actually no|I mean)[,\s]+(.+)/i);
+    if (clauseMatch && clauseMatch[1]) {
+      text = clauseMatch[1];
     }
   }
 
@@ -68,7 +76,7 @@ function simulateCleanup(
     text = text.replace(/\b([a-zA-Z0-9]+)\s+\1\b/gi, '$1');
   }
 
-  // Verbal punctuation
+  // 4. Verbal punctuation
   text = text
     .replace(/\s+period\b/gi, '.')
     .replace(/\s+full stop\b/gi, '.')
@@ -79,14 +87,79 @@ function simulateCleanup(
     .replace(/\s+semicolon\b/gi, ';')
     .replace(/\s+(?:new line|newline)\b/gi, '\n');
 
-  // Clean spacing and capitalization
-  text = text.replace(/\s+/g, ' ').replace(/\s+([.,!?:;])/g, '$1').trim();
-  if (text.length > 0) {
-    text = text.charAt(0).toUpperCase() + text.slice(1);
-    if (!/[.!?\n]$/.test(text)) {
-      text += '.';
+  // Spaces before punctuation
+  text = text.replace(/\s+([,\.?!;:])/g, '$1');
+
+  // 5. Smart Sentence & Grammar Polish
+  if (cleanSentences) {
+    // Fix lowercase pronoun 'i' and its contractions
+    text = text
+      .replace(/\b(i)\b/g, 'I')
+      .replace(/\b(i'm|im)\b/gi, "I'm")
+      .replace(/\b(i've|ive)\b/gi, "I've")
+      .replace(/\b(i'll)\b/gi, "I'll")
+      .replace(/\b(i'd)\b/gi, "I'd");
+
+    // Fix common spoken contractions missing apostrophes
+    const contractions: [RegExp, string][] = [
+      [/\bdont\b/gi, "don't"],
+      [/\bcant\b/gi, "can't"],
+      [/\bwont\b/gi, "won't"],
+      [/\bdidnt\b/gi, "didn't"],
+      [/\bisnt\b/gi, "isn't"],
+      [/\barent\b/gi, "aren't"],
+      [/\bhasnt\b/gi, "hasn't"],
+      [/\bhavent\b/gi, "haven't"],
+      [/\bcouldnt\b/gi, "couldn't"],
+      [/\bshouldnt\b/gi, "shouldn't"],
+      [/\bwouldnt\b/gi, "wouldn't"],
+      [/\bthats\b/gi, "that's"],
+      [/\bwhats\b/gi, "what's"],
+      [/\btheres\b/gi, "there's"],
+      [/\bheres\b/gi, "here's"],
+      [/\blets\b/gi, "let's"],
+      [/\byoure\b/gi, "you're"],
+      [/\btheyre\b/gi, "they're"],
+      [/\bweve\b/gi, "we've"],
+      [/\bwerent\b/gi, "weren't"],
+    ];
+    for (const [re, repl] of contractions) {
+      text = text.replace(re, repl);
     }
+
+    // Space after punctuation followed by letter
+    text = text.replace(/([,\.?!;:])([a-zA-Z])/g, '$1 $2');
+
+    // Duplicate punctuation
+    text = text.replace(/\.{2,}/g, '.').replace(/,{2,}/g, ',').replace(/\?{2,}/g, '?').replace(/!{2,}/g, '!');
+
+    // Transition word commas
+    text = text.replace(
+      /\b(however|therefore|furthermore|moreover|meanwhile|in addition|first of all|finally|for example|in fact|as a result)\s+([a-zA-Z])/gi,
+      '$1, $2'
+    );
+
+    // Sentence-boundary capitalization
+    text = text.replace(/(?:^|[.!?\n]\s+)([a-z])/g, (m) => m.toUpperCase());
   }
+
+  // Clean spacing and line breaks
+  text = text.replace(/[ \t]+/g, ' ').replace(/ *(\r?\n) */g, '\n').trim();
+
+  // Paragraph formatting and capitalization
+  if (text.length > 0) {
+    const lines = text.split('\n').map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return '';
+      let cap = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+      if (!/[.!?:]$/.test(cap)) {
+        cap += '.';
+      }
+      return cap;
+    });
+    text = lines.join('\n');
+  }
+
   return text;
 }
 
@@ -121,6 +194,7 @@ export const WritingStyles: React.FC = () => {
   const isFillersActive = settings.remove_filler_words !== 'false';
   const isRepeatsActive = settings.remove_repeated_words !== 'false';
   const isCorrectionsActive = settings.remove_self_corrections !== 'false';
+  const isSentencesActive = settings.clean_sentences !== 'false';
 
   const simulatedOutput = useMemo(() => {
     return simulateCleanup(
@@ -128,6 +202,7 @@ export const WritingStyles: React.FC = () => {
       isFillersActive,
       isRepeatsActive,
       isCorrectionsActive,
+      isSentencesActive,
       customFillers
     );
   }, [
@@ -135,6 +210,7 @@ export const WritingStyles: React.FC = () => {
     isFillersActive,
     isRepeatsActive,
     isCorrectionsActive,
+    isSentencesActive,
     customFillers,
   ]);
 
@@ -156,7 +232,11 @@ export const WritingStyles: React.FC = () => {
     },
     {
       label: 'Spoken Self-Correction',
-      text: 'let us schedule the meeting for Friday no wait Monday at 3 PM period',
+      text: 'we need five no wait six servers for Friday no wait Monday period',
+    },
+    {
+      label: 'Sentence & Grammar Polish',
+      text: 'we deployed the server. it works smoothly. dont worry i told them we cant fail period',
     },
     {
       label: 'Custom Word Cleanser',
@@ -250,7 +330,7 @@ export const WritingStyles: React.FC = () => {
                   Instant Local
                 </span>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
-                  {[isFillersActive, isRepeatsActive, isCorrectionsActive].filter(Boolean).length}/3 Active
+                  {[isFillersActive, isRepeatsActive, isCorrectionsActive, isSentencesActive].filter(Boolean).length}/4 Active
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
@@ -260,8 +340,8 @@ export const WritingStyles: React.FC = () => {
           </div>
         </div>
 
-        {/* 3 Equalized Filter Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {/* 4 Equalized Filter Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {/* 1. Filler Words */}
           <div
             onClick={() =>
@@ -336,7 +416,7 @@ export const WritingStyles: React.FC = () => {
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold flex items-center gap-1.5 text-white">
                   <Repeat className="w-4 h-4 text-cyan-400" />
-                  Remove Repeated Stutters
+                  Remove Stutters
                 </span>
                 <div className="flex items-center gap-2">
                   <span
@@ -392,7 +472,7 @@ export const WritingStyles: React.FC = () => {
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold flex items-center gap-1.5 text-white">
                   <Wand2 className="w-4 h-4 text-emerald-400" />
-                  Remove Self-Corrections
+                  Self-Corrections
                 </span>
                 <div className="flex items-center gap-2">
                   <span
@@ -418,7 +498,7 @@ export const WritingStyles: React.FC = () => {
                 </div>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed min-h-[36px]">
-                Detects verbal backtrack phrases like <span className="text-emerald-300 font-mono">"no wait"</span> and <span className="text-emerald-300 font-mono">"scratch that"</span> to keep intended speech.
+                Detects backtrack phrases like <span className="text-emerald-300 font-mono">"no wait"</span>, <span className="text-emerald-300 font-mono">"scratch that"</span>, keeping your true speech.
               </p>
             </div>
             <div className="text-[10px] bg-slate-950/90 rounded-lg p-2.5 border border-slate-800/80 font-mono text-slate-400 min-h-[52px] flex flex-col justify-center">
@@ -426,6 +506,62 @@ export const WritingStyles: React.FC = () => {
               <span>
                 "Friday no wait Monday" →{' '}
                 <span className="text-emerald-300 font-medium">"Monday."</span>
+              </span>
+            </div>
+          </div>
+
+          {/* 4. Smart Sentence & Grammar Polish */}
+          <div
+            onClick={() =>
+              updateSetting(
+                'clean_sentences',
+                settings.clean_sentences === 'false' ? 'true' : 'false'
+              )
+            }
+            className={`p-4 rounded-xl border transition-all cursor-pointer h-full flex flex-col justify-between space-y-3.5 select-none ${
+              isSentencesActive
+                ? 'bg-violet-950/20 border-violet-500/50 text-white shadow-md shadow-violet-500/10'
+                : 'bg-slate-950/60 border-slate-800/80 text-slate-400 hover:border-slate-700'
+            }`}
+          >
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold flex items-center gap-1.5 text-white">
+                  <CheckCheck className="w-4 h-4 text-violet-400" />
+                  Clean Sentences
+                </span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                      isSentencesActive
+                        ? 'bg-violet-500/20 text-violet-300 border border-violet-500/40'
+                        : 'bg-slate-800 text-slate-500'
+                    }`}
+                  >
+                    {isSentencesActive ? 'ACTIVE' : 'OFF'}
+                  </span>
+                  <div
+                    className={`w-9 h-5 flex items-center rounded-full p-0.5 transition-colors ${
+                      isSentencesActive ? 'bg-violet-500' : 'bg-slate-800'
+                    }`}
+                  >
+                    <div
+                      className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
+                        isSentencesActive ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </div>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed min-h-[36px]">
+                Capitalizes all sentences, fixes pronoun <span className="text-violet-300 font-mono">"I"</span>, repairs contractions (<span className="text-violet-300 font-mono">don't, can't</span>), and balances punctuation.
+              </p>
+            </div>
+            <div className="text-[10px] bg-slate-950/90 rounded-lg p-2.5 border border-slate-800/80 font-mono text-slate-400 min-h-[52px] flex flex-col justify-center">
+              <span className="text-slate-600 block text-[9px]">Preview:</span>
+              <span>
+                "we arrived. it works. dont worry" →{' '}
+                <span className="text-violet-300 font-medium">"We arrived. It works. Don't worry."</span>
               </span>
             </div>
           </div>
