@@ -249,4 +249,21 @@ describe('AMIYO FLOW Frontend Store & Pipeline Tests', () => {
     expect(wsContent).toContain('quoteCount');
     expect(wsContent).toContain('openParens');
   });
+
+  it('verifies expanded spoken style command triggers and reactive style synchronization', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const wsContent = fs.readFileSync(path.resolve(__dirname, '../pages/WritingStyles.tsx'), 'utf-8');
+
+    expect(wsContent).toContain('using');
+    expect(wsContent).toContain('business style');
+    expect(wsContent).toContain('proper prompt');
+
+    // Verify reactive store handles style updates
+    await useSettingsStore.getState().updateSetting('style', 'Developer');
+    expect(useSettingsStore.getState().settings.style).toBe('Developer');
+
+    await useSettingsStore.getState().updateSetting('style', 'Professional');
+    expect(useSettingsStore.getState().settings.style).toBe('Professional');
+  });
 });

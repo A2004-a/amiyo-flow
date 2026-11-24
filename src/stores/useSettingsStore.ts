@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api } from '../lib/tauri';
+import { api, onDictationEvent } from '../lib/tauri';
 import { AppSettings, AudioDeviceInfo } from '../types';
 
 interface SettingsStore {
@@ -79,3 +79,14 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     await get().updateSetting('audio_device', name);
   },
 }));
+
+// Reactively synchronize active style when changed via spoken voice directives
+if (typeof window !== 'undefined') {
+  onDictationEvent<string>('amiyo-style-changed', (newStyle) => {
+    if (newStyle) {
+      useSettingsStore.setState((prev) => ({
+        settings: { ...prev.settings, style: newStyle },
+      }));
+    }
+  });
+}

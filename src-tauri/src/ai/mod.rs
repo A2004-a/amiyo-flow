@@ -1834,6 +1834,10 @@ pub fn apply_snippets(text: &str, snippets: &[crate::db::SnippetItem]) -> String
     result
 }
 
+static COMMAND_PATTERNS_STATIC: OnceLock<Vec<(Regex, &'static str)>> = OnceLock::new();
+static BUSINESS_COMPOUND_STATIC: OnceLock<Regex> = OnceLock::new();
+static BUSINESS_REPLACEMENTS_STATIC: OnceLock<Vec<(Regex, &'static str)>> = OnceLock::new();
+
 /// Extracts autonomous voice control directives from speech (e.g. "in business style: ...", "make this a prompt: ...")
 pub fn extract_spoken_style_command(input: &str) -> (Option<String>, String) {
     let trimmed = input.trim();
@@ -1841,46 +1845,51 @@ pub fn extract_spoken_style_command(input: &str) -> (Option<String>, String) {
         return (None, String::new());
     }
 
-    let command_patterns: &[(&str, &str)] = &[
-        // Professional & Business
-        (r"(?i)^(?:write\s+this\s+in|format\s+as|use|in|switch\s+to)?\s*(?:business\s+style|professional\s+style|business\s+format|corporate\s+style|business\s+tone|professional\s+tone)[:,\s]+(.+)", "Professional"),
-        (r"(?i)^(?:business\s+style|professional\s+style|business\s+format|corporate\s+style)[:,\s]+(.+)", "Professional"),
-        
-        // AI Prompt Mode
-        (r"(?i)^(?:convert\s+this\s+(?:in)?to\s+a\s+proper\s+prompt|convert\s+this\s+into\s+a\s+prompt|convert\s+to\s+prompt|make\s+this\s+an?\s+ai\s+prompt|make\s+this\s+a\s+prompt|create\s+a\s+proper\s+prompt\s+for|create\s+a\s+prompt\s+for|format\s+as\s+(?:an?\s+)?prompt|prompt\s+mode|prompt\s+style)[:,\s]+(.+)", "AI Prompt"),
-        (r"(?i)^(?:proper\s+prompt|ai\s+prompt|prompt\s+engineering)[:,\s]+(.+)", "AI Prompt"),
+    let patterns = COMMAND_PATTERNS_STATIC.get_or_init(|| {
+        let raw_patterns: &[(&str, &'static str)] = &[
+            // Professional & Business
+            (r"(?i)^(?:write\s+this\s+in|write\s+this\s+using|format\s+as|use|in|switch\s+to|switch\s+style\s+to|set\s+style\s+to|change\s+to|convert\s+(?:this\s+)?to|using|make\s+this)?\s*(?:business\s+style|professional\s+style|business\s+format|corporate\s+style|business\s+tone|professional\s+tone)[:,\s]+(.+)", "Professional"),
+            (r"(?i)^(?:business\s+style|professional\s+style|business\s+format|corporate\s+style)[:,\s]+(.+)", "Professional"),
+            
+            // AI Prompt Mode
+            (r"(?i)^(?:convert\s+this\s+(?:in)?to\s+(?:a\s+)?proper\s+prompt|convert\s+(?:this\s+)?(?:in)?to\s+a\s+prompt|convert\s+to\s+prompt|make\s+this\s+an?\s+ai\s+prompt|make\s+this\s+a\s+prompt|create\s+a\s+proper\s+prompt\s+(?:for|from)?|create\s+a\s+prompt\s+(?:for|from)?|format\s+as\s+(?:an?\s+)?prompt|prompt\s+mode|prompt\s+style|using\s+prompt\s+style|in\s+prompt\s+style|in\s+prompt\s+mode)[:,\s]+(.+)", "AI Prompt"),
+            (r"(?i)^(?:proper\s+prompt|ai\s+prompt|prompt\s+engineering)[:,\s]+(.+)", "AI Prompt"),
 
-        // Casual & Conversational
-        (r"(?i)^(?:write\s+this\s+in|format\s+as|use|in|switch\s+to)?\s*(?:casual\s+style|conversational\s+style|casual\s+tone|friendly\s+style|friendly\s+tone)[:,\s]+(.+)", "Casual"),
-        (r"(?i)^(?:casual\s+style|conversational\s+style|casual\s+tone)[:,\s]+(.+)", "Casual"),
+            // Casual & Conversational
+            (r"(?i)^(?:write\s+this\s+in|write\s+this\s+using|format\s+as|use|in|switch\s+to|using|make\s+this)?\s*(?:casual\s+style|conversational\s+style|casual\s+tone|friendly\s+style|friendly\s+tone)[:,\s]+(.+)", "Casual"),
+            (r"(?i)^(?:casual\s+style|conversational\s+style|casual\s+tone)[:,\s]+(.+)", "Casual"),
 
-        // Developer & Code
-        (r"(?i)^(?:write\s+this\s+in|format\s+as|use|in|switch\s+to)?\s*(?:developer\s+style|developer\s+mode|code\s+style|coding\s+mode|developer\s+format|code\s+mode)[:,\s]+(.+)", "Developer"),
-        (r"(?i)^(?:developer\s+style|developer\s+mode|code\s+style)[:,\s]+(.+)", "Developer"),
+            // Developer & Code
+            (r"(?i)^(?:write\s+this\s+in|write\s+this\s+using|format\s+as|use|in|switch\s+to|using|make\s+this)?\s*(?:developer\s+style|developer\s+mode|code\s+style|coding\s+mode|developer\s+format|code\s+mode)[:,\s]+(.+)", "Developer"),
+            (r"(?i)^(?:developer\s+style|developer\s+mode|code\s+style)[:,\s]+(.+)", "Developer"),
 
-        // Academic & Formal
-        (r"(?i)^(?:write\s+this\s+in|format\s+as|use|in|switch\s+to)?\s*(?:academic\s+style|formal\s+style|academic\s+tone|scholarly\s+style|formal\s+tone)[:,\s]+(.+)", "Academic"),
-        (r"(?i)^(?:academic\s+style|formal\s+style|academic\s+tone)[:,\s]+(.+)", "Academic"),
+            // Academic & Formal
+            (r"(?i)^(?:write\s+this\s+in|write\s+this\s+using|format\s+as|use|in|switch\s+to|using|make\s+this)?\s*(?:academic\s+style|formal\s+style|academic\s+tone|scholarly\s+style|formal\s+tone)[:,\s]+(.+)", "Academic"),
+            (r"(?i)^(?:academic\s+style|formal\s+style|academic\s+tone)[:,\s]+(.+)", "Academic"),
 
-        // Bullet Points
-        (r"(?i)^(?:write\s+this\s+in|format\s+as|use|in|switch\s+to)?\s*(?:bullet\s+points|bullet\s+point\s+format|bulleted\s+list|as\s+a\s+list|list\s+format)[:,\s]+(.+)", "Bullet Points"),
-        (r"(?i)^(?:bullet\s+points|bulleted\s+list|as\s+bullets)[:,\s]+(.+)", "Bullet Points"),
+            // Bullet Points
+            (r"(?i)^(?:write\s+this\s+in|write\s+this\s+using|format\s+as|use|in|switch\s+to|using|make\s+this)?\s*(?:bullet\s+points|bullet\s+point\s+format|bulleted\s+list|as\s+a\s+list|list\s+format|as\s+bullets)[:,\s]+(.+)", "Bullet Points"),
+            (r"(?i)^(?:bullet\s+points|bulleted\s+list|as\s+bullets)[:,\s]+(.+)", "Bullet Points"),
 
-        // Email Format
-        (r"(?i)^(?:write\s+this\s+as\s+an?|format\s+as\s+an?|as\s+an?|in)?\s*(?:email|email\s+format|email\s+style)[:,\s]+(.+)", "Email"),
+            // Email Format
+            (r"(?i)^(?:write\s+this\s+as\s+an?|format\s+as\s+an?|as\s+an?|in|using|make\s+this)?\s*(?:email|email\s+format|email\s+style)[:,\s]+(.+)", "Email"),
 
-        // Raw / Verbatim Mode
-        (r"(?i)^(?:write\s+this\s+in|format\s+as|use|in|switch\s+to)?\s*(?:raw\s+mode|raw\s+style|verbatim\s+mode|verbatim\s+style)[:,\s]+(.+)", "Raw"),
-    ];
+            // Raw / Verbatim Mode
+            (r"(?i)^(?:write\s+this\s+in|write\s+this\s+using|format\s+as|use|in|switch\s+to|using|make\s+this)?\s*(?:raw\s+mode|raw\s+style|verbatim\s+mode|verbatim\s+style)[:,\s]+(.+)", "Raw"),
+        ];
 
-    for (pattern, target_style) in command_patterns {
-        if let Ok(re) = Regex::new(pattern) {
-            if let Some(caps) = re.captures(trimmed) {
-                if let Some(content) = caps.get(1) {
-                    let cleaned_content = content.as_str().trim();
-                    if !cleaned_content.is_empty() {
-                        return (Some(target_style.to_string()), cleaned_content.to_string());
-                    }
+        raw_patterns
+            .iter()
+            .filter_map(|(p, target)| Regex::new(p).ok().map(|re| (re, *target)))
+            .collect()
+    });
+
+    for (re, target_style) in patterns {
+        if let Some(caps) = re.captures(trimmed) {
+            if let Some(content) = caps.get(1) {
+                let cleaned_content = content.as_str().trim();
+                if !cleaned_content.is_empty() {
+                    return (Some(target_style.to_string()), cleaned_content.to_string());
                 }
             }
         }
@@ -1897,45 +1906,60 @@ pub fn transform_to_business_style(text: &str) -> String {
     }
 
     // Compound meeting & schedule request (high-fidelity executive conversion)
-    let compound_pat = r"(?i)\b(?:(?:um\s+)?(?:hey\s+)?(?:I\s+was\s+just\s+checking\s+if\s+)?(?:can\s+we\s+maybe|could\s+we\s+maybe|maybe\s+we\s+can|can\s+we))\s+move\s+the\s+meeting\s+to\s+([a-zA-Z0-9:]+(?:\s+[a-zA-Z0-9:]+)?)\s*(?:if\s+that\s+works\s+for\s+you)?\.?\b";
-    if let Ok(re) = Regex::new(compound_pat) {
-        if re.is_match(&s) {
-            let replaced = re.replace_all(&s, "Would it be possible to reschedule our meeting to $1? Please let me know if that works for your schedule.").to_string();
-            return replaced.trim().to_string();
-        }
+    let compound_re = BUSINESS_COMPOUND_STATIC.get_or_init(|| {
+        Regex::new(r"(?i)\b(?:(?:um\s+)?(?:hey\s+)?(?:I\s+was\s+just\s+checking\s+if\s+)?(?:can\s+we\s+maybe|could\s+we\s+maybe|maybe\s+we\s+can|can\s+we))\s+move\s+the\s+meeting\s+to\s+([a-zA-Z0-9:]+(?:\s+[a-zA-Z0-9:]+)?)\s*(?:if\s+that\s+works\s+for\s+you)?\.?\b").unwrap()
+    });
+
+    if compound_re.is_match(&s) {
+        let replaced = compound_re.replace_all(&s, "Would it be possible to reschedule our meeting to $1? Please let me know if that works for your schedule.").to_string();
+        return replaced.trim().to_string();
     }
 
-    // Business phrase normalizations
-    let business_replacements: &[(&str, &str)] = &[
-        // Meeting & Schedule requests
-        (r"(?i)\bum\s+hey\s+I\s+was\s+just\s+checking\s+if\s+we\s+can\s+maybe\s+move\s+the\s+meeting\s+to\b", "Would it be possible to reschedule our meeting to"),
-        (r"(?i)\b(?:can\s+we\s+maybe|could\s+we\s+maybe|can\s+we)\s+move\s+the\s+meeting\s+to\b", "Would it be possible to reschedule our meeting to"),
-        (r"(?i)\bmove\s+the\s+meeting\s+to\b", "reschedule our meeting to"),
-        (r"(?i)\bcan\s+we\s+maybe\b", "would it be possible to"),
-        (r"(?i)\bjust\s+checking\s+if\b", "I am inquiring whether"),
-        (r"(?i)\bi\s+was\s+just\s+checking\s+if\b", "I am inquiring whether"),
-        (r"(?i)\bif\s+that\s+works\s+for\s+you\b", "please let me know if that works for your schedule"),
-        (r"(?i)\blet\s+me\s+know\s+if\s+that\s+works\b", "please let me know if this aligns with your schedule"),
-        // Common casual inquiries & requests
-        (r"(?i)\bsend\s+me\s+the\s+stuff\b", "please forward the relevant deliverables"),
-        (r"(?i)\bsend\s+me\s+the\s+details\b", "please provide the necessary specifications"),
-        (r"(?i)\bsorry\s+for\s+the\s+delay\b", "thank you for your patience"),
-        (r"(?i)\bi\s+think\s+we\s+should\s+totally\b", "I strongly recommend that we"),
-        (r"(?i)\bi\s+think\s+we\s+should\b", "I recommend that we"),
-        (r"(?i)\bwe\s+have\s+to\s+fix\b", "we must resolve"),
-        (r"(?i)\bwe\s+need\s+to\s+fix\b", "we need to address and resolve"),
-        (r"(?i)\bwe\s+broke\s+the\b", "an incident occurred regarding the"),
-        (r"(?i)\btalk\s+to\s+you\s+soon\b", "looking forward to our upcoming discussion"),
-        (r"(?i)\btalk\s+soon\b", "looking forward to connecting"),
-        (r"(?i)\bget\s+back\s+to\s+me\b", "please reply at your earliest convenience"),
-        (r"(?i)\basap\b", "at your earliest convenience"),
-        (r"(?i)\ba\s+lot\s+of\b", "a substantial amount of"),
-    ];
+    // Business phrase normalizations pre-compiled with OnceLock
+    let business_replacements = BUSINESS_REPLACEMENTS_STATIC.get_or_init(|| {
+        let raw: &[(&str, &'static str)] = &[
+            // Meeting & Schedule requests
+            (r"(?i)\bum\s+hey\s+I\s+was\s+just\s+checking\s+if\s+we\s+can\s+maybe\s+move\s+the\s+meeting\s+to\b", "Would it be possible to reschedule our meeting to"),
+            (r"(?i)\b(?:can\s+we\s+maybe|could\s+we\s+maybe|can\s+we)\s+move\s+the\s+meeting\s+to\b", "Would it be possible to reschedule our meeting to"),
+            (r"(?i)\bmove\s+the\s+meeting\s+to\b", "reschedule our meeting to"),
+            (r"(?i)\bcan\s+we\s+maybe\b", "would it be possible to"),
+            (r"(?i)\bjust\s+checking\s+if\b", "I am inquiring whether"),
+            (r"(?i)\bi\s+was\s+just\s+checking\s+if\b", "I am inquiring whether"),
+            (r"(?i)\bif\s+that\s+works\s+for\s+you\b", "please let me know if that works for your schedule"),
+            (r"(?i)\blet\s+me\s+know\s+if\s+that\s+works\b", "please let me know if this aligns with your schedule"),
+            // Common casual inquiries & requests
+            (r"(?i)\bcan\s+you\s+send\s+me\s+the\b", "could you please provide the"),
+            (r"(?i)\bsend\s+me\s+the\s+stuff\b", "please forward the relevant deliverables"),
+            (r"(?i)\bsend\s+me\s+the\s+details\b", "please provide the necessary specifications"),
+            (r"(?i)\bi\s+will\s+let\s+you\s+know\b", "I will keep you updated"),
+            (r"(?i)\bdo\s+this\s+now\b", "please prioritize this at your earliest convenience"),
+            (r"(?i)\blet's\s+do\s+this\b", "we should proceed with this initiative"),
+            (r"(?i)\bthanks\s+a\s+lot\b", "thank you very much for your assistance"),
+            (r"(?i)\bno\s+problem\b", "you are very welcome"),
+            (r"(?i)\blet's\s+catch\s+up\b", "let us schedule a follow-up discussion"),
+            (r"(?i)\bshoot\s+me\s+an\s+email\b", "please send an email"),
+            (r"(?i)\breach\s+out\s+to\b", "contact"),
+            (r"(?i)\bgive\s+a\s+heads\s+up\b", "provide advance notice"),
+            (r"(?i)\bsorry\s+for\s+the\s+delay\b", "thank you for your patience"),
+            (r"(?i)\bi\s+think\s+we\s+should\s+totally\b", "I strongly recommend that we"),
+            (r"(?i)\bi\s+think\s+we\s+should\b", "I recommend that we"),
+            (r"(?i)\bwe\s+have\s+to\s+fix\b", "we must resolve"),
+            (r"(?i)\bwe\s+need\s+to\s+fix\b", "we need to address and resolve"),
+            (r"(?i)\bwe\s+broke\s+the\b", "an incident occurred regarding the"),
+            (r"(?i)\btalk\s+to\s+you\s+soon\b", "looking forward to our upcoming discussion"),
+            (r"(?i)\btalk\s+soon\b", "looking forward to connecting"),
+            (r"(?i)\bget\s+back\s+to\s+me\b", "please reply at your earliest convenience"),
+            (r"(?i)\basap\b", "at your earliest convenience"),
+            (r"(?i)\ba\s+lot\s+of\b", "a substantial amount of"),
+        ];
 
-    for (pat, repl) in business_replacements {
-        if let Ok(re) = Regex::new(pat) {
-            s = re.replace_all(&s, *repl).to_string();
-        }
+        raw.iter()
+            .filter_map(|(p, repl)| Regex::new(p).ok().map(|re| (re, *repl)))
+            .collect()
+    });
+
+    for (re, repl) in business_replacements {
+        s = re.replace_all(&s, *repl).to_string();
     }
 
     // Capitalize initial character

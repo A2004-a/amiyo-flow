@@ -73,18 +73,28 @@ impl VoiceActivityDetector {
         let energy = sum_sq / (samples.len() as f32);
         let zcr = (zero_crossings as f32) / (samples.len() as f32);
 
+        let frame_duration_ms = if self.config.sample_rate > 0 {
+            ((samples.len() as f64 / self.config.sample_rate as f64) * 1000.0).round() as u64
+        } else {
+            30
+        };
+
         // Ambient noise floor calibration during initial 10 frames (~300ms)
         if self.calibrated_frames < 10 {
-            let clamped_energy = energy.min(0.015);
-            self.noise_energy_floor = (self.noise_energy_floor * self.calibrated_frames as f32 + clamped_energy)
-                / ((self.calibrated_frames + 1) as f32);
-            self.calibrated_frames += 1;
-            if energy > 0.02 {
-                self.accumulated_speech_ms += 30;
-                if self.accumulated_speech_ms >= 300 {
+            // If the user started speaking immediately upon pressing the hotkey,
+            // protect the noise floor from being artificially inflated by vocal energy.
+            let is_early_speech = energy >= 0.008 && (zcr >= 0.008 || energy >= 0.012);
+            if is_early_speech {
+                self.accumulated_speech_ms += frame_duration_ms;
+                if self.accumulated_speech_ms >= 200 {
                     self.has_detected_speech = true;
                 }
+            } else {
+                let clamped_energy = energy.min(0.005);
+                self.noise_energy_floor = (self.noise_energy_floor * self.calibrated_frames as f32 + clamped_energy)
+                    / ((self.calibrated_frames + 1) as f32);
             }
+            self.calibrated_frames += 1;
             return (self.has_detected_speech, false);
         }
 
@@ -92,12 +102,6 @@ impl VoiceActivityDetector {
         // Robust voice detection: voiced vowels have low ZCR (0.015 - 0.05) and high energy.
         // Unvoiced fricatives (s, sh, f) have high ZCR. We accept voice across all vocal registers.
         let is_speech = energy > threshold && (zcr >= 0.008 || energy > threshold * 1.4);
-
-        let frame_duration_ms = if self.config.sample_rate > 0 {
-            ((samples.len() as f64 / self.config.sample_rate as f64) * 1000.0).round() as u64
-        } else {
-            30
-        };
 
         const SPEECH_HANGOVER_MS: u64 = 400; // 400ms speech hangover protects natural inter-word breathing pauses
 
@@ -134,6 +138,10 @@ impl VoiceActivityDetector {
         self.has_detected_speech = false;
         self.speech_hangover_remaining_ms = 0;
         self.noise_energy_floor = 0.0001;
+    }
+
+    pub fn get_noise_floor(&self) -> f32 {
+        self.noise_energy_floor
     }
 }
 

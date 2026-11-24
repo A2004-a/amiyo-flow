@@ -1247,6 +1247,53 @@ fn test_speech_cleanser_four_cards_expanded_and_fast_execution() {
     assert!(avg_us < 25000.0, "Execution must be instantaneous and zero-latency (got {:.2} us)", avg_us);
 }
 
+#[test]
+fn test_vad_onset_early_speech_protection_and_style_commands() {
+    use amiyo_flow_lib::audio::vad::{VadConfig, VoiceActivityDetector};
+    use amiyo_flow_lib::ai::{extract_spoken_style_command, transform_to_business_style};
+
+    // 1. VAD Early Speech Protection during Calibration
+    let mut vad = VoiceActivityDetector::new(VadConfig::default());
+    let loud_speech_frame = vec![14000i16; 480]; // Strong voiced speech frame
+
+    // Feed loud speech during initial calibration frames (first 10 frames)
+    for _ in 0..8 {
+        vad.process_frame(&loud_speech_frame);
+    }
+    // Verify loud speech does NOT inflate ambient noise floor
+    let noise_floor = vad.get_noise_floor();
+    assert!(noise_floor <= 0.005, "Loud speech during calibration must not inflate noise floor (got {})", noise_floor);
+
+    // 2. Expanded Voice Control Directives & OnceLock Extraction
+    let (s1, c1) = extract_spoken_style_command("write this using business style: can we maybe move the meeting to three PM");
+    assert_eq!(s1.as_deref(), Some("Professional"));
+    assert_eq!(c1, "can we maybe move the meeting to three PM");
+
+    let (s2, c2) = extract_spoken_style_command("using prompt style: create a web scraper for financial reports");
+    assert_eq!(s2.as_deref(), Some("AI Prompt"));
+    assert_eq!(c2, "create a web scraper for financial reports");
+
+    let (s3, c3) = extract_spoken_style_command("make this developer style: let count equals zero");
+    assert_eq!(s3.as_deref(), Some("Developer"));
+    assert_eq!(c3, "let count equals zero");
+
+    let (s4, c4) = extract_spoken_style_command("in casual style: hey what is up my friend");
+    assert_eq!(s4.as_deref(), Some("Casual"));
+    assert_eq!(c4, "hey what is up my friend");
+
+    // 3. Expanded Business Phrase Transformations
+    let b1 = transform_to_business_style("can you send me the details and thanks a lot");
+    assert!(b1.to_lowercase().contains("could you please provide the"));
+    assert!(b1.contains("thank you very much for your assistance"));
+
+    let b2 = transform_to_business_style("i will let you know asap");
+    assert!(b2.contains("I will keep you updated"));
+    assert!(b2.contains("at your earliest convenience"));
+
+    let b3 = transform_to_business_style("do this now");
+    assert!(b3.to_lowercase().contains("please prioritize this at your earliest convenience"));
+}
+
 
 
 

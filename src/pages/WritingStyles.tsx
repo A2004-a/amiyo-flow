@@ -211,15 +211,15 @@ function extractSpokenStyleCommand(input: string): { style: string | null; conte
   if (!trimmed) return { style: null, content: '' };
 
   const triggers: [RegExp, string][] = [
-    [/^(?:please\s+)?(?:convert\s+(?:this\s+)?(?:in|into)\s+a\s+proper\s+prompt|make\s+(?:this\s+)?a\s+prompt|create\s+a\s+proper\s+prompt\s+(?:for|from)|generate\s+a\s+prompt\s+for|in\s+prompt\s+mode|as\s+a\s+prompt)\s*[:,\-]?\s*(.*)$/i, 'AI Prompt'],
-    [/^(?:please\s+)?(?:write\s+this\s+)?(?:in|using)\s+business\s+style\s*[:,\-]?\s*(.*)$/i, 'Professional'],
-    [/^(?:please\s+)?(?:write\s+this\s+)?(?:in|using)\s+professional\s+style\s*[:,\-]?\s*(.*)$/i, 'Professional'],
-    [/^(?:please\s+)?(?:write\s+this\s+)?(?:in|using)\s+casual\s+style\s*[:,\-]?\s*(.*)$/i, 'Casual'],
-    [/^(?:please\s+)?(?:write\s+this\s+)?(?:in|using)\s+developer\s+style\s*[:,\-]?\s*(.*)$/i, 'Developer'],
-    [/^(?:please\s+)?(?:write\s+this\s+)?(?:in|using)\s+academic\s+style\s*[:,\-]?\s*(.*)$/i, 'Academic'],
-    [/^(?:please\s+)?(?:write\s+this\s+)?(?:in|as)\s+bullet\s+points?\s*[:,\-]?\s*(.*)$/i, 'Bullet Points'],
-    [/^(?:please\s+)?(?:write\s+this\s+)?(?:in|as)\s+(?:an?\s+)?email\s*[:,\-]?\s*(.*)$/i, 'Email'],
-    [/^(?:please\s+)?(?:write\s+this\s+)?in\s+raw\s+mode\s*[:,\-]?\s*(.*)$/i, 'Raw'],
+    [/^(?:please\s+)?(?:convert\s+(?:this\s+)?(?:in|into)\s+(?:a\s+)?proper\s+prompt|make\s+(?:this\s+)?a\s+prompt|create\s+a\s+proper\s+prompt\s+(?:for|from)?|generate\s+a\s+prompt\s+for|in\s+prompt\s+mode|as\s+a\s+prompt|using\s+prompt\s+style|in\s+prompt\s+style)\s*[:,\-]?\s*(.*)$/i, 'AI Prompt'],
+    [/^(?:please\s+)?(?:write\s+this\s+)?(?:in|using|switch\s+to|switch\s+style\s+to|set\s+style\s+to|change\s+to|convert\s+(?:this\s+)?to|make\s+this)?\s*business\s+style\s*[:,\-]?\s*(.*)$/i, 'Professional'],
+    [/^(?:please\s+)?(?:write\s+this\s+)?(?:in|using|switch\s+to|switch\s+style\s+to|set\s+style\s+to|change\s+to|convert\s+(?:this\s+)?to|make\s+this)?\s*professional\s+style\s*[:,\-]?\s*(.*)$/i, 'Professional'],
+    [/^(?:please\s+)?(?:write\s+this\s+)?(?:in|using|switch\s+to|switch\s+style\s+to|set\s+style\s+to|change\s+to|convert\s+(?:this\s+)?to|make\s+this)?\s*casual\s+style\s*[:,\-]?\s*(.*)$/i, 'Casual'],
+    [/^(?:please\s+)?(?:write\s+this\s+)?(?:in|using|switch\s+to|switch\s+style\s+to|set\s+style\s+to|change\s+to|convert\s+(?:this\s+)?to|make\s+this)?\s*developer\s+style\s*[:,\-]?\s*(.*)$/i, 'Developer'],
+    [/^(?:please\s+)?(?:write\s+this\s+)?(?:in|using|switch\s+to|switch\s+style\s+to|set\s+style\s+to|change\s+to|convert\s+(?:this\s+)?to|make\s+this)?\s*academic\s+style\s*[:,\-]?\s*(.*)$/i, 'Academic'],
+    [/^(?:please\s+)?(?:write\s+this\s+)?(?:in|as|using)\s+bullet\s+points?\s*[:,\-]?\s*(.*)$/i, 'Bullet Points'],
+    [/^(?:please\s+)?(?:write\s+this\s+)?(?:in|as|using)\s+(?:an?\s+)?email\s*[:,\-]?\s*(.*)$/i, 'Email'],
+    [/^(?:please\s+)?(?:write\s+this\s+)?(?:in|using)\s+raw\s+mode\s*[:,\-]?\s*(.*)$/i, 'Raw'],
   ];
 
   for (const [re, styleName] of triggers) {

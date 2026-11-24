@@ -408,7 +408,7 @@ async fn finalize_recording_internal(
     let cleaned_text = match ai::clean_transcript_routed_full(
         &router_config,
         &raw_text,
-        &style,
+        &effective_style,
         &format!("{} ({})", target_app, target_title),
         &dictionary,
         &snippets,
