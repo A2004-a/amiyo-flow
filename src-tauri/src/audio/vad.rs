@@ -99,8 +99,8 @@ impl VoiceActivityDetector {
             }
             self.consecutive_silence_ms = 0;
         } else {
-            // Adaptively drift noise floor slowly if silence persists
-            self.noise_energy_floor = self.noise_energy_floor * 0.95 + energy * 0.05;
+            // Adaptively drift noise floor slowly if silence persists, clamping energy spikes (e.g. keyboard clicks)
+            self.noise_energy_floor = self.noise_energy_floor * 0.95 + energy.min(0.015) * 0.05;
             self.consecutive_silence_ms += frame_duration_ms;
         }
 

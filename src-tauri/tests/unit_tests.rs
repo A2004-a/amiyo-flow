@@ -968,6 +968,40 @@ fn test_expanded_irritation_words_and_developer_homophones() {
     assert!(!t6.contains("Zumio Gari"));
 }
 
+#[test]
+fn test_tech_acronyms_step_numbering_and_negative_contractions() {
+    use amiyo_flow_lib::ai::heuristic_cleanup;
+
+    // 1. Spoken step and part numbering
+    let t1 = heuristic_cleanup("step one install dependencies then step two run cargo test and part one of release");
+    assert!(t1.contains("Step 1"));
+    assert!(t1.contains("Step 2"));
+    assert!(t1.contains("Part 1"));
+
+    // 2. Negative contractions and spoken future/conditional forms
+    let t2 = heuristic_cleanup("it wasnt ready and we hadnt seen it but youll love it and shell deploy it");
+    assert!(t2.contains("wasn't"));
+    assert!(t2.contains("hadn't"));
+    assert!(t2.contains("you'll"));
+    assert!(t2.contains("she'll"));
+
+    // 3. Technical infrastructure acronyms
+    let t3 = heuristic_cleanup("we use graphql with postgresql and redis on linux with nginx and docker for llm training on gpu");
+    assert!(t3.contains("GraphQL"));
+    assert!(t3.contains("PostgreSQL"));
+    assert!(t3.contains("Redis"));
+    assert!(t3.contains("Linux"));
+    assert!(t3.contains("Nginx"));
+    assert!(t3.contains("Docker"));
+    assert!(t3.contains("LLM"));
+    assert!(t3.contains("GPU"));
+
+    // 4. Extended incomplete sentence connectors
+    let t4 = heuristic_cleanup("we are building towards");
+    assert!(!t4.ends_with('.'));
+}
+
+
 
 
 

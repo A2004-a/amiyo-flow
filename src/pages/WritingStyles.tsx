@@ -94,8 +94,10 @@ function isIncompleteSentence(sentence: string): boolean {
     'if', 'whether', 'as', 'that', 'after', 'before', 'until', 'till',
     'to', 'for', 'with', 'of', 'in', 'on', 'at', 'by', 'from', 'into',
     'about', 'between', 'through', 'without', 'under', 'over', 'around', 'onto',
+    'towards', 'toward', 'upon', 'within', 'amid', 'amidst', 'versus', 'vs',
+    'regarding', 'concerning',
     'which', 'where', 'who', 'whom', 'whose', 'what', 'when', 'why', 'how',
-    'like', 'including', 'then', 'also', 'plus'
+    'like', 'including', 'then', 'also', 'plus', 'such'
   ];
 
   return incompleteConnectors.includes(lastWord);
@@ -500,6 +502,23 @@ function simulateCleanup(
     .replace(/\bnumber\s+three\b/gi, '#3')
     .replace(/\bnumber\s+four\b/gi, '#4')
     .replace(/\bnumber\s+five\b/gi, '#5')
+    // Spoken step, part, option, and item numbering
+    .replace(/\bstep\s+([0-9]+)\b/gi, 'Step $1')
+    .replace(/\bstep\s+one\b/gi, 'Step 1')
+    .replace(/\bstep\s+two\b/gi, 'Step 2')
+    .replace(/\bstep\s+three\b/gi, 'Step 3')
+    .replace(/\bstep\s+four\b/gi, 'Step 4')
+    .replace(/\bstep\s+five\b/gi, 'Step 5')
+    .replace(/\bpart\s+([0-9]+)\b/gi, 'Part $1')
+    .replace(/\bpart\s+one\b/gi, 'Part 1')
+    .replace(/\bpart\s+two\b/gi, 'Part 2')
+    .replace(/\bpart\s+three\b/gi, 'Part 3')
+    .replace(/\boption\s+([0-9]+)\b/gi, 'Option $1')
+    .replace(/\boption\s+one\b/gi, 'Option 1')
+    .replace(/\boption\s+two\b/gi, 'Option 2')
+    .replace(/\bitem\s+([0-9]+)\b/gi, 'Item $1')
+    .replace(/\bitem\s+one\b/gi, 'Item 1')
+    .replace(/\bitem\s+two\b/gi, 'Item 2')
     // Spoken time formatting
     .replace(/\b(?:twelve|12)\s+thirty\s+(AM|PM)\b/gi, '12:30 $1')
     .replace(/\b(?:eleven|11)\s+thirty\s+(AM|PM)\b/gi, '11:30 $1')
@@ -592,6 +611,16 @@ function simulateCleanup(
       [/\bwouldve\b/gi, "would've"],
       [/\bmustve\b/gi, "must've"],
       [/\bmightve\b/gi, "might've"],
+      [/\bwasnt\b/gi, "wasn't"],
+      [/\bhadnt\b/gi, "hadn't"],
+      [/\baint\b/gi, "ain't"],
+      [/\byoull\b/gi, "you'll"],
+      [/\btheyll\b/gi, "they'll"],
+      [/\bshell\b/gi, "she'll"],
+      [/\byoud\b/gi, "you'd"],
+      [/\btheyd\b/gi, "they'd"],
+      [/\bhed\b/gi, "he'd"],
+      [/\bshed\b/gi, "she'd"],
       [/\balot\b/gi, "a lot"],
       [/\beachother\b/gi, "each other"],
       [/\baswell\b/gi, "as well"],
@@ -675,6 +704,7 @@ function simulateCleanup(
       [/\bopen\s+source\b/gi, "open-source"],
       [/\b(?:pie\s+thon|py\s+thon)\b/gi, "Python"],
       [/\bdock\s+er\b/gi, "Docker"],
+      [/\bdocker\b/gi, "Docker"],
       [/\bgit\s+hub\b/gi, "GitHub"],
       [/\byou\s+tube\b/gi, "YouTube"],
       [/\b(?:next\s+js|nextjs)\b/gi, "Next.js"],
@@ -726,6 +756,47 @@ function simulateCleanup(
       [/\bmacos\b/gi, "macOS"],
       [/\bpr\b/gi, "PR"],
       [/\bprs\b/gi, "PRs"],
+      [/\bmr\b/gi, "MR"],
+      [/\bmrs\b/gi, "MRs"],
+      [/\bllm\b/gi, "LLM"],
+      [/\bllms\b/gi, "LLMs"],
+      [/\bgpu\b/gi, "GPU"],
+      [/\bgpus\b/gi, "GPUs"],
+      [/\bcpu\b/gi, "CPU"],
+      [/\bcpus\b/gi, "CPUs"],
+      [/\bram\b/gi, "RAM"],
+      [/\bssd\b/gi, "SSD"],
+      [/\bssds\b/gi, "SSDs"],
+      [/\bos\b/gi, "OS"],
+      [/\bcli\b/gi, "CLI"],
+      [/\bgui\b/gi, "GUI"],
+      [/\buuid\b/gi, "UUID"],
+      [/\bgraphql\b/gi, "GraphQL"],
+      [/\bpostgresql\b/gi, "PostgreSQL"],
+      [/\bpostgres\b/gi, "Postgres"],
+      [/\bmongodb\b/gi, "MongoDB"],
+      [/\bredis\b/gi, "Redis"],
+      [/\bnginx\b/gi, "Nginx"],
+      [/\blinux\b/gi, "Linux"],
+      [/\bubuntu\b/gi, "Ubuntu"],
+      [/\bvitest\b/gi, "Vitest"],
+      [/\bvite\b/gi, "Vite"],
+      [/\bwebpack\b/gi, "Webpack"],
+      [/\bhttp\b/gi, "HTTP"],
+      [/\bhttps\b/gi, "HTTPS"],
+      [/\bssh\b/gi, "SSH"],
+      [/\bssl\b/gi, "SSL"],
+      [/\btls\b/gi, "TLS"],
+      [/\bdns\b/gi, "DNS"],
+      [/\btcp\b/gi, "TCP"],
+      [/\budp\b/gi, "UDP"],
+      [/\bci\s*\/\s*cd\b/gi, "CI/CD"],
+      [/\bci\s+cd\b/gi, "CI/CD"],
+      [/\bsaas\b/gi, "SaaS"],
+      [/\bstt\b/gi, "STT"],
+      [/\btts\b/gi, "TTS"],
+      [/\bvad\b/gi, "VAD"],
+      [/\bnlp\b/gi, "NLP"],
       // Phonetic Name & App Brand Fixes
       [/\ba\s+m\s+i\s+y\s+o\b/gi, "Amiyo"],
       [/\bmy\s+name\s+is\s+zumio\s+gari\b/gi, "My name is Amiyo Garai"],
