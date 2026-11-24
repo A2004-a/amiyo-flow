@@ -2,6 +2,13 @@
   "name": "amiyo-flow",
   "private": true,
   "version": "1.0.9",
+  "description": "Universal AI Voice Dictation Desktop Application",
+  "author": "Amiyo Garai",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/A2004-a/amiyo-flow"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
