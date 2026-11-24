@@ -161,4 +161,15 @@ describe('AMIYO FLOW Frontend Store & Pipeline Tests', () => {
     expect(formatHotkeyDisplay('')).toBe('Ctrl+Space');
     expect(formatHotkeyDisplay(undefined)).toBe('Ctrl+Space');
   });
+
+  it('updates VAD silence cutoff duration and auto-stop configuration', async () => {
+    await useSettingsStore.getState().updateSetting('silence_cutoff_ms', '2500');
+    expect(useSettingsStore.getState().settings.silence_cutoff_ms).toBe('2500');
+
+    await useSettingsStore.getState().updateSetting('vad_auto_stop', 'false');
+    expect(useSettingsStore.getState().settings.vad_auto_stop).toBe('false');
+
+    await useSettingsStore.getState().updateSetting('continuation_stitching', 'true');
+    expect(useSettingsStore.getState().settings.continuation_stitching).toBe('true');
+  });
 });

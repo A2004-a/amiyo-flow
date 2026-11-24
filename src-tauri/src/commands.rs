@@ -104,13 +104,17 @@ pub async fn start_recording(app_handle: AppHandle, state: State<'_, AppState>) 
     });
 
     let settings = state.db.get_all_settings().unwrap_or_default();
-    let vad_enabled = settings.get("vad_enabled").map(|v| v != "false").unwrap_or(true);
+    let vad_enabled = settings
+        .get("vad_auto_stop")
+        .or_else(|| settings.get("vad_enabled"))
+        .map(|v| v != "false")
+        .unwrap_or(true);
     let silence_cutoff_ms: u64 = settings
         .get("silence_cutoff_ms")
         .and_then(|v| v.parse().ok())
-        .unwrap_or(1800);
+        .unwrap_or(2500);
 
-    let vad_config = if vad_enabled {
+    let vad_config = if vad_enabled && silence_cutoff_ms > 0 {
         Some(crate::audio::vad::VadConfig {
             sample_rate: 16000,
             frame_size_ms: 30,
@@ -415,10 +419,88 @@ async fn finalize_recording_internal(
 
     let word_count = cleaned_text.split_whitespace().count();
 
+    let continuation_enabled = settings
+        .get("continuation_stitching")
+        .map(|v| v != "false")
+        .unwrap_or(true);
+
+    let mut text_to_insert = cleaned_text.clone();
+    let is_current_incomplete = ai::is_incomplete_sentence(&cleaned_text);
+
+    if continuation_enabled && !cleaned_text.is_empty() {
+        let mut prev_meta_guard = state.last_dictation_meta.lock();
+        if let Some(prev_meta) = prev_meta_guard.as_ref() {
+            // If the user remained in the same application window and paused under 90 seconds
+            if prev_meta.hwnd == target_hwnd && prev_meta.timestamp.elapsed().as_secs() < 90 {
+                let mut stitched = text_to_insert.trim().to_string();
+                let first_word = stitched
+                    .split_whitespace()
+                    .next()
+                    .unwrap_or("")
+                    .trim_matches(|c: char| !c.is_alphanumeric())
+                    .to_lowercase();
+
+                // If user repeated the trailing boundary word upon resuming (e.g. "... and" -> "and start this where it ends")
+                if !first_word.is_empty() && first_word == prev_meta.last_token.to_lowercase() {
+                    if let Some(idx) = stitched.find(' ') {
+                        stitched = stitched[idx + 1..].trim().to_string();
+                    } else {
+                        stitched.clear();
+                    }
+                }
+
+                // If starting with a continuation connector or continuing a clause, ensure lowercase
+                if !stitched.is_empty() {
+                    let first_token = stitched
+                        .split_whitespace()
+                        .next()
+                        .unwrap_or("")
+                        .trim_matches(|c: char| !c.is_alphanumeric())
+                        .to_lowercase();
+
+                    const LOWERCASE_CONTINUATIONS: &[&str] = &[
+                        "and", "or", "but", "so", "because", "to", "for", "with", "that",
+                        "which", "where", "as", "if", "when", "while", "then", "also", "including",
+                    ];
+
+                    if LOWERCASE_CONTINUATIONS.contains(&first_token.as_str()) {
+                        let mut chars = stitched.chars();
+                        if let Some(first_ch) = chars.next() {
+                            stitched = format!("{}{}", first_ch.to_lowercase(), chars.as_str());
+                        }
+                    }
+
+                    // Prepend space to stitch seamlessly onto the incomplete sentence at the external cursor
+                    text_to_insert = format!(" {}", stitched);
+                }
+            }
+        }
+
+        // Update the last dictation metadata for subsequent continuation
+        if is_current_incomplete && !cleaned_text.is_empty() {
+            let last_w = cleaned_text
+                .split_whitespace()
+                .last()
+                .unwrap_or("")
+                .trim_matches(|c: char| !c.is_alphanumeric())
+                .to_string();
+
+            *prev_meta_guard = Some(crate::LastDictationMeta {
+                hwnd: target_hwnd,
+                last_token: last_w,
+                timestamp: Instant::now(),
+            });
+        } else {
+            *prev_meta_guard = None;
+        }
+    } else {
+        *state.last_dictation_meta.lock() = None;
+    }
+
     let mut insertion_error = None;
-    if should_insert && auto_insert && !cleaned_text.is_empty() {
-        let _ = app_handle.emit("amiyo-inserting-text", &cleaned_text);
-        if let Err(e) = input::insert_text(target_hwnd, &cleaned_text, use_clipboard, restore_delay_ms) {
+    if should_insert && auto_insert && !text_to_insert.is_empty() {
+        let _ = app_handle.emit("amiyo-inserting-text", &text_to_insert);
+        if let Err(e) = input::insert_text(target_hwnd, &text_to_insert, use_clipboard, restore_delay_ms) {
             eprintln!("Direct text insertion error: {}", e);
             insertion_error = Some(e);
         }

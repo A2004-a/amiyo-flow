@@ -533,6 +533,44 @@ pub fn is_interrogative_sentence(sentence: &str) -> bool {
     false
 }
 
+/// Checks if an utterance or sentence is an incomplete clause or sentence
+/// (i.e. ending on a conjunction, preposition, or continuation particle).
+/// Incomplete utterances should NOT have a terminal period appended,
+/// allowing seamless continuation when the user resumes speaking.
+pub fn is_incomplete_sentence(sentence: &str) -> bool {
+    let trimmed = sentence.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+
+    let words: Vec<&str> = trimmed.split_whitespace().collect();
+    if words.is_empty() {
+        return false;
+    }
+
+    let last_word = words.last().unwrap().trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+    if last_word.is_empty() {
+        return false;
+    }
+
+    const INCOMPLETE_CONNECTORS: &[&str] = &[
+        // Coordinating conjunctions
+        "and", "or", "but", "nor", "yet", "so",
+        // Subordinating conjunctions / causal / conditional
+        "because", "although", "though", "since", "unless", "while", "whereas",
+        "if", "whether", "as", "that", "after", "before", "until", "till",
+        // Prepositions
+        "to", "for", "with", "of", "in", "on", "at", "by", "from", "into",
+        "about", "between", "through", "without", "under", "over", "around", "onto",
+        // Relative pronouns / adverbs
+        "which", "where", "who", "whom", "whose", "what", "when", "why", "how",
+        // Continuations / particles
+        "like", "including", "then", "also", "plus",
+    ];
+
+    INCOMPLETE_CONNECTORS.contains(&last_word.as_str())
+}
+
 /// Applies verbal in-line editing commands like "change Friday to Saturday" or "change all 2 to 4"
 pub fn apply_spoken_edit_commands(input: &str) -> String {
     let mut text = input.trim().to_string();
@@ -952,7 +990,13 @@ pub fn heuristic_cleanup_full(
                 if !formatted_line.ends_with('?') {
                     formatted_line.push('?');
                 }
-            } else if !formatted_line.ends_with('.') && !formatted_line.ends_with('?') && !formatted_line.ends_with('!') && !formatted_line.ends_with(':') && !formatted_line.ends_with(';') {
+            } else if !is_incomplete_sentence(&formatted_line)
+                && !formatted_line.ends_with('.')
+                && !formatted_line.ends_with('?')
+                && !formatted_line.ends_with('!')
+                && !formatted_line.ends_with(':')
+                && !formatted_line.ends_with(';')
+            {
                 formatted_line.push('.');
             }
             lines.push(formatted_line);
@@ -1054,6 +1098,8 @@ pub fn polish_sentence_structure(input: &str) -> String {
         (r"\b(?i)sqlite\b", "SQLite"),
         (r"\b(?i)tauri\b", "Tauri"),
         (r"\b(?i)rea\b", "REA"),
+        (r"\b(?i)windows\b", "Windows"),
+        (r"\b(?i)macos\b", "macOS"),
         (r"\b(?i)pr\b", "PR"),
         (r"\b(?i)prs\b", "PRs"),
         // Phonetic Name & App Brand Fixes
@@ -1101,6 +1147,11 @@ pub fn polish_sentence_structure(input: &str) -> String {
         (r"\b(?i)accomodate\b", "accommodate"),
         (r"\b(?i)concious\b", "conscious"),
         (r"\b(?i)pronounciation\b", "pronunciation"),
+        // Spoken grammar, idiom and stutter corrections
+        (r"\b(?i)where\s+is\s+ends\b", "where it ends"),
+        (r"\b(?i)where\s+is\s+ended\b", "where it ended"),
+        (r"\b(?i)and\s+and\b", "and"),
+        (r"\b(?i)this\s+this\b", "this"),
     ];
     for (pat, repl) in contraction_replacements {
         if let Ok(re) = Regex::new(pat) {

@@ -18,6 +18,8 @@ import {
   Zap,
   RotateCcw,
   Tag,
+  Clock,
+  ShieldCheck,
 } from 'lucide-react';
 import { useSettingsStore } from '../stores/useSettingsStore';
 
@@ -73,6 +75,27 @@ function isInterrogativeSentence(sentence: string): boolean {
   }
 
   return false;
+}
+
+function isIncompleteSentence(sentence: string): boolean {
+  const trimmed = sentence.trim();
+  if (!trimmed) return false;
+  const words = trimmed.split(/\s+/);
+  if (words.length === 0) return false;
+  const lastWord = words[words.length - 1].replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+  if (!lastWord) return false;
+
+  const incompleteConnectors = [
+    'and', 'or', 'but', 'nor', 'yet', 'so',
+    'because', 'although', 'though', 'since', 'unless', 'while', 'whereas',
+    'if', 'whether', 'as', 'that', 'after', 'before', 'until', 'till',
+    'to', 'for', 'with', 'of', 'in', 'on', 'at', 'by', 'from', 'into',
+    'about', 'between', 'through', 'without', 'under', 'over', 'around', 'onto',
+    'which', 'where', 'who', 'whom', 'whose', 'what', 'when', 'why', 'how',
+    'like', 'including', 'then', 'also', 'plus'
+  ];
+
+  return incompleteConnectors.includes(lastWord);
 }
 
 function applySpokenEditCommands(input: string): string {
@@ -419,6 +442,8 @@ function simulateCleanup(
       [/\bsqlite\b/gi, "SQLite"],
       [/\btauri\b/gi, "Tauri"],
       [/\brea\b/gi, "REA"],
+      [/\bwindows\b/gi, "Windows"],
+      [/\bmacos\b/gi, "macOS"],
       [/\bpr\b/gi, "PR"],
       [/\bprs\b/gi, "PRs"],
       // Phonetic Name & App Brand Fixes
@@ -466,6 +491,11 @@ function simulateCleanup(
       [/\baccomodate\b/gi, "accommodate"],
       [/\bconcious\b/gi, "conscious"],
       [/\bpronounciation\b/gi, "pronunciation"],
+      // Spoken grammar, idiom and stutter corrections
+      [/\bwhere\s+is\s+ends\b/gi, "where it ends"],
+      [/\bwhere\s+is\s+ended\b/gi, "where it ended"],
+      [/\band\s+and\b/gi, "and"],
+      [/\bthis\s+this\b/gi, "this"],
     ];
     for (const [re, repl] of contractions) {
       text = text.replace(re, repl);
@@ -507,7 +537,7 @@ function simulateCleanup(
         if (!cap.endsWith('?')) {
           cap += '?';
         }
-      } else if (!/[.!?:]$/.test(cap)) {
+      } else if (!isIncompleteSentence(cap) && !/[.!?:]$/.test(cap)) {
         cap += '.';
       }
       return cap;
@@ -608,6 +638,10 @@ export const WritingStyles: React.FC = () => {
     {
       label: 'Name & Spelling Auto-Correction',
       text: 'um aa omiya flow was built with wrong seplling but definately recieved high quality',
+    },
+    {
+      label: 'Incomplete Sentence & Seamless Continuation',
+      text: 'i try to build chatgpt like application using rea and and start this this where is ends and',
     },
     {
       label: 'Time, Math & Tech Polish',
@@ -939,6 +973,51 @@ export const WritingStyles: React.FC = () => {
                 <span className="text-violet-300 font-medium">"We arrived. It works. Don't worry."</span>
               </span>
             </div>
+          </div>
+        </div>
+
+        {/* Silence Auto-Stop & Incomplete Sentence Protection Controls */}
+        <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800/90 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/25 flex items-center justify-center text-cyan-400 shrink-0 mt-0.5">
+              <Clock className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-semibold text-white">Silence Auto-Stop & Clause Protection</h3>
+                <span className="text-[9px] font-mono font-medium px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                  {settings.vad_auto_stop === 'false' || settings.silence_cutoff_ms === '0'
+                    ? 'MANUAL STOP ONLY'
+                    : `${(Number(settings.silence_cutoff_ms || '2500') / 1000).toFixed(1)}s WAIT`}
+                </span>
+                <span className="text-[9px] font-mono font-medium px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                  Clause Stitching Active
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Waits 2 to 3 seconds before auto-stopping so you can formulate your thoughts. Never cuts off on incomplete words (&quot;and&quot;, &quot;because&quot;), stitching future speech seamlessly.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0">
+            <select
+              value={settings.silence_cutoff_ms || '2500'}
+              onChange={(e) => {
+                const val = e.target.value;
+                updateSetting('silence_cutoff_ms', val);
+                updateSetting('vad_auto_stop', val === '0' ? 'false' : 'true');
+              }}
+              className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-cyan-300 font-medium focus:outline-none"
+            >
+              <option value="2000">2.0s Pause Wait</option>
+              <option value="2500">2.5s Pause Wait (Recommended)</option>
+              <option value="3000">3.0s Pause Wait (Relaxed)</option>
+              <option value="3500">3.5s Pause Wait (Deep Thinking)</option>
+              <option value="4000">4.0s Pause Wait (Maximum)</option>
+              <option value="0">Manual Only (No Auto-Stop)</option>
+            </select>
           </div>
         </div>
 

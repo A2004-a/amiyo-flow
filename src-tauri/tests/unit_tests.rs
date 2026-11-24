@@ -265,13 +265,15 @@ fn test_voice_activity_detection() {
         assert!(!should_stop);
     }
 
-    // High energy alternating wave
+    // High energy alternating wave across 10 frames (300ms) to accumulate speech
     let mut speech = Vec::with_capacity(480);
     for i in 0..480 {
         speech.push(if i % 4 < 2 { 18000i16 } else { -18000i16 });
     }
-    let (is_speech, _) = vad.process_frame(&speech);
-    assert!(is_speech, "High energy wave should trigger speech classification");
+    for _ in 0..10 {
+        let (is_speech, _) = vad.process_frame(&speech);
+        assert!(is_speech, "High energy wave should trigger speech classification");
+    }
 
     // Continuous silence leading to auto-stop cutoff
     let mut stopped = false;
@@ -668,6 +670,72 @@ fn test_phonetic_name_spelling_autocorrection_and_audio_noise_filter() {
     // Verify speech region is preserved with healthy amplitude
     let speech_peak = audio[8000..16000].iter().map(|&s| s.abs()).fold(0.0f32, f32::max);
     assert!(speech_peak > 0.50, "Speech tone must be preserved and normalized");
+}
+
+#[test]
+fn test_vad_conversational_silence_incomplete_clause_and_continuation_stitching() {
+    use amiyo_flow_lib::ai::is_incomplete_sentence;
+    use amiyo_flow_lib::audio::vad::{VadConfig, VoiceActivityDetector};
+
+    // 1. Verify VAD default configuration has 2500ms (2.5s) conversational pause wait
+    let vad_cfg = VadConfig::default();
+    assert_eq!(vad_cfg.silence_cutoff_ms, 2500, "Default VAD silence cutoff must be 2.5s (2500ms)");
+
+    // 2. Verify VAD speech accumulation safeguard (requires >= 300ms speech before auto-stop)
+    let mut vad = VoiceActivityDetector::new(VadConfig {
+        silence_cutoff_ms: 100,
+        ..Default::default()
+    });
+
+    // Calibrate with 10 silence frames
+    let silence = vec![0i16; 480];
+    for _ in 0..10 {
+        vad.process_frame(&silence);
+    }
+
+    // Only 2 frames of speech (60ms) should NOT trigger auto-stop even with subsequent silence
+    let mut speech_frame = Vec::with_capacity(480);
+    for i in 0..480 {
+        let val = if i % 4 < 2 { 15000i16 } else { -15000i16 };
+        speech_frame.push(val);
+    }
+    vad.process_frame(&speech_frame);
+    vad.process_frame(&speech_frame);
+
+    let mut early_stopped = false;
+    for _ in 0..10 {
+        let (_, stop) = vad.process_frame(&silence);
+        if stop {
+            early_stopped = true;
+            break;
+        }
+    }
+    assert!(!early_stopped, "A brief 60ms noise/grunt must NOT trigger auto-stop on silence");
+
+    // 3. Verify incomplete sentence detection on connectors
+    assert!(is_incomplete_sentence("i want to build chatgpt like application using rea and"));
+    assert!(is_incomplete_sentence("we stopped because"));
+    assert!(is_incomplete_sentence("deploy this to"));
+    assert!(is_incomplete_sentence("check if"));
+    assert!(!is_incomplete_sentence("deploy this to production"));
+    assert!(!is_incomplete_sentence("everything is working smoothly"));
+
+    // 4. Verify heuristic_cleanup does NOT append periods on incomplete sentences
+    let incomplete_1 = heuristic_cleanup("i try to build chatgpt like application using rea and");
+    assert!(!incomplete_1.ends_with('.'), "Incomplete sentence must not have trailing period: {}", incomplete_1);
+    assert!(incomplete_1.ends_with("and"));
+
+    // 5. Verify user prompt phrase: "and and start this this where is ends and"
+    let cleaned_clause = heuristic_cleanup("and and start this this where is ends and");
+    assert_eq!(cleaned_clause, "And start this where it ends and");
+    assert!(!cleaned_clause.ends_with('.'));
+    assert!(!cleaned_clause.contains("and and"));
+    assert!(!cleaned_clause.contains("this this"));
+    assert!(cleaned_clause.contains("where it ends"));
+
+    // 6. Complete terminal sentence gets clean terminal punctuation
+    let complete_sentence = heuristic_cleanup("deploy it to windows desktop");
+    assert_eq!(complete_sentence, "Deploy it to Windows desktop.");
 }
 
 

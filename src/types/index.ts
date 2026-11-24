@@ -114,7 +114,9 @@ export interface AppSettings {
   custom_stt_path: string;
   custom_llm_path: string;
   vad_enabled: string;
+  vad_auto_stop?: string;
   silence_cutoff_ms: string;
+  continuation_stitching?: string;
   auto_insert: string;
   use_clipboard: string;
   restore_clipboard_delay_ms: string;

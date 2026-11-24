@@ -18,7 +18,7 @@ impl Default for VadConfig {
             frame_size_ms: 30, // 30ms frames (480 samples at 16kHz)
             energy_threshold_ratio: 2.5,
             zcr_speech_threshold: 0.08,
-            silence_cutoff_ms: 1800, // 1.8s silence stops dictation
+            silence_cutoff_ms: 2500, // 2.5s silence stops dictation (conversational 2 to 3s wait)
         }
     }
 }
@@ -28,6 +28,7 @@ pub struct VoiceActivityDetector {
     noise_energy_floor: f32,
     calibrated_frames: usize,
     consecutive_silence_ms: u64,
+    accumulated_speech_ms: u64,
     has_detected_speech: bool,
 }
 
@@ -38,6 +39,7 @@ impl VoiceActivityDetector {
             noise_energy_floor: 0.0001,
             calibrated_frames: 0,
             consecutive_silence_ms: 0,
+            accumulated_speech_ms: 0,
             has_detected_speech: false,
         }
     }
@@ -76,7 +78,10 @@ impl VoiceActivityDetector {
                 / ((self.calibrated_frames + 1) as f32);
             self.calibrated_frames += 1;
             if energy > 0.02 {
-                self.has_detected_speech = true;
+                self.accumulated_speech_ms += 30;
+                if self.accumulated_speech_ms >= 300 {
+                    self.has_detected_speech = true;
+                }
             }
             return (self.has_detected_speech, false);
         }
@@ -87,7 +92,11 @@ impl VoiceActivityDetector {
         let frame_duration_ms = ((samples.len() as f64 / self.config.sample_rate as f64) * 1000.0) as u64;
 
         if is_speech {
-            self.has_detected_speech = true;
+            self.accumulated_speech_ms += frame_duration_ms;
+            // Require at least 300ms of sustained/accumulated speech before auto-stop becomes eligible
+            if self.accumulated_speech_ms >= 300 {
+                self.has_detected_speech = true;
+            }
             self.consecutive_silence_ms = 0;
         } else {
             // Adaptively drift noise floor slowly if silence persists
@@ -104,6 +113,7 @@ impl VoiceActivityDetector {
     pub fn reset(&mut self) {
         self.calibrated_frames = 0;
         self.consecutive_silence_ms = 0;
+        self.accumulated_speech_ms = 0;
         self.has_detected_speech = false;
         self.noise_energy_floor = 0.0001;
     }
@@ -139,15 +149,17 @@ mod tests {
             vad.process_frame(&silence_frame);
         }
 
-        // 2. Synthesize speech frame (high energy alternating waveform)
+        // 2. Synthesize speech frames (high energy alternating waveform across 10 frames = 300ms)
         let mut speech_frame = Vec::with_capacity(480);
         for i in 0..480 {
             let val = if i % 4 < 2 { 15000i16 } else { -15000i16 };
             speech_frame.push(val);
         }
 
-        let (is_speech, _) = vad.process_frame(&speech_frame);
-        assert!(is_speech, "High-energy alternating wave should be detected as speech");
+        for _ in 0..10 {
+            let (is_speech, _) = vad.process_frame(&speech_frame);
+            assert!(is_speech, "High-energy alternating wave should be detected as speech");
+        }
 
         // 3. Followed by silence exceeding cutoff
         let mut auto_stopped = false;

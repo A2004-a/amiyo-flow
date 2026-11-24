@@ -4,12 +4,12 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 
 ---
 
-## 1. Automated Test Execution Evidence (60/60 PASSED)
+## 1. Automated Test Execution Evidence (62/62 PASSED)
 
 - **Test Date**: 2026-11-24
 - **Host Environment**: Windows 11 x64, Intel/AMD architecture, 8GB–16GB RAM
-- **Native Rust Tests (`cargo test`)**: **46 / 46 PASSED** (17 in `lib.rs`, 29 in `unit_tests.rs`)
-- **Frontend Vitest Tests (`npm test`)**: **14 / 14 PASSED** (`src/test/dictation.test.ts`)
+- **Native Rust Tests (`cargo test`)**: **47 / 47 PASSED** (17 in `lib.rs`, 30 in `unit_tests.rs`)
+- **Frontend Vitest Tests (`npm test`)**: **15 / 15 PASSED** (`src/test/dictation.test.ts`)
 - **Frontend Production Build (`npm run build`)**: **PASSED** (1,609 modules bundled with 0 errors)
 - **Installer Build (`npx tauri build`)**: **PASSED** (`AMIYO FLOW_1.0.9_x64-setup.exe`)
 - **Quality Gate**: **100% GREEN (ALL PASSING)**
@@ -18,6 +18,7 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 
 | Test Identifier | Category | Acceptance Criteria | Execution Result | Status |
 |---|---|---|---|---|
+| `test_vad_conversational_silence_incomplete_clause_and_continuation_stitching` | Phase 2, 5, 9 | 1) Verifies VAD default configuration has 2500ms (2.5s) conversational pause wait; 2) Enforces 300ms speech accumulation safeguard preventing premature stop on brief grunts; 3) Detects incomplete clauses ending on connectors ("and", "because", "to", "if"); 4) Prevents false terminal period appending on incomplete sentences; 5) Normalizes user prompt phrases ("and and start this this where is ends and" -> "And start this where it ends and"); 6) Formats complete sentences with terminal period | 2.5s default wait verified, 300ms accumulation active, incomplete clause periods suppressed, and boundary stutters deduplicated | **PASSED** |
 | `test_phonetic_name_spelling_autocorrection_and_audio_noise_filter` | Phase 2, 5 | 1) Automatically corrects phonetic misrecognitions of creator name ("omiya", "omiyo", "amio", "a m i y o" -> "Amiyo") and app brand ("omiya flow" -> "AMIYO FLOW"); 2) Filters hesitation particles "aa", "aah", "um aa"; 3) Fixes dictation typos ("seplling" -> "spelling", "removwe" -> "remove", "definately" -> "definitely", "recieve" -> "receive"); 4) Applies 80Hz high-pass filter and adaptive spectral noise gate attenuating background noise | Name and brand repaired, spelling corrected, 50Hz hum and noise floor attenuated | **PASSED** |
 | `test_high_quality_voice_typing_improvements` | Phase 5 | Eliminates stutter pause commas ("we, we" -> "we", "we can, we can" -> "we can"), handles complete restart triggers ("wait let me start over" -> discards previous utterance), formats spoken times ("five thirty PM" -> "5:30 PM", "nine PM" -> "9 PM"), formats math operations ("2 plus 2 equals 4" -> "2 + 2 = 4"), large numbers ("ten thousand" -> "10,000"), developer & tech terms ("API", "TypeScript", "GitHub", "Tauri", "REA"), and spoken contractions | Stutter commas stripped, full restarts honored, time, math, tech terms formatted | **PASSED** |
 | `test_spoken_edit_commands` | Phase 5 | Executes verbal in-line editing commands ("change Friday to Saturday", "change all 2 to 4", "replace X with Y") with chaining | Chained and single commands execute and strip cleanly | **PASSED** |
@@ -129,10 +130,23 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 | BUG-042 | High | Speech Cleanser | Spoken full restart retaining prefix | "we broke the server wait let me start over" kept "We broke the" | Added `is_full_restart` check discarding the entire preceding text buffer | FIXED |
 | BUG-043 | High | Audio DSP | Background room noise, electrical AC 50Hz/60Hz hum, and desk vibration degrading speech recognition | Raw microphone capture fed un-filtered acoustic signal directly to speech-to-text | Implemented `suppress_background_noise_and_filter`: 80Hz IIR high-pass filter, adaptive spectral noise gate (-14dB attenuation during pauses), and -1 dBFS peak normalization | FIXED |
 | BUG-044 | High | Speech Autocorrect | Phonetic misrecognition of creator name as "omiya"/"omiyo"/"a m i y o" and dictation typos ("seplling", "removwe") | Atypical phonetics confused acoustic models; common typing errors remained uncorrected | Added phonetic name normalization ("omiya", "omiyo", "amio", "a m i y o" -> "Amiyo", "omiya flow" -> "AMIYO FLOW"), auto-corrected typos, and expanded filler removal to "aa"/"aah" | FIXED |
+| BUG-045 | High | VAD Engine | Premature auto-stop inside Claude and desktop chat apps before user completes sentence | 1.8s silence cutoff was too brief for conversational pauses; single-frame breathing triggered silence countdown | Raised default silence cutoff to 2500ms (2.5s conversational wait), added 300ms speech accumulation safeguard before silence timer arms, added toggle to disable auto-stop completely ("Manual Hotkey Only"), and added duration dropdowns (2.0s, 2.5s, 3.0s, 3.5s, 4.0s) | FIXED |
+| BUG-046 | High | Text Injection | False terminal period appended to incomplete sentences and boundary stutter on dictation continuation | Sentence formatter blindly appended `.` or `?` even on dangling conjunctions ("and", "because", "so", "to", "with"); resuming dictation capitalized mid-sentence continuation and doubled boundary words ("and and") | Implemented `is_incomplete_sentence` suppressing periods on trailing connectors, implemented stateful clause stitcher deduplicating boundary stutters, preserving lowercase continuation words, prepending continuation space, and corrected "where is ends" -> "where it ends" | FIXED |
 
 ---
 
 ## 4. Semantic Version Changelog
+
+### [1.0.16] — 2026-11-24
+- **Conversational Silence Wait & Incomplete Sentence Protection (BUG-045 & BUG-046)**:
+  - **2.5s Default Conversational Pause Wait**: Raised default VAD silence cutoff to 2500ms (2.5s) to allow natural pauses when thinking and formulating sentences inside Claude, ChatGPT, and IDEs.
+  - **VAD Speech Accumulation Safeguard**: Requires at least 300ms of sustained/accumulated speech before the silence cutoff timer becomes eligible, preventing accidental auto-stop triggered by brief throat clears or sighs.
+  - **Auto-Stop on Silence Toggle (Manual Hotkey Stop Only)**: Added user option to disable silence auto-stop completely (`vad_auto_stop = false`), allowing dictation to stay open until explicit hotkey press (<kbd>Ctrl+Space</kbd>).
+  - **Configurable Silence Duration Options**: Selectable silence duration options (`2.0s`, `2.5s` [Recommended Default], `3.0s`, `3.5s`, `4.0s`, `Manual Only`) across both `Settings.tsx` and `WritingStyles.tsx`.
+  - **Incomplete Sentence Period Suppression**: Implemented `is_incomplete_sentence` in both Rust backend and frontend simulator, detecting trailing coordinating conjunctions, subordinating conjunctions, prepositions, and relative pronouns (`and`, `or`, `but`, `because`, `so`, `that`, `to`, `for`, `with`, `of`, `if`, `as`, `when`, `which`, `where`, etc.) and suppressing premature terminal periods.
+  - **Seamless Continuation Clause Stitching**: Tracks previous dictation metadata (`LastDictationMeta`) in `AppState`. When resuming an incomplete sentence, automatically deduplicates repeated boundary words (e.g. `"... and"` + `"and start"` $\rightarrow$ `"start"`), keeps continuation connectors lowercase, and prepends single spacing directly at the cursor in external apps.
+  - **Speech Autocorrection & Typo Repair**: Added corrections for `"where is ends"` $\rightarrow$ `"where it ends"`, `"where is ended"` $\rightarrow$ `"where it ended"`, `"this this"` $\rightarrow$ `"this"`, `"and and"` $\rightarrow$ `"and"`, and technical terms `"windows"` $\rightarrow$ `"Windows"`, `"macos"` $\rightarrow$ `"macOS"`.
+  - **Interactive Preset & Clause Stitching Banner**: Added `Incomplete Sentence & Seamless Continuation` 1-click test scenario preset and live clause protection card to `WritingStyles.tsx`.
 
 ### [1.0.15] — 2026-11-24
 - **Configurable Speech Cleanser & Disfluency Removal Engine**:

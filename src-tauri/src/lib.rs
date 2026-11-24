@@ -18,6 +18,13 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::Manager;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
+#[derive(Debug, Clone)]
+pub struct LastDictationMeta {
+    pub hwnd: isize,
+    pub last_token: String,
+    pub timestamp: Instant,
+}
+
 pub struct AppState {
     pub db: Arc<Database>,
     pub audio: Arc<AudioEngine>,
@@ -27,6 +34,7 @@ pub struct AppState {
     pub target_app_title: Arc<Mutex<String>>,
     pub recording_start: Arc<Mutex<Option<Instant>>>,
     pub is_processing: Arc<AtomicBool>,
+    pub last_dictation_meta: Arc<Mutex<Option<LastDictationMeta>>>,
 }
 
 pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -135,6 +143,7 @@ pub fn run() {
                 target_app_title: Arc::new(Mutex::new("".to_string())),
                 recording_start: Arc::new(Mutex::new(None)),
                 is_processing: Arc::new(AtomicBool::new(false)),
+                last_dictation_meta: Arc::new(Mutex::new(None)),
             };
 
             app.manage(state);

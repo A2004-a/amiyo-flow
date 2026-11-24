@@ -174,23 +174,73 @@ export const Settings: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center justify-between border-t border-slate-800 pt-3">
-            <div>
-              <span className="text-xs font-semibold text-white block">Hands-Free Silence Auto-Cutoff</span>
-              <span className="text-[11px] text-slate-400">
-                Automatically stops recording and types text when you finish speaking.
-              </span>
+          <div className="space-y-3 border-t border-slate-800 pt-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-xs font-semibold text-white block">Auto-Stop on Silence (VAD)</span>
+                <span className="text-[11px] text-slate-400">
+                  Automatically stops recording when you pause speaking. Turn off for Manual Hotkey Stop Only.
+                </span>
+              </div>
+              <input
+                type="checkbox"
+                checked={settings.vad_auto_stop !== 'false' && settings.silence_cutoff_ms !== '0'}
+                onChange={(e) => {
+                  const enabled = e.target.checked;
+                  updateSetting('vad_auto_stop', enabled ? 'true' : 'false');
+                  if (!enabled) {
+                    updateSetting('silence_cutoff_ms', '0');
+                  } else if (settings.silence_cutoff_ms === '0') {
+                    updateSetting('silence_cutoff_ms', '2500');
+                  }
+                }}
+                className="w-4 h-4 rounded text-cyan-500 bg-slate-950 border-slate-700"
+              />
             </div>
-            <select
-              value={settings.silence_cutoff_ms || '1800'}
-              onChange={(e) => updateSetting('silence_cutoff_ms', e.target.value)}
-              className="px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white"
-            >
-              <option value="1200">1.2 seconds (Fast Typing)</option>
-              <option value="1800">1.8 seconds (Balanced)</option>
-              <option value="2500">2.5 seconds (Natural Pauses)</option>
-              <option value="3500">3.5 seconds (Thoughtful Dictation)</option>
-            </select>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-xs font-semibold text-white block">Silence Wait Before Auto-Stop</span>
+                <span className="text-[11px] text-slate-400">
+                  How long to wait when you pause speaking before finishing dictation (2 to 3s recommended).
+                </span>
+              </div>
+              <select
+                value={settings.silence_cutoff_ms || '2500'}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  updateSetting('silence_cutoff_ms', val);
+                  if (val === '0') {
+                    updateSetting('vad_auto_stop', 'false');
+                  } else {
+                    updateSetting('vad_auto_stop', 'true');
+                  }
+                }}
+                className="px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white"
+              >
+                <option value="2000">2.0 seconds (Fast Dictation)</option>
+                <option value="2500">2.5 seconds (Recommended for Claude & Thinking)</option>
+                <option value="3000">3.0 seconds (Relaxed Conversational)</option>
+                <option value="3500">3.5 seconds (Extended Pauses)</option>
+                <option value="4000">4.0 seconds (Deep Thinking)</option>
+                <option value="0">Disabled (Manual Hotkey Stop Only)</option>
+              </select>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-slate-800/60 pt-2">
+              <div>
+                <span className="text-xs font-semibold text-white block">Incomplete Sentence & Seamless Stitching</span>
+                <span className="text-[11px] text-slate-400">
+                  Prevents premature periods on incomplete clauses (&quot;and&quot;, &quot;because&quot;) and stitches subsequent speech where you left off.
+                </span>
+              </div>
+              <input
+                type="checkbox"
+                checked={settings.continuation_stitching !== 'false'}
+                onChange={(e) => updateSetting('continuation_stitching', e.target.checked ? 'true' : 'false')}
+                className="w-4 h-4 rounded text-emerald-500 bg-slate-950 border-slate-700"
+              />
+            </div>
           </div>
         </div>
 

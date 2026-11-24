@@ -162,6 +162,10 @@ impl Database {
             ("remove_self_corrections", "true"),
             ("clean_sentences", "true"),
             ("custom_filler_words", ""),
+            ("vad_enabled", "true"),
+            ("vad_auto_stop", "true"),
+            ("silence_cutoff_ms", "2500"),
+            ("continuation_stitching", "true"),
         ];
 
         for (k, v) in default_settings.iter() {
@@ -170,6 +174,12 @@ impl Database {
                 params![k, v],
             )?;
         }
+
+        // Migrate legacy 1.8s silence cutoff to recommended 2.5s conversational pause wait
+        let _ = conn.execute(
+            "UPDATE settings SET value = '2500' WHERE key = 'silence_cutoff_ms' AND value = '1800'",
+            [],
+        );
 
         // Migrate legacy hotkey if set to CommandOrControl variants
         let _ = conn.execute(
