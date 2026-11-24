@@ -533,6 +533,139 @@ pub fn is_interrogative_sentence(sentence: &str) -> bool {
     false
 }
 
+/// Applies verbal in-line editing commands like "change Friday to Saturday" or "change all 2 to 4"
+pub fn apply_spoken_edit_commands(input: &str) -> String {
+    let mut text = input.trim().to_string();
+    if text.is_empty() {
+        return text;
+    }
+
+    // Matches trailing edit commands:
+    // e.g. "change Friday to Saturday", "replace 2 with 4", "change all 2 to 4"
+    let cmd_re = Regex::new(
+        r"(?i)(?:[,.]\s*|\s+(?:and\s+)?)\b(?:change|replace)\s+(all\s+)?([a-zA-Z0-9$€£#]+(?:\s+[a-zA-Z0-9$€£#]+){0,2})\s+(?:to|with)\s+([a-zA-Z0-9$€£#]+(?:\s+[a-zA-Z0-9$€£#]+){0,2})[.?!]?$"
+    ).unwrap();
+
+    let mut commands = Vec::new();
+    while let Some(caps) = cmd_re.captures(&text) {
+        let full_match = caps.get(0).unwrap();
+        let match_start = full_match.start();
+        let is_all = caps.get(1).is_some();
+        let target = caps.get(2).unwrap().as_str().trim().to_string();
+        let replacement = caps.get(3).unwrap().as_str().trim().to_string();
+
+        commands.push((is_all, target, replacement));
+        text = text[..match_start].trim().to_string();
+    }
+
+    if commands.is_empty() {
+        return input.to_string();
+    }
+
+    // Apply commands in chronological spoken order (reverse of peeling)
+    commands.reverse();
+    for (is_all, target, replacement) in commands {
+        if target.is_empty() {
+            continue;
+        }
+
+        let escaped_target = regex::escape(&target);
+        if is_all {
+            if let Ok(re) = Regex::new(&format!(r"(?i)\b{}\b", escaped_target)) {
+                text = re.replace_all(&text, replacement.as_str()).to_string();
+            }
+        } else {
+            // Replace the last occurrence of target in text
+            if let Ok(re) = Regex::new(&format!(r"(?i)\b{}\b", escaped_target)) {
+                let matches: Vec<_> = re.find_iter(&text).collect();
+                if let Some(last_match) = matches.last() {
+                    let start = last_match.start();
+                    let end = last_match.end();
+                    text = format!("{}{}{}", &text[..start], replacement, &text[end..]);
+                }
+            }
+        }
+    }
+
+    text
+}
+
+/// Resolves pivot phrase backtrack in spoken self-corrections
+/// e.g. "i try to build chatgpt like application using rea no chatgpt like application"
+/// -> Finds "chatgpt like" in the preceding text, discards the digression, and splices the correction.
+pub fn resolve_pivot_backtrack(before: &str, replacement: &str) -> Option<String> {
+    let before_trimmed = before.trim();
+    let repl_trimmed = replacement.trim();
+    if before_trimmed.is_empty() || repl_trimmed.is_empty() {
+        return None;
+    }
+
+    let before_words: Vec<&str> = before_trimmed.split_whitespace().collect();
+    let repl_words: Vec<&str> = repl_trimmed.split_whitespace().collect();
+
+    if before_words.is_empty() || repl_words.is_empty() {
+        return None;
+    }
+
+    // Check for 3-word, 2-word, or 1-word pivot matches
+    let max_len = 3.min(repl_words.len()).min(before_words.len());
+    for pivot_len in (1..=max_len).rev() {
+        let pivot_tokens: Vec<String> = repl_words[..pivot_len]
+            .iter()
+            .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase())
+            .collect();
+
+        // 1-word pivot must be a non-trivial content word (length >= 4 and not a stop word)
+        if pivot_len == 1 {
+            let token = &pivot_tokens[0];
+            let stop_words = [
+                "the", "a", "an", "and", "or", "in", "on", "at", "to", "for", "of", "with",
+                "is", "was", "are", "were", "it", "this", "that", "i", "we", "you", "they",
+                "he", "she", "no", "not"
+            ];
+            if token.len() < 4 || stop_words.contains(&token.as_str()) {
+                continue;
+            }
+        }
+
+        // Search backwards for the last occurrence of pivot_tokens in before_words
+        if before_words.len() >= pivot_len {
+            for i in (0..=before_words.len() - pivot_len).rev() {
+                let candidate: Vec<String> = before_words[i..i + pivot_len]
+                    .iter()
+                    .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase())
+                    .collect();
+
+                if candidate == pivot_tokens {
+                    let prefix = if i > 0 {
+                        before_words[..i].join(" ") + " "
+                    } else {
+                        String::new()
+                    };
+
+                    if repl_words.len() > pivot_len {
+                        return Some(format!("{}{}", prefix, repl_trimmed));
+                    } else {
+                        // repl is just the pivot! Look at what was immediately following the pivot in before:
+                        // e.g. "chatgpt like application". If next word was not a digression starter, preserve it
+                        if i + pivot_len < before_words.len() {
+                            let next_word = before_words[i + pivot_len];
+                            let clean_next = next_word.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+                            let skip_digression_starters = ["using", "with", "for", "and", "but", "in", "at", "by", "from"];
+                            if !skip_digression_starters.contains(&clean_next.as_str()) {
+                                return Some(format!("{}{}{}", prefix, repl_trimmed, format!(" {}", next_word)));
+                            }
+                        }
+                        return Some(format!("{}{}", prefix, repl_trimmed));
+                    }
+                }
+            }
+        }
+    }
+
+    None
+}
+
 /// Local Deterministic Heuristic Normalizer with customizable cleaning options
 pub fn heuristic_cleanup_with_options(
     input: &str,
@@ -565,36 +698,57 @@ pub fn heuristic_cleanup_full(
 ) -> String {
     let mut text = input.to_string();
 
-    // 1. Spoken self-corrections ("no wait...", "scratch that...", "I mean...", "actually no...")
+    // 0. Spoken in-line editing commands ("change Friday to Saturday", "change all 2 to 4", "replace X with Y")
+    text = apply_spoken_edit_commands(&text);
+
+    // 1. Spoken self-corrections ("no wait...", "scratch that...", "I mean...", "actually no...", "no no...", pivot backtracks)
     if remove_corrections {
         let self_correction_regex = Regex::new(
-            r"(?i)\b(?:no wait|scratch that|sorry I meant|actually no|wait no|no sorry|sorry no|oops I meant|or rather|correction|let me rephrase|strike that|I mean)[,\s]+(.+)"
+            r"(?i)\b(?:no no wait|no no no|no no|no wait|scratch that|sorry I meant|actually no|wait no|no sorry|sorry no|oops I meant|or rather|correction|let me rephrase|strike that|I mean)[,\s]+(.+)"
         ).unwrap();
+
         if let Some(caps) = self_correction_regex.captures(&text) {
             let replacement = caps.get(1).unwrap().as_str().trim();
             let full_match = self_correction_regex.find(&text).unwrap();
             let before = text[..full_match.start()].trim();
 
-            let before_words: Vec<&str> = before.split_whitespace().collect();
-            let repl_words: Vec<&str> = replacement.split_whitespace().collect();
+            if let Some(pivot_resolved) = resolve_pivot_backtrack(before, replacement) {
+                text = pivot_resolved;
+            } else {
+                let before_words: Vec<&str> = before.split_whitespace().collect();
+                let repl_words: Vec<&str> = replacement.split_whitespace().collect();
 
-            if before_words.len() >= 2 && !repl_words.is_empty() {
-                let shares_start = before_words.first().map(|w| w.to_lowercase()) == repl_words.first().map(|w| w.to_lowercase());
-                if !shares_start {
-                    let prefix = before_words[..before_words.len() - 1].join(" ");
-                    text = format!("{} {}", prefix, replacement);
+                if before_words.len() >= 2 && !repl_words.is_empty() {
+                    let shares_start = before_words.first().map(|w| w.to_lowercase()) == repl_words.first().map(|w| w.to_lowercase());
+                    if !shares_start {
+                        let prefix = before_words[..before_words.len() - 1].join(" ");
+                        text = format!("{} {}", prefix, replacement);
+                    } else {
+                        text = replacement.to_string();
+                    }
                 } else {
                     text = replacement.to_string();
                 }
-            } else {
-                text = replacement.to_string();
+            }
+        } else {
+            // Check for bare 'no' pivot backtrack: e.g. "application using rea no chatgpt like application"
+            let bare_no_re = Regex::new(r"(?i)(?:,\s*no[,\s]+|\s+no[,\s]+)(.+)").unwrap();
+            if let Some(caps) = bare_no_re.captures(&text) {
+                let replacement = caps.get(1).unwrap().as_str().trim();
+                let full_match = bare_no_re.find(&text).unwrap();
+                let before = text[..full_match.start()].trim();
+
+                if let Some(pivot_resolved) = resolve_pivot_backtrack(before, replacement) {
+                    text = pivot_resolved;
+                }
             }
         }
     }
 
-    // 2. Remove verbal filler words (hesitations, e.g. um, uh, nu, na, erm, etc.)
+    // 2. Remove verbal filler words (hesitations, e.g. um, uh, nu, na, erm, no no, etc.)
     if remove_fillers {
         let filler_patterns = [
+            r"(?i)\b(?:no no wait|no no no|no no)\b,?",
             r"(?i)\b(um+|uh+|erm+|ah+|nu+|na+|umm+|uhh+|er+|hmm+)\b,?",
             r"(?i)\b(you know|basically|actually|literally|sort of|kind of|so yeah|like I mean)\b,?",
         ];
@@ -804,6 +958,8 @@ pub fn polish_sentence_structure(input: &str) -> String {
         (r"\b(?i)aswell\b", "as well"),
         (r"\b(?i)infront\b", "in front"),
         (r"\b(?i)nevermind\b", "never mind"),
+        (r"\b(?i)saterday\b", "Saturday"),
+        (r"\b(?i)chatgpt\b", "ChatGPT"),
     ];
     for (pat, repl) in contraction_replacements {
         if let Ok(re) = Regex::new(pat) {

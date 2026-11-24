@@ -1,14 +1,14 @@
 # AMIYO FLOW — COMPREHENSIVE QUALITY, FEATURE & TEST REPORT
 
-This report consolidates the complete quality assurance suite for AMIYO FLOW: the Master Feature Registry (F001–F136), Automated Test Evidence (56/56 passing tests), Structured Bug Tracker (BUG-001–BUG-036), and Semantic Release Changelog.
+This report consolidates the complete quality assurance suite for AMIYO FLOW: the Master Feature Registry (F001–F136), Automated Test Evidence (58/58 passing tests), Structured Bug Tracker (BUG-001–BUG-036), and Semantic Release Changelog.
 
 ---
 
-## 1. Automated Test Execution Evidence (56/56 PASSED)
+## 1. Automated Test Execution Evidence (58/58 PASSED)
 
 - **Test Date**: 2026-11-24
 - **Host Environment**: Windows 11 x64, Intel/AMD architecture, 8GB–16GB RAM
-- **Native Rust Tests (`cargo test`)**: **42 / 42 PASSED** (17 in `lib.rs`, 25 in `unit_tests.rs`)
+- **Native Rust Tests (`cargo test`)**: **44 / 44 PASSED** (17 in `lib.rs`, 27 in `unit_tests.rs`)
 - **Frontend Vitest Tests (`npm test`)**: **14 / 14 PASSED** (`src/test/dictation.test.ts`)
 - **Frontend Production Build (`npm run build`)**: **PASSED** (1,609 modules bundled with 0 errors)
 - **Installer Build (`npx tauri build`)**: **PASSED** (`AMIYO FLOW_1.0.9_x64-setup.exe`)
@@ -18,6 +18,8 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 
 | Test Identifier | Category | Acceptance Criteria | Execution Result | Status |
 |---|---|---|---|---|
+| `test_spoken_edit_commands` | Phase 5 | Executes verbal in-line editing commands ("change Friday to Saturday", "change all 2 to 4", "replace X with Y") with chaining | Chained and single commands execute and strip cleanly | **PASSED** |
+| `test_pivot_backtrack_and_irritation_words` | Phase 5 | Resolves Pivot Phrase restarts ("using rea no chatgpt like application" $\rightarrow$ rewinds to pivot), eliminates repeated hesitation particles ("no no", "no no wait"), and normalizes misspelled days ("saterday" $\rightarrow$ "Saturday") | Digression excised, pivot re-spliced, Saturday normalized | **PASSED** |
 | `test_interrogative_question_and_currency_formatting` | Phase 5 | Detects interrogative questions (`?`), formats spoken currency (`$50`), percentages (`10%`, `20%`), numbers (`#1`, `#5`), quotes, parentheses, and spoken contractions | All questions, numbers, quotes, and contractions validated | **PASSED** |
 | `test_audio_engine_vad_configuration` | Phase 2 | Verifies AudioEngine real-time VAD initialization & sample rate binding | VadConfig sample rate and silence duration calibrated | **PASSED** |
 | `test_nu_na_and_regional_filler_removal` | Phase 5 | Strips conversational fillers ("um", "nu", "na", "uh") | "um hello nu na we should do this" $\rightarrow$ "Hello we should do this." | **PASSED** |
@@ -199,6 +201,18 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
   - **Backend SQLite Persistence (`update_meeting`)**: Added ACID `update_meeting` SQL query and Tauri IPC command to ensure changes to title, summary, decisions, and action items persist permanently across application reboots.
 
 ### [1.0.9] — 2026-11-24
+- **Spoken In-Line Editing Commands & Chaining (`apply_spoken_edit_commands`)**:
+  - Implemented verbal command parser executing directives like `"change Friday to Saturday"`, `"change all 2 to 4"`, `"replace X with Y"`, and `"replace all X with Y"`.
+  - Supports chained commands connected with `"and"` (e.g. `"we have 2 bugs on Friday change Friday to Saturday and change all 2 to 4"` $\rightarrow$ `"We have 4 bugs on Saturday."`).
+  - Automatically executes the replacements on preceding text and strips the verbal commands from output.
+- **Pivot Phrase Backtrack Engine (`resolve_pivot_backtrack`)**:
+  - Automatically identifies pivot phrases when speakers restart after a digression (e.g. `"and i try to build chatgpt like application using rea no chatgpt like application"`).
+  - Matches 1, 2, or 3-word pivot phrases, rewinds to the prior occurrence, discards unwanted intermediate text, and splices the intended continuation.
+  - Supports both explicit triggers (`no wait`, `no no wait`, `scratch that`, `sorry no`, `I mean`) and contextual bare `'no'` pivot restarts.
+- **Irritation & Stutter Word Elimination**:
+  - Enhanced disfluency cleaner to handle repeated negative hesitations (`no no`, `no no wait`, `no no no`) and mid-sentence verbal repair backtrack (`I mean`).
+- **Phonetic Spelling Normalization for Days & Brands**:
+  - Added spoken normalization for common misspellings: `"saterday"` $\rightarrow$ `"Saturday"`, `"chatgpt"` $\rightarrow$ `"ChatGPT"`.
 - **Intelligent Question Detection & Punctuation Polish**:
   - Implemented `is_interrogative_sentence` identifying modal auxiliaries (`Can you`, `Could we`, `Would it`, `Is this`, `Are they`, `Do you`, `Will you`) and wh-words (`What`, `Why`, `How`, `Who`, `Where`, `When`, `Which`).
   - Automatically terminates questions with `?` instead of `.` even when spoken without saying "question mark".
@@ -213,11 +227,11 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
   - Added run-together spoken repairs: `alot` $\rightarrow$ `a lot`, `eachother` $\rightarrow$ `each other`, `aswell` $\rightarrow$ `as well`, `infront` $\rightarrow$ `in front`, `nevermind` $\rightarrow$ `never mind`.
 - **Expanded Spoken Self-Correction Triggers**:
   - Added verbal repair phrases: `no sorry`, `sorry no`, `oops I meant`, `strike that`, `let me rephrase`, `or rather`.
-- **Live Simulator Playground & Preset**:
-  - Added `Question & Number Polish` preset chip with interactive simulation in `WritingStyles.tsx`.
-- **Automated Test Coverage (56/56 Tests Passed)**:
-  - Added unit test `test_interrogative_question_and_currency_formatting` in `src-tauri/tests/unit_tests.rs`.
-  - Achieved 100% green test pass across 42 Rust unit/integration tests and 14 Vitest frontend tests.
+- **Live Simulator Playground & Presets**:
+  - Added `Question & Number Polish`, `Spoken Edit Commands`, and `Pivot Phrase Backtrack` preset chips with interactive simulation in `WritingStyles.tsx`.
+- **Automated Test Coverage (58/58 Tests Passed)**:
+  - Added unit tests `test_spoken_edit_commands` and `test_pivot_backtrack_and_irritation_words` in `src-tauri/tests/unit_tests.rs`.
+  - Achieved 100% green test pass across 44 Rust unit/integration tests and 14 Vitest frontend tests.
 - **Interactive Speech Cleanser & Smart Sentence Polish Suite**:
   - **Smart Sentence & Grammar Polish**: Added a 4th modular cleaner card (`Sentence & Grammar Polish`) featuring multi-sentence boundary capitalization after `[.!?]`, pronoun `I` & contraction repair (`don't`, `can't`, `won't`, `didn't`, `isn't`, `it's`, `we've`), transition commas (`However,`, `Therefore,`), and punctuation spacing hygiene.
   - **Mid-Sentence Intelligent Backtracking**: Enhanced `heuristic_cleanup_full` to distinguish between full clause restarts (`"deploy on Friday no wait deploy on Monday"`) and mid-sentence word corrections (`"we need five no wait six servers"`), preserving the preceding sentence context while updating the corrected token.

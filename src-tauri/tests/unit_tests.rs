@@ -516,3 +516,52 @@ fn test_interrogative_question_and_currency_formatting() {
     assert!(run_together.contains("each other"));
 }
 
+#[test]
+fn test_spoken_edit_commands() {
+    use amiyo_flow_lib::ai::{apply_spoken_edit_commands, heuristic_cleanup};
+
+    // 1. Direct apply_spoken_edit_commands
+    let c1 = apply_spoken_edit_commands("The meeting is on Friday change Friday to Saturday");
+    assert_eq!(c1, "The meeting is on Saturday");
+
+    let c2 = apply_spoken_edit_commands("We have 2 items and 2 users change all 2 to 4");
+    assert_eq!(c2, "We have 4 items and 4 users");
+
+    let c3 = apply_spoken_edit_commands("Meeting at three PM replace three PM with four PM");
+    assert_eq!(c3, "Meeting at four PM");
+
+    // Chained commands with "and"
+    let c4 = apply_spoken_edit_commands("We have 2 bugs on Friday change Friday to Saturday and change all 2 to 4");
+    assert_eq!(c4, "We have 4 bugs on Saturday");
+
+    // 2. Verified end-to-end through heuristic_cleanup
+    let cleaned = heuristic_cleanup("we have 2 bugs on Friday change Friday to Saturday and change all 2 to 4");
+    assert_eq!(cleaned, "We have 4 bugs on Saturday.");
+
+    let cleaned_single = heuristic_cleanup("the launch is on Friday change Friday to Saturday");
+    assert_eq!(cleaned_single, "The launch is on Saturday.");
+}
+
+#[test]
+fn test_pivot_backtrack_and_irritation_words() {
+    use amiyo_flow_lib::ai::heuristic_cleanup;
+
+    // 1. Pivot Phrase Backtrack (discards digression and rewinds to pivot phrase)
+    let b1 = heuristic_cleanup("and i try to build chatgpt like application using rea no chatgpt like application");
+    assert!(b1.contains("ChatGPT like application"));
+    assert!(!b1.to_lowercase().contains("using rea"));
+
+    let b2 = heuristic_cleanup("we want to build a react native app for mobile no react native desktop app");
+    assert!(b2.contains("react native desktop app"));
+    assert!(!b2.contains("mobile"));
+
+    // 2. Irritations & repeated words ("no no", "no no wait", "i mean")
+    let irr1 = heuristic_cleanup("we need five no no wait six servers");
+    assert!(irr1.contains("six servers"));
+    assert!(!irr1.contains("five"));
+
+    let irr2 = heuristic_cleanup("we deployed on saterday");
+    assert!(irr2.contains("Saturday"));
+}
+
+

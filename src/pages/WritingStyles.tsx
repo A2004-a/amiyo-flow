@@ -75,6 +75,101 @@ function isInterrogativeSentence(sentence: string): boolean {
   return false;
 }
 
+function applySpokenEditCommands(input: string): string {
+  let text = input.trim();
+  if (!text) return text;
+
+  const cmdRe = /(?:[,.]\s*|\s+(?:and\s+)?)\b(?:change|replace)\s+(all\s+)?([a-zA-Z0-9$€£#]+(?:\s+[a-zA-Z0-9$€£#]+){0,2})\s+(?:to|with)\s+([a-zA-Z0-9$€£#]+(?:\s+[a-zA-Z0-9$€£#]+){0,2})[.?!]?$/i;
+
+  const commands: { isAll: boolean; target: string; replacement: string }[] = [];
+  while (true) {
+    const match = text.match(cmdRe);
+    if (!match || match.index === undefined) break;
+
+    const isAll = Boolean(match[1]);
+    const target = match[2].trim();
+    const replacement = match[3].trim();
+    commands.push({ isAll, target, replacement });
+    text = text.slice(0, match.index).trim();
+  }
+
+  if (commands.length === 0) return input;
+
+  commands.reverse();
+  for (const { isAll, target, replacement } of commands) {
+    if (!target) continue;
+    const escaped = target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (isAll) {
+      text = text.replace(new RegExp(`\\b${escaped}\\b`, 'gi'), replacement);
+    } else {
+      const re = new RegExp(`\\b${escaped}\\b`, 'gi');
+      let lastMatch: RegExpExecArray | null = null;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(text)) !== null) {
+        lastMatch = m;
+      }
+      if (lastMatch && lastMatch.index !== undefined) {
+        text = text.slice(0, lastMatch.index) + replacement + text.slice(lastMatch.index + lastMatch[0].length);
+      }
+    }
+  }
+
+  return text;
+}
+
+function resolvePivotBacktrack(before: string, replacement: string): string | null {
+  const beforeTrimmed = before.trim();
+  const replTrimmed = replacement.trim();
+  if (!beforeTrimmed || !replTrimmed) return null;
+
+  const beforeWords = beforeTrimmed.split(/\s+/);
+  const replWords = replTrimmed.split(/\s+/);
+  if (beforeWords.length === 0 || replWords.length === 0) return null;
+
+  const maxLen = Math.min(3, replWords.length, beforeWords.length);
+  const stopWords = new Set([
+    'the', 'a', 'an', 'and', 'or', 'in', 'on', 'at', 'to', 'for', 'of', 'with',
+    'is', 'was', 'are', 'were', 'it', 'this', 'that', 'i', 'we', 'you', 'they',
+    'he', 'she', 'no', 'not'
+  ]);
+
+  for (let pivotLen = maxLen; pivotLen >= 1; pivotLen--) {
+    const pivotTokens = replWords.slice(0, pivotLen).map((w) => w.replace(/[^a-z0-9]/gi, '').toLowerCase());
+
+    if (pivotLen === 1) {
+      const token = pivotTokens[0];
+      if (token.length < 4 || stopWords.has(token)) {
+        continue;
+      }
+    }
+
+    if (beforeWords.length >= pivotLen) {
+      for (let i = beforeWords.length - pivotLen; i >= 0; i--) {
+        const candidate = beforeWords.slice(i, i + pivotLen).map((w) => w.replace(/[^a-z0-9]/gi, '').toLowerCase());
+        const matches = candidate.every((tok, idx) => tok === pivotTokens[idx]);
+        if (matches) {
+          const prefix = i > 0 ? beforeWords.slice(0, i).join(' ') + ' ' : '';
+          if (replWords.length > pivotLen) {
+            return `${prefix}${replTrimmed}`;
+          } else {
+            if (i + pivotLen < beforeWords.length) {
+              const nextWord = beforeWords[i + pivotLen];
+              const cleanNext = nextWord.replace(/[^a-z0-9]/gi, '').toLowerCase();
+              const skipDigression = ['using', 'with', 'for', 'and', 'but', 'in', 'at', 'by', 'from'];
+              if (!skipDigression.includes(cleanNext)) {
+                return `${prefix}${replTrimmed} ${nextWord}`;
+              }
+            }
+            return `${prefix}${replTrimmed}`;
+          }
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
 function simulateCleanup(
   input: string,
   removeFillers: boolean,
@@ -86,24 +181,40 @@ function simulateCleanup(
   if (!input.trim()) return '';
   let text = input;
 
+  // 0. Spoken in-line editing commands ("change Friday to Saturday", "change all 2 to 4")
+  text = applySpokenEditCommands(text);
+
   // 1. Spoken self corrections
   if (removeCorrections) {
-    // Pass A: Mid-sentence quick 1-2 word substitution ("five no wait six", "Friday no wait Monday")
-    text = text.replace(
-      /\b([a-zA-Z0-9$€£#]+(?:\s+(?:AM|PM|am|pm))?)[,\s]+(?:no wait|scratch that|I mean|actually no|wait no|no sorry|sorry no|sorry I meant|oops I meant|or rather|correction|let me rephrase|strike that)[,\s]+([a-zA-Z0-9$€£#]+(?:\s+(?:AM|PM|am|pm))?)\b/gi,
-      '$2'
-    );
-    // Pass B: Clause-level backtrack replacement
     const clauseMatch = text.match(
-      /(?:^|[.!?\n]\s*)(?:.+?)[,\s]+(?:no wait|scratch that|sorry I meant|actually no|wait no|no sorry|sorry no|oops I meant|or rather|correction|let me rephrase|strike that|I mean)[,\s]+(.+)/i
+      /(?:^|[.!?\n]\s*)(?:.+?)[,\s]+(?:no no wait|no no no|no no|no wait|scratch that|sorry I meant|actually no|wait no|no sorry|sorry no|oops I meant|or rather|correction|let me rephrase|strike that|I mean)[,\s]+(.+)/i
     );
     if (clauseMatch && clauseMatch[1]) {
-      text = clauseMatch[1];
+      const repl = clauseMatch[1].trim();
+      const matchIndex = clauseMatch.index ?? 0;
+      const before = text.slice(0, matchIndex).trim();
+      const pivotResolved = resolvePivotBacktrack(before, repl);
+      if (pivotResolved) {
+        text = pivotResolved;
+      } else {
+        text = repl;
+      }
+    } else {
+      const bareNoMatch = text.match(/(?:,\s*no[,\s]+|\s+no[,\s]+)(.+)/i);
+      if (bareNoMatch && bareNoMatch[1] && bareNoMatch.index !== undefined) {
+        const repl = bareNoMatch[1].trim();
+        const before = text.slice(0, bareNoMatch.index).trim();
+        const pivotResolved = resolvePivotBacktrack(before, repl);
+        if (pivotResolved) {
+          text = pivotResolved;
+        }
+      }
     }
   }
 
   // 2. Filler words
   if (removeFillers) {
+    text = text.replace(/\b(?:no no wait|no no no|no no)\b,?/gi, '');
     text = text.replace(/\b(um+|uh+|erm+|ah+|nu+|na+|umm+|uhh+|er+|hmm+)\b,?/gi, '');
     text = text.replace(/\b(you know|basically|actually|literally|sort of|kind of|so yeah|like I mean)\b,?/gi, '');
     for (const cf of customFillers) {
@@ -216,6 +327,8 @@ function simulateCleanup(
       [/\baswell\b/gi, "as well"],
       [/\binfront\b/gi, "in front"],
       [/\bnevermind\b/gi, "never mind"],
+      [/\bsaterday\b/gi, "Saturday"],
+      [/\bchatgpt\b/gi, "ChatGPT"],
     ];
     for (const [re, repl] of contractions) {
       text = text.replace(re, repl);
@@ -342,6 +455,14 @@ export const WritingStyles: React.FC = () => {
     {
       label: 'Question & Number Polish',
       text: 'what time is the team meeting can you check the 50 dollars invoice for 10 percent discount period',
+    },
+    {
+      label: 'Spoken Edit Commands',
+      text: 'we have 2 bugs on Friday change Friday to Saturday and change all 2 to 4',
+    },
+    {
+      label: 'Pivot Phrase Backtrack',
+      text: 'i try to build chatgpt like application using rea no chatgpt like application',
     },
     {
       label: 'Custom Word Cleanser',
