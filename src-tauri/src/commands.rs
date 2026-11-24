@@ -363,7 +363,11 @@ async fn finalize_recording_internal(
         }
     };
 
-    let cleaned_text = match ai::clean_transcript_routed(
+    let remove_fillers = settings.get("remove_filler_words").map(|v| v != "false").unwrap_or(true);
+    let remove_repeats = settings.get("remove_repeated_words").map(|v| v != "false").unwrap_or(true);
+    let remove_corrections = settings.get("remove_self_corrections").map(|v| v != "false").unwrap_or(true);
+
+    let cleaned_text = match ai::clean_transcript_routed_with_options(
         &router_config,
         &raw_text,
         &style,
@@ -371,6 +375,9 @@ async fn finalize_recording_internal(
         &dictionary,
         &snippets,
         &state.auditor,
+        remove_fillers,
+        remove_repeats,
+        remove_corrections,
     )
     .await
     {
@@ -465,7 +472,12 @@ pub async fn transcribe_and_clean(
     let dict = state.db.get_dictionary().unwrap_or_default();
     let snips = state.db.get_snippets().unwrap_or_default();
 
-    ai::clean_transcript_routed(
+    let settings = state.db.get_all_settings().unwrap_or_default();
+    let remove_fillers = settings.get("remove_filler_words").map(|v| v != "false").unwrap_or(true);
+    let remove_repeats = settings.get("remove_repeated_words").map(|v| v != "false").unwrap_or(true);
+    let remove_corrections = settings.get("remove_self_corrections").map(|v| v != "false").unwrap_or(true);
+
+    ai::clean_transcript_routed_with_options(
         &router_config,
         &raw_text,
         &style,
@@ -473,6 +485,9 @@ pub async fn transcribe_and_clean(
         &dict,
         &snips,
         &state.auditor,
+        remove_fillers,
+        remove_repeats,
+        remove_corrections,
     )
     .await
 }

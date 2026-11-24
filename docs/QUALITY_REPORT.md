@@ -1,23 +1,26 @@
 # AMIYO FLOW — COMPREHENSIVE QUALITY, FEATURE & TEST REPORT
 
-This report consolidates the complete quality assurance suite for AMIYO FLOW: the Master Feature Registry (F001–F136), Automated Test Evidence (43/43 passing tests), Structured Bug Tracker (BUG-001–BUG-025), and Semantic Release Changelog.
+This report consolidates the complete quality assurance suite for AMIYO FLOW: the Master Feature Registry (F001–F136), Automated Test Evidence (51/51 passing tests), Structured Bug Tracker (BUG-001–BUG-036), and Semantic Release Changelog.
 
 ---
 
-## 1. Automated Test Execution Evidence (43/43 PASSED)
+## 1. Automated Test Execution Evidence (51/51 PASSED)
 
-- **Test Date**: 2026-11-23
+- **Test Date**: 2026-11-24
 - **Host Environment**: Windows 11 x64, Intel/AMD architecture, 8GB–16GB RAM
-- **Native Rust Tests (`cargo test`)**: **33 / 33 PASSED** (17 in `lib.rs`, 16 in `unit_tests.rs`)
+- **Native Rust Tests (`cargo test`)**: **37 / 37 PASSED** (17 in `lib.rs`, 20 in `unit_tests.rs`)
 - **Frontend Vitest Tests (`npm test`)**: **14 / 14 PASSED** (`src/test/dictation.test.ts`)
 - **Frontend Production Build (`npm run build`)**: **PASSED** (1,609 modules bundled with 0 errors)
-- **Installer Build (`npx tauri build`)**: **PASSED** (`AMIYO FLOW_1.0.0_x64-setup.exe`, 4.28 MiB)
+- **Installer Build (`npx tauri build`)**: **PASSED** (`AMIYO FLOW_1.0.9_x64-setup.exe`)
 - **Quality Gate**: **100% GREEN (ALL PASSING)**
 
 ### Detailed Test Results Log
 
 | Test Identifier | Category | Acceptance Criteria | Execution Result | Status |
 |---|---|---|---|---|
+| `test_nu_na_and_regional_filler_removal` | Phase 5 | Strips conversational fillers ("um", "nu", "na", "uh") | "um hello nu na we should do this" $\rightarrow$ "Hello we should do this." | **PASSED** |
+| `test_repeated_phrase_removal` | Phase 5 | Deduplicates 2-word repeated stutters ("we can we can") | "we can we can deploy" $\rightarrow$ "We can deploy." | **PASSED** |
+| `test_disfluency_options_toggle` | Phase 5 | Honors user preferences for disabling/enabling filler/repeat filters | Isolated toggle verification for all 3 cleaner options | **PASSED** |
 | `test_verbal_punctuation_and_email_formatting` | Phase 5 | Expands verbal punctuation and formats spoken emails/URLs | "amiyo at gmail dot com period" $\rightarrow$ "Amiyo@gmail.com." | **PASSED** |
 | `test_audio_resampling_44100_to_16000` | Phase 2 | Converts 44.1kHz audio to 16kHz mono PCM accurately | Linear resampling ratio verified ($44100 \rightarrow 16000$) | **PASSED** |
 | `test_wav_encoding_header` | Phase 2 | Generates 44-byte standard RIFF WAVE header with PCM fmt subchunk | Header matches `hound` 16-bit mono 16kHz spec | **PASSED** |
@@ -106,6 +109,17 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 ---
 
 ## 4. Semantic Version Changelog
+
+### [1.0.15] — 2026-11-24
+- **Configurable Speech Cleanser & Disfluency Removal Engine**:
+  - **Comprehensive Disfluency Regex & Pattern Matching**: Added high-performance deterministic local cleaning in `src-tauri/src/ai/mod.rs` to detect and remove colloquial hesitation particles and filler words including `"um"`, `"nu"`, `"na"`, `"uh"`, `"erm"`, `"ah"`, `"umm"`, `"uhh"`, `"hmm"`, `"er"`, `"you know"`, `"basically"`, `"actually"`, `"literally"`, `"sort of"`, `"kind of"`, and `"so yeah"`.
+  - **Repeated Stutters & 2-Word Phrase Deduplication**: Enhanced `remove_duplicate_words` and implemented `remove_repeated_phrases` to collapse both single repeated words (`"the the"` $\rightarrow$ `"the"`) and multi-word stutters (`"we can we can"` $\rightarrow$ `"we can"`, `"in the in the"` $\rightarrow$ `"in the"`).
+  - **Spoken Self-Correction Stripper**: Automatically detects verbal backtrack cues (`"no wait"`, `"scratch that"`, `"I mean"`) and replaces discarded pre-correction clauses with the intended phrase.
+  - **Interactive User Toggles & SQLite Persistence**:
+    - Added database settings: `remove_filler_words`, `remove_repeated_words`, and `remove_self_corrections` (defaulting to enabled/`'true'`).
+    - Added dedicated, interactive **Speech Cleanser & Disfluency Removal** card with glowing toggles and live before/after preview badges in `src/pages/WritingStyles.tsx` (`AI Writing Styles & Persona`).
+    - Added matching configuration switches under `Settings.tsx` for instant accessibility.
+    - Routed settings seamlessly through `clean_transcript_routed_with_options` across local deterministic, local Ollama, and Cloud AI execution modes.
 
 ### [1.0.14] — 2026-11-24
 - **Hardened Win32 Clipboard Verification (BUG-036)**:

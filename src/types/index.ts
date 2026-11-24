@@ -121,6 +121,9 @@ export interface AppSettings {
   audio_retention: string;
   theme: string;
   audio_device: string;
+  remove_filler_words?: string;
+  remove_repeated_words?: string;
+  remove_self_corrections?: string;
 }
 
 export interface CloudProviderMeta {

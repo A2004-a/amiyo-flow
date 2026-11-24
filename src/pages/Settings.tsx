@@ -7,6 +7,7 @@ import {
   ShieldCheck,
   Trash2,
   Cpu,
+  Sparkles,
 } from 'lucide-react';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { useWorkspaceStore } from '../stores/useWorkspaceStore';
@@ -243,6 +244,61 @@ export const Settings: React.FC = () => {
               <span className="font-mono text-xs text-cyan-400 font-bold">
                 {settings.restore_clipboard_delay_ms || 35} ms
               </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Speech Cleanser & Disfluencies */}
+        <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-amber-400" />
+            <h2 className="text-sm font-bold text-white">Speech Cleanser & Disfluency Filters</h2>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-xs font-semibold text-white block">Remove Filler Words</span>
+                <span className="text-[11px] text-slate-400">
+                  Strip hesitation particles like <span className="text-amber-300 font-mono">"um", "nu", "na", "uh", "erm", "ah", "you know", "basically"</span>.
+                </span>
+              </div>
+              <input
+                type="checkbox"
+                checked={settings.remove_filler_words !== 'false'}
+                onChange={(e) => updateSetting('remove_filler_words', e.target.checked ? 'true' : 'false')}
+                className="w-4 h-4 rounded text-amber-500 bg-slate-950 border-slate-700"
+              />
+            </div>
+
+            <div className="flex items-center justify-between border-t border-slate-800 pt-3">
+              <div>
+                <span className="text-xs font-semibold text-white block">Remove Repeated Words & Stutters</span>
+                <span className="text-[11px] text-slate-400">
+                  Deduplicate accidental repeated words and 2-word stutters (<span className="text-cyan-300 font-mono">"the the"</span>, <span className="text-cyan-300 font-mono">"we can we can"</span>).
+                </span>
+              </div>
+              <input
+                type="checkbox"
+                checked={settings.remove_repeated_words !== 'false'}
+                onChange={(e) => updateSetting('remove_repeated_words', e.target.checked ? 'true' : 'false')}
+                className="w-4 h-4 rounded text-cyan-500 bg-slate-950 border-slate-700"
+              />
+            </div>
+
+            <div className="flex items-center justify-between border-t border-slate-800 pt-3">
+              <div>
+                <span className="text-xs font-semibold text-white block">Remove Spoken Self-Corrections</span>
+                <span className="text-[11px] text-slate-400">
+                  Detect backtrack phrases like <span className="text-emerald-300 font-mono">"no wait"</span>, <span className="text-emerald-300 font-mono">"scratch that"</span> and keep only your intended correction.
+                </span>
+              </div>
+              <input
+                type="checkbox"
+                checked={settings.remove_self_corrections !== 'false'}
+                onChange={(e) => updateSetting('remove_self_corrections', e.target.checked ? 'true' : 'false')}
+                className="w-4 h-4 rounded text-emerald-500 bg-slate-950 border-slate-700"
+              />
             </div>
           </div>
         </div>

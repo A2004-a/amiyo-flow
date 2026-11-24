@@ -86,6 +86,33 @@ pub async fn clean_transcript(
     dictionary: &[crate::db::DictionaryItem],
     snippets: &[crate::db::SnippetItem],
 ) -> Result<String, String> {
+    clean_transcript_with_options(
+        model_id,
+        custom_model_path,
+        raw_text,
+        style,
+        target_app,
+        dictionary,
+        snippets,
+        true,
+        true,
+        true,
+    )
+    .await
+}
+
+pub async fn clean_transcript_with_options(
+    model_id: &str,
+    custom_model_path: Option<&str>,
+    raw_text: &str,
+    style: &str,
+    target_app: &str,
+    dictionary: &[crate::db::DictionaryItem],
+    snippets: &[crate::db::SnippetItem],
+    remove_fillers: bool,
+    remove_repeats: bool,
+    remove_corrections: bool,
+) -> Result<String, String> {
     if raw_text.trim().is_empty() {
         return Ok("".to_string());
     }
@@ -95,7 +122,7 @@ pub async fn clean_transcript(
     }
 
     // Step 1: High-performance local deterministic cleaning (0 MB RAM)
-    let pre_cleaned = heuristic_cleanup(raw_text);
+    let pre_cleaned = heuristic_cleanup_with_options(raw_text, remove_fillers, remove_repeats, remove_corrections);
 
     // Step 2: Apply Personal Dictionary
     let after_dict = apply_dictionary(&pre_cleaned, dictionary);
@@ -129,8 +156,7 @@ pub async fn clean_transcript(
     Ok(styled_text)
 }
 
-/// Routed text processing pipeline
-/// Respects user-configured operating mode (Local, Cloud, Hybrid) and task-specific rules.
+/// Routed text processing pipeline (Default: all disfluency removals enabled)
 pub async fn clean_transcript_routed(
     router_config: &router::AiRouterConfig,
     raw_text: &str,
@@ -139,6 +165,33 @@ pub async fn clean_transcript_routed(
     dictionary: &[crate::db::DictionaryItem],
     snippets: &[crate::db::SnippetItem],
     auditor: &NetworkAuditor,
+) -> Result<String, String> {
+    clean_transcript_routed_with_options(
+        router_config,
+        raw_text,
+        style,
+        target_app,
+        dictionary,
+        snippets,
+        auditor,
+        true,
+        true,
+        true,
+    )
+    .await
+}
+
+pub async fn clean_transcript_routed_with_options(
+    router_config: &router::AiRouterConfig,
+    raw_text: &str,
+    style: &str,
+    target_app: &str,
+    dictionary: &[crate::db::DictionaryItem],
+    snippets: &[crate::db::SnippetItem],
+    auditor: &NetworkAuditor,
+    remove_fillers: bool,
+    remove_repeats: bool,
+    remove_corrections: bool,
 ) -> Result<String, String> {
     if raw_text.trim().is_empty() {
         return Ok("".to_string());
@@ -149,7 +202,7 @@ pub async fn clean_transcript_routed(
     }
 
     // Step 1: Instant deterministic local pre-clean (0 MB RAM)
-    let pre_cleaned = heuristic_cleanup(raw_text);
+    let pre_cleaned = heuristic_cleanup_with_options(raw_text, remove_fillers, remove_repeats, remove_corrections);
 
     // Step 2: Personal Dictionary substitution
     let after_dict = apply_dictionary(&pre_cleaned, dictionary);
@@ -168,8 +221,10 @@ pub async fn clean_transcript_routed(
     if route.engine_type == "local" {
         if route.provider_id == "ollama" && route.model != "heuristic-rule-engine" {
             let prompt = format!(
-                "Clean the following speech transcript for style '{}'. Output ONLY the cleaned text with no explanations:\n\"{}\"",
-                style, styled_baseline
+                "Clean the following speech transcript for style '{}'. {}Output ONLY the cleaned text with no explanations:\n\"{}\"",
+                style,
+                if remove_fillers { "Remove all filler words (um, uh, nu, na, you know, etc.). " } else { "" },
+                styled_baseline
             );
 
             match ollama::OllamaClient::generate_text(
@@ -241,8 +296,10 @@ pub async fn clean_transcript_routed(
     };
 
     let sys_prompt = format!(
-        "You are an expert universal text formatting assistant for active desktop typing. Clean grammar, fix punctuation, and adapt to style '{}'. Preserve meaning, technical terms, and code exactly. Return ONLY the final cleaned text without quotes or explanation.",
-        style
+        "You are an expert universal text formatting assistant for active desktop typing. Clean grammar, fix punctuation, and adapt to style '{}'. {}{}Preserve meaning, technical terms, and code exactly. Return ONLY the final cleaned text without quotes or explanation.",
+        style,
+        if remove_fillers { "Remove all hesitation and filler words (um, uh, nu, na, you know, basically). " } else { "" },
+        if remove_repeats { "Remove repeated stutters and duplicated words. " } else { "" }
     );
 
     match providers::CloudAIClient::complete(
@@ -354,31 +411,44 @@ async fn run_local_llama_inference(
     Ok(cleaned)
 }
 
-/// Local Deterministic Heuristic Normalizer
-pub fn heuristic_cleanup(input: &str) -> String {
+/// Local Deterministic Heuristic Normalizer with customizable cleaning options
+pub fn heuristic_cleanup_with_options(
+    input: &str,
+    remove_fillers: bool,
+    remove_repeats: bool,
+    remove_corrections: bool,
+) -> String {
     let mut text = input.to_string();
 
-    // 1. Remove spoken self-corrections ("no wait...", "scratch that...")
-    let self_correction_regex = Regex::new(r"(?i)\b(?:no wait|scratch that|I mean)[,\s]+(.+)").unwrap();
-    if let Some(caps) = self_correction_regex.captures(&text) {
-        if let Some(replacement) = caps.get(1) {
-            text = replacement.as_str().to_string();
+    // 1. Remove spoken self-corrections ("no wait...", "scratch that...", "I mean...")
+    if remove_corrections {
+        let self_correction_regex = Regex::new(r"(?i)\b(?:no wait|scratch that|I mean)[,\s]+(.+)").unwrap();
+        if let Some(caps) = self_correction_regex.captures(&text) {
+            if let Some(replacement) = caps.get(1) {
+                text = replacement.as_str().to_string();
+            }
         }
     }
 
-    // 2. Remove verbal filler words (hesitations)
-    let filler_patterns = [
-        r"(?i)\b(um|uh|erm|ah)\b,?",
-        r"(?i)\b(you know|basically|sort of|kind of)\b,?",
-    ];
+    // 2. Remove verbal filler words (hesitations, e.g. um, uh, nu, na, erm, etc.)
+    if remove_fillers {
+        let filler_patterns = [
+            r"(?i)\b(um+|uh+|erm+|ah+|nu+|na+|umm+|uhh+|er+|hmm+)\b,?",
+            r"(?i)\b(you know|basically|actually|literally|sort of|kind of|so yeah|like I mean)\b,?",
+        ];
 
-    for pat in filler_patterns {
-        let re = Regex::new(pat).unwrap();
-        text = re.replace_all(&text, "").to_string();
+        for pat in filler_patterns {
+            if let Ok(re) = Regex::new(pat) {
+                text = re.replace_all(&text, "").to_string();
+            }
+        }
     }
 
-    // 3. Remove accidental duplicate repeated words ("the the" -> "the")
-    text = remove_duplicate_words(&text);
+    // 3. Remove accidental duplicate repeated words & phrases ("the the" -> "the", "we can we can" -> "we can")
+    if remove_repeats {
+        text = remove_duplicate_words(&text);
+        text = remove_repeated_phrases(&text);
+    }
 
     // 4. Format verbal emails and URLs
     let email_re = Regex::new(r"(?i)\b([a-zA-Z0-9_\-]+)\s+dot\s+([a-zA-Z0-9_\-]+)\s+at\s+([a-zA-Z0-9_\-]+)\s+dot\s+(com|org|net|edu|gov|io|ai|dev|co|in)\b").unwrap();
@@ -450,7 +520,12 @@ pub fn heuristic_cleanup(input: &str) -> String {
     text
 }
 
-/// Deduplicates adjacent repeated words
+/// Local Deterministic Heuristic Normalizer (Default: all disfluency removals enabled)
+pub fn heuristic_cleanup(input: &str) -> String {
+    heuristic_cleanup_with_options(input, true, true, true)
+}
+
+/// Deduplicates adjacent repeated words ("the the" -> "the")
 pub fn remove_duplicate_words(input: &str) -> String {
     let words: Vec<&str> = input.split_whitespace().collect();
     if words.is_empty() {
@@ -468,6 +543,45 @@ pub fn remove_duplicate_words(input: &str) -> String {
             result.push(word);
             prev_word = word;
         }
+    }
+
+    result.join(" ")
+}
+
+/// Deduplicates adjacent repeated 2-word phrases ("we can we can" -> "we can")
+pub fn remove_repeated_phrases(input: &str) -> String {
+    let words: Vec<&str> = input.split_whitespace().collect();
+    if words.len() < 4 {
+        return input.to_string();
+    }
+
+    let mut result = Vec::new();
+    let mut i = 0;
+    while i < words.len() {
+        if i + 3 < words.len() {
+            let w1 = words[i].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let w2 = words[i + 1].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let w3 = words[i + 2].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let w4 = words[i + 3].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+
+            if !w1.is_empty() && !w2.is_empty() && w1 == w3 && w2 == w4 {
+                result.push(words[i]);
+                result.push(words[i + 1]);
+                i += 4;
+                while i + 1 < words.len() {
+                    let next_w1 = words[i].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+                    let next_w2 = words[i + 1].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+                    if next_w1 == w1 && next_w2 == w2 {
+                        i += 2;
+                    } else {
+                        break;
+                    }
+                }
+                continue;
+            }
+        }
+        result.push(words[i]);
+        i += 1;
     }
 
     result.join(" ")

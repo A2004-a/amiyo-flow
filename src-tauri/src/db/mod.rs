@@ -157,6 +157,9 @@ impl Database {
             ("audio_retention", "0"), // 0 = delete immediately
             ("theme", "dark"),
             ("audio_device", "default"),
+            ("remove_filler_words", "true"),
+            ("remove_repeated_words", "true"),
+            ("remove_self_corrections", "true"),
         ];
 
         for (k, v) in default_settings.iter() {

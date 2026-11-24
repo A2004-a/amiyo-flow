@@ -1,4 +1,4 @@
-use amiyo_flow_lib::ai::{apply_dictionary, apply_snippets, heuristic_cleanup};
+use amiyo_flow_lib::ai::{apply_dictionary, apply_snippets, heuristic_cleanup, heuristic_cleanup_with_options};
 use amiyo_flow_lib::audio::{encode_wav_16bit_mono, resample_linear};
 use amiyo_flow_lib::db::{Database, DictionaryItem, HistoryItem, SnippetItem};
 
@@ -60,6 +60,52 @@ fn test_accidental_duplicate_removal() {
 
     assert!(!cleaned.contains("the the"));
     assert!(cleaned.contains("the code"));
+}
+
+#[test]
+fn test_nu_na_and_regional_filler_removal() {
+    let raw = "um hello nu na we should totally do this nu right now";
+    let cleaned = heuristic_cleanup(raw);
+
+    assert!(!cleaned.to_lowercase().contains("um"));
+    assert!(!cleaned.to_lowercase().contains(" nu "));
+    assert!(!cleaned.to_lowercase().contains(" na "));
+    assert!(cleaned.contains("Hello we should totally do this right now"));
+}
+
+#[test]
+fn test_repeated_phrase_removal() {
+    let raw = "we can we can deploy the software in the in the morning";
+    let cleaned = heuristic_cleanup(raw);
+
+    assert!(!cleaned.contains("we can we can"));
+    assert!(!cleaned.contains("in the in the"));
+    assert!(cleaned.contains("We can deploy the software in the morning"));
+}
+
+#[test]
+fn test_disfluency_options_toggle() {
+    let raw = "um hello nu we can we can do it no wait tomorrow";
+
+    // With all removals enabled:
+    let all_cleaned = heuristic_cleanup_with_options(raw, true, true, true);
+    assert!(!all_cleaned.to_lowercase().contains("um"));
+    assert!(!all_cleaned.to_lowercase().contains("nu"));
+    assert!(!all_cleaned.to_lowercase().contains("we can we can"));
+    assert!(all_cleaned.contains("Tomorrow"));
+
+    // With filler removal disabled:
+    let keep_fillers = heuristic_cleanup_with_options("um hello nu we can do it", false, true, false);
+    assert!(keep_fillers.to_lowercase().contains("um"));
+    assert!(keep_fillers.to_lowercase().contains("nu"));
+
+    // With repeat removal disabled:
+    let keep_repeats = heuristic_cleanup_with_options("we can we can do it", true, false, false);
+    assert!(keep_repeats.to_lowercase().contains("we can we can"));
+
+    // With self-corrections disabled:
+    let keep_corrections = heuristic_cleanup_with_options("start Friday no wait start Monday", true, true, false);
+    assert!(keep_corrections.contains("Friday"));
 }
 
 #[test]
