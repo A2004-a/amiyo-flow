@@ -184,4 +184,15 @@ describe('AMIYO FLOW Frontend Store & Pipeline Tests', () => {
     expect(typeof result).toBe('string');
     expect(result.length).toBeGreaterThan(0);
   });
+
+  it('manages custom filler words and speech cleanser disfluency options in settings', async () => {
+    await useSettingsStore.getState().updateSetting('custom_filler_words', 'like,literally,yaar');
+    expect(useSettingsStore.getState().settings.custom_filler_words).toBe('like,literally,yaar');
+
+    await useSettingsStore.getState().updateSetting('remove_repeated_words', 'true');
+    expect(useSettingsStore.getState().settings.remove_repeated_words).toBe('true');
+
+    await useSettingsStore.getState().updateSetting('remove_self_corrections', 'true');
+    expect(useSettingsStore.getState().settings.remove_self_corrections).toBe('true');
+  });
 });

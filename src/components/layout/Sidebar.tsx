@@ -58,9 +58,12 @@ export const Sidebar: React.FC = () => {
         {/* Quick Dictate Hero Trigger */}
         <div className="p-3 rounded-xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 shadow-lg shrink-0">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-              Global Hotkey
-            </span>
+            <div className="flex items-center gap-1.5">
+              <img src="/logo.svg" alt="AMIYO FLOW" className="w-3.5 h-3.5 object-contain" />
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Global Hotkey
+              </span>
+            </div>
             <kbd className="px-2 py-0.5 text-[10px] font-mono rounded bg-slate-800 text-cyan-300 border border-slate-700">
               {formatHotkeyDisplay(settings.hotkey)}
             </kbd>

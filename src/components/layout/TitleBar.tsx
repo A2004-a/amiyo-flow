@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { Minus, Square, Copy, X, Mic, Sparkles } from 'lucide-react';
+import { Minus, Square, Copy, X, Mic } from 'lucide-react';
 import { isTauri, api } from '../../lib/tauri';
 import { useDictationStore } from '../../stores/useDictationStore';
 
@@ -82,14 +82,16 @@ export const TitleBar: React.FC = () => {
     <header className="h-10 w-full flex items-center justify-between px-3 bg-[#080C14] border-b border-slate-800/80 select-none z-50 text-xs font-medium text-slate-300">
       {/* Left: Branding & Status */}
       <div data-tauri-drag-region className="flex items-center gap-2.5 titlebar-drag">
-        <div className="w-5 h-5 rounded-md bg-gradient-to-tr from-cyan-500 to-violet-600 flex items-center justify-center shadow-sm pointer-events-none">
-          <Sparkles className="w-3 h-3 text-white" />
-        </div>
+        <img
+          src="/logo.svg"
+          alt="AMIYO FLOW Logo"
+          className="w-5 h-5 rounded-md shadow-sm pointer-events-none object-contain"
+        />
         <span className="font-semibold tracking-wide text-slate-100 flex items-center gap-1.5 pointer-events-none">
           AMIYO <span className="text-cyan-400">FLOW</span>
         </span>
         <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800/90 text-cyan-400 border border-cyan-500/20 font-mono pointer-events-none">
-          v1.0.8
+          v1.0.9
         </span>
 
         {/* Global Live Dictation Status */}

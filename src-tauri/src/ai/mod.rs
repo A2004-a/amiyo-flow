@@ -856,19 +856,26 @@ pub fn heuristic_cleanup_full(
     // 2. Remove verbal filler words (hesitations, e.g. um, uh, nu, na, erm, no no, etc.)
     if remove_fillers {
         let filler_patterns = [
-            // Search-for-words & hesitation phrases
+            // Search-for-words, phrasing & hesitation queries
             r"(?i)\b(?:what\s+else\s+is\s+there\s*,\s*like\s+what|what\s+else\s+is\s+there|like\s+what\s+is\s+there)\b,?",
-            r"(?i)\b(?:how\s+do\s+you\s+say|how\s+can\s+I\s+say|how\s+to\s+say|what\s+do\s+you\s+call\s+it|what\s+is\s+it\s+called|what's\s+it\s+called|what\s+was\s+it)\b,?",
+            r"(?i)\b(?:what\s+I\s+mean\s+to\s+say|what\s+I'm\s+saying\s+is|what\s+I\s+meant\s+to\s+say|what\s+I\s+wanted\s+to\s+say|I\s+was\s+gonna\s+say)\b,?",
+            r"(?i)\b(?:how\s+do\s+you\s+say|how\s+can\s+I\s+say|how\s+to\s+say|how\s+should\s+I\s+put\s+it|what\s+do\s+you\s+call\s+it|what\s+is\s+it\s+called|what's\s+it\s+called|what\s+was\s+it\s+called|what\s+was\s+it)\b,?",
+            r"(?i)\b(?:if\s+you\s+get\s+what\s+I\s+mean|if\s+you\s+know\s+what\s+I\s+mean)\b,?",
             // Pause & thinking hesitations
             r"(?i)\b(?:let's\s+see|let\s+me\s+see|let\s+me\s+think|lemme\s+see)\b,?",
+            r"(?i)\b(?:give\s+me\s+a\s+second|give\s+me\s+a\s+sec|give\s+me\s+a\s+minute|give\s+me\s+a\s+moment|just\s+a\s+second|just\s+a\s+moment|just\s+a\s+sec|one\s+second|one\s+sec|one\s+moment)\b,?",
             r"(?i)\b(?:wait\s+a\s+minute|wait\s+a\s+second|wait\s+a\s+sec|wait\s+wait\s+wait|wait\s+wait|hold\s+on\s+a\s+second|hold\s+on\s+a\s+sec|hold\s+on)\b,?",
-            // Vagueness tails
-            r"(?i)\b(?:and\s+stuff\s+like\s+that|and\s+all\s+that\s+stuff|and\s+all\s+that|or\s+something\s+like\s+that|or\s+something)\b,?",
+            // Vagueness tails & trailing fillers
+            r"(?i)\b(?:and\s+things\s+like\s+that|and\s+that\s+sort\s+of\s+thing|and\s+so\s+on\s+and\s+so\s+forth|and\s+so\s+on|and\s+stuff\s+like\s+that|and\s+all\s+that\s+stuff|and\s+all\s+of\s+that|and\s+all\s+that|or\s+something\s+like\s+that|or\s+something|or\s+whatever\s+it\s+is|or\s+whatever)\b,?",
             r"(?i)\bload\s*,?\s*plug\s*,?\s*closely\b,?",
             r"(?i)\b(?:no no wait|no no no|no no)\b,?",
+            // Regional slang particles (Hinglish/Bengali/South Asian conversational particles)
+            r"(?i)\b(?:bhai|accha|matlab|na\s+re|arrey|arre|yaar|toh)\b,?",
+            // Hesitation syllables & combined stutter tokens
             r"(?i)\b(?:um\s+aa|aa\s+um|um\s+uh|uh\s+um|er\s+um|um\s+er|aa\s+nu|nu\s+aa)\b,?",
-            r"(?i)\b(um+|uh+|erm+|ah+|aa+|aah+|ahh+|nu+|na+|umm+|uhh+|er+|hmm+|uhm+|em+|ohh+)\b,?",
-            r"(?i)\b(you know what I mean|you know what I'm saying|you know|basically|actually|literally|sort of|kind of|so yeah|like I mean)\b,?",
+            r"(?i)\b(um+|uh+|erm+|ah+|aa+|aah+|ahh+|nu+|na+|umm+|uhh+|er+|hmm+|uhm+|em+|ohh+|ooh+|huh+|heh+)\b,?",
+            // Common conversational fillers
+            r"(?i)\b(you know what I mean|you know what I'm saying|you know|basically|actually|literally|sort of|kind of|so yeah|like I mean|to be honest|honestly speaking)\b,?",
         ];
 
         for pat in filler_patterns {
@@ -1517,7 +1524,7 @@ pub fn remove_duplicate_words(input: &str) -> String {
     result.join(" ")
 }
 
-/// Deduplicates adjacent repeated 2-word phrases ("we can we can" -> "we can", "we can, we can" -> "we can")
+/// Deduplicates adjacent repeated 2-word or 3-word phrases ("we can we can" -> "we can", "we can do we can do" -> "we can do")
 pub fn remove_repeated_phrases(input: &str) -> String {
     let words: Vec<&str> = input.split_whitespace().collect();
     if words.len() < 4 {
@@ -1527,6 +1534,39 @@ pub fn remove_repeated_phrases(input: &str) -> String {
     let mut result: Vec<String> = Vec::new();
     let mut i = 0;
     while i < words.len() {
+        // First check 3-word phrase repeat: i, i+1, i+2 == i+3, i+4, i+5
+        if i + 5 < words.len() {
+            let w1 = words[i].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let w2 = words[i + 1].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let w3 = words[i + 2].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let w4 = words[i + 3].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let w5 = words[i + 4].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let w6 = words[i + 5].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+
+            if !w1.is_empty() && !w2.is_empty() && !w3.is_empty() && w1 == w4 && w2 == w5 && w3 == w6 {
+                let mut first_w3 = words[i + 2].to_string();
+                if first_w3.ends_with(',') {
+                    first_w3.pop();
+                }
+                result.push(words[i].to_string());
+                result.push(words[i + 1].to_string());
+                result.push(first_w3);
+                i += 6;
+                while i + 2 < words.len() {
+                    let next_w1 = words[i].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+                    let next_w2 = words[i + 1].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+                    let next_w3 = words[i + 2].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+                    if next_w1 == w1 && next_w2 == w2 && next_w3 == w3 {
+                        i += 3;
+                    } else {
+                        break;
+                    }
+                }
+                continue;
+            }
+        }
+
+        // Then check 2-word phrase repeat: i, i+1 == i+2, i+3
         if i + 3 < words.len() {
             let w1 = words[i].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
             let w2 = words[i + 1].trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();

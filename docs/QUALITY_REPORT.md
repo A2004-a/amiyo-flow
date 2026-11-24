@@ -1,15 +1,15 @@
 # AMIYO FLOW — COMPREHENSIVE QUALITY, FEATURE & TEST REPORT
 
-This report consolidates the complete quality assurance suite for AMIYO FLOW: the Master Feature Registry (F001–F137), Automated Test Evidence (68/68 passing tests), Structured Bug Tracker (BUG-001–BUG-053), and Semantic Release Changelog.
+This report consolidates the complete quality assurance suite for AMIYO FLOW: the Master Feature Registry (F001–F137), Automated Test Evidence (70/70 passing tests), Structured Bug Tracker (BUG-001–BUG-054), and Semantic Release Changelog.
 
 ---
 
-## 1. Automated Test Execution Evidence (68/68 PASSED)
+## 1. Automated Test Execution Evidence (70/70 PASSED)
 
 - **Test Date**: 2026-11-24
 - **Host Environment**: Windows 11 x64, Intel/AMD architecture, 8GB–16GB RAM
-- **Native Rust Tests (`cargo test`)**: **52 / 52 PASSED** (17 in `lib.rs`, 35 in `unit_tests.rs`)
-- **Frontend Vitest Tests (`npm test`)**: **16 / 16 PASSED** (`src/test/dictation.test.ts`)
+- **Native Rust Tests (`cargo test`)**: **53 / 53 PASSED** (17 in `lib.rs`, 36 in `unit_tests.rs`)
+- **Frontend Vitest Tests (`npm test`)**: **17 / 17 PASSED** (`src/test/dictation.test.ts`)
 - **Frontend Production Build (`npm run build`)**: **PASSED** (1,609 modules bundled with 0 errors)
 - **Installer Build (`npx tauri build`)**: **PASSED** (`AMIYO FLOW_1.0.9_x64-setup.exe`)
 - **Quality Gate**: **100% GREEN (ALL PASSING)**
@@ -18,6 +18,7 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 
 | Test Identifier | Category | Acceptance Criteria | Execution Result | Status |
 |---|---|---|---|---|
+| `test_speech_cleanser_image1_features_and_custom_fillers` | Phase 5 | 1) Card 1: Strips expanded hesitation phrases and regional slang ("what I mean to say", "give me a sec", "arre yaar bhai", "and things like that"); 2) Card 2: Deduplicates 1-word, 2-word, and 3-word phrase stutters ("we can we can deploy", "I want to I want to build" -> "We can deploy and I want to build."); 3) Card 3: Detects backtrack phrases ("Friday no wait Monday" -> "Monday."); 4) Card 4: Capitalizes sentences, repairs pronoun "I" and contractions ("we arrived. it works. dont worry" -> "We arrived. It works. Don't worry."); 5) Custom Fillers: Strips user-defined words via `custom_filler_words`; 6) Modular Toggles: Verifies all 4 cards can be toggled independently | All 4 speech cleanser cards, custom filters, 3-word stutters, and modular toggles verified cleanly | **PASSED** |
 | `test_tech_acronyms_step_numbering_and_negative_contractions` | Phase 4, 5, 9 | 1) Formats spoken step and part numbering ("step one", "step two", "part one" -> "Step 1", "Step 2", "Part 1"); 2) Normalizes negative contractions and spoken future/conditional forms ("wasnt", "hadnt", "youll", "shell" -> "wasn't", "hadn't", "you'll", "she'll"); 3) Capitalizes technical infrastructure acronyms ("graphql", "postgresql", "redis", "linux", "nginx", "docker", "llm", "gpu" -> "GraphQL", "PostgreSQL", "Redis", "Linux", "Nginx", "Docker", "LLM", "GPU"); 4) Extends incomplete sentence connectors ("we are building towards" -> suppresses terminal period) | All step numbers, negative contractions, infrastructure tech acronyms, and continuation connectors verified cleanly | **PASSED** |
 | `test_expanded_irritation_words_and_developer_homophones` | Phase 4, 5 | 1) Corrects indefinite articles before technical acronyms ("a API and a SDK" -> "an API and an SDK"); 2) Pre-normalizes compound developer homophones before filler stripping ("pool request" -> "pull request", "dock er" -> "Docker", "next js" -> "Next.js"); 3) Strips search-for-words irritation hesitations ("how do you say", "let me think", "and stuff like that"); 4) Deduplicates boundary stutter words ("that that" -> "that", "and and" -> "and"); 5) Strips pause commas following conjunctions ("and, we" -> "and we"); 6) Verifies acoustic phonetic recognition for Gemini and ChatGPT ("Hello, friends, cellocegivity. My name is Zumio Gari..." -> "Hello, friends and ChatGPT. My name is Amiyo Garai...") | All indefinite articles, developer tech homophones, hesitation removals, pause commas, and phonetic name/brand mappings verified cleanly | **PASSED** |
 | `test_office_osu_word_to_win_and_irritate_words_removal` | Phase 4, 5 | 1) Normalizes "Take Claude" -> "Hey Claude"; 2) Normalizes "Microsoft OSU system" / "OSU" -> "Microsoft Office system"; 3) Corrects grammar "a operating system" -> "an operating system"; 4) Normalizes "by Windows 11" -> "for Windows 11"; 5) Corrects "like a mail, like win" -> "like Mail, like Word"; 6) Formats "PowerPoint excel" -> "PowerPoint, Excel"; 7) Strips irritation fillers ("what else is there, like what", "load, plug, closely"); 8) End-to-end verification of user dictation utterance | All Office, Word, Windows 11, Claude acoustic mappings, and irritation word removals verified cleanly | **PASSED** |
@@ -145,10 +146,36 @@ This report consolidates the complete quality assurance suite for AMIYO FLOW: th
 | BUG-051 | High | Speech-to-Text & Polish | Acoustic mishearings in office productivity context: "Office" transcribed as "OSU" ("Microsoft OSU system"), "Word" transcribed as "win" ("like a mail, like win"), "Hey Claude" transcribed as "Take Claude", and un-pruned hesitation mumblings ("load, plug, closely", "what else is there, like what") | Whisper STT prompt lacked Microsoft Office productivity ecosystem vocabulary; acoustic accent homophones mapped "Office" -> "OSU" and "Word" -> "win"; conversational search-for-words phrases were not in the disfluency filter | Enriched Whisper STT base initial prompt with "an operating system for Windows 11 with a file manager, Microsoft Office system, Word, Excel, PowerPoint, Outlook, and Mail"; added heuristic normalizations ("Microsoft OSU" -> "Microsoft Office", "like win" in office context -> "like Word", "Take Claude" -> "Hey Claude", "a operating system" -> "an operating system", "by Windows 11" -> "for Windows 11", "PowerPoint excel" -> "PowerPoint, Excel"); added irritation word filters ("what else is there, like what", "load, plug, closely"); seeded SQLite dictionary defaults with idempotent migration; added interactive preset in `WritingStyles.tsx` | FIXED |
 | BUG-052 | High | Speech Cleanser & Tech Homophones | Hesitation filler removal stripping phonetic components of compound tech words (e.g. bare "er" in "dock er" stripped as a filler particle, corrupting "Docker" -> "dock"); missing indefinite article corrections before tech terms ("a API", "a SDK"); missing Gemini/Antigravity acoustic priming in STT base prompt | Filler word regex \ber+\b executed before compound developer words were normalized, swallowing the "er" token; indefinite article rules only targeted "operating system"; Whisper STT initial prompt omitted Gemini and Antigravity | Implemented Step 0b pre-normalization in both Rust engine and React frontend simulator for compound developer terms ("dock er" -> "Docker", "next js" -> "Next.js", "py thon" -> "Python", "git hub" -> "GitHub", "you tube" -> "YouTube", "pool request" -> "pull request") before filler stripping; added indefinite article regex for tech acronyms; primed Whisper STT base prompt with Antigravity and Gemini; seeded SQLite dictionary defaults; updated Vitest suite (16/16) and Rust suite (34/34) | FIXED |
 | BUG-053 | High | VAD Engine & Tech Normalization | VAD ambient noise floor drifting upward during silent pauses due to unclamped transient acoustic events (e.g. keyboard clatter, chair squeaks), causing subsequent soft speech to be missed; lowercase single-word "docker" lacking capitalization to "Docker"; missing negative contractions ("wasnt", "hadnt", "aint", "youll", "shell"); missing step and part numbering | VAD silence drift equation lacked energy clamping; tech normalization regexes prioritized compound "dock er" over single-word "docker"; contractions list omitted negative and pronoun future forms | Clamped ambient energy floor drift in `VoiceActivityDetector::process_frame` with `.min(0.015)`; added `docker` -> `Docker` capitalization; added spoken step/part numbering ("step one" -> "Step 1", "part one" -> "Part 1"); added negative contractions ("wasnt", "hadnt", "aint", "youll", "theyd", "hed", "shed"); added 25+ developer infrastructure acronyms (GraphQL, PostgreSQL, Redis, Linux, Nginx, Vitest, CI/CD, SaaS, LLM, GPU, RAM, SSD); updated Vitest (16/16) and Rust suite (35/35) | FIXED |
+| BUG-054 | High | Speech Cleanser & UI Branding | Missing official application logo in TitleBar, PillWidget, and Sidebar; unpruned conversational irritation words ("what I mean to say", "give me a sec", "and things like that", regional slang "bhai", "accha", "matlab", "arre", "yaar", "toh"); missing 3-word phrase stutter deduplication ("I want to I want to" -> "I want to"); need verification of all 4 Speech Cleanser cards (Image 1 features) | UI relied on generic Sparkles icon; speech cleanser filter patterns lacked colloquial thinking/hesitation phrases, regional slang particles, and 3-word stutter deduplication | Replaced generic icons with official `logo.svg` across TitleBar (`v1.0.9`), PillWidget (idle status), and Sidebar header; expanded filler word patterns in native Rust backend and React simulator with thinking queries, pause delays, vagueness tails, and regional slang; implemented 3-word phrase stutter deduplication; added unit test `test_speech_cleanser_image1_features_and_custom_fillers` and Vitest settings tests; full suite passing (70/70) | FIXED |
 
 ---
 
 ## 4. Semantic Version Changelog
+
+### [1.0.23] — 2026-11-24
+- **Official Brand Logo Integration & Speech Cleanser Image 1 Features (BUG-054)**:
+  - **Official Application Logo Integration**:
+    - Embedded the official 5-bar gradient SVG logo (`dist/logo.svg` and `public/logo.svg`) directly into `TitleBar.tsx`, replacing the generic `<Sparkles>` placeholder with `<img src="/logo.svg" alt="AMIYO FLOW Logo" className="w-5 h-5 rounded-md shadow-sm pointer-events-none object-contain" />`.
+    - Updated TitleBar version badge to `v1.0.9`.
+    - Integrated official logo into `PillWidget.tsx` for idle standby display.
+    - Added logo branding to `Sidebar.tsx` hero hotkey banner.
+  - **Expanded Irritation Words & Regional Slang (Image 1 Features)**:
+    - **Thinking & Search-For-Words Phrasing**: Added filters for `"what I mean to say"`, `"what I'm saying is"`, `"what I meant to say"`, `"what I wanted to say"`, `"I was gonna say"`, `"how should I put it"`, `"what was it called"`, `"if you get what I mean"`.
+    - **Pause & Time-Buying Hesitations**: Added filters for `"give me a second"`, `"give me a sec"`, `"give me a minute"`, `"give me a moment"`, `"just a second"`, `"just a moment"`, `"just a sec"`, `"one second"`, `"one sec"`, `"one moment"`.
+    - **Vagueness Tails & Trailing Hesitations**: Added filters for `"and things like that"`, `"and that sort of thing"`, `"and so on and so forth"`, `"and so on"`, `"and all of that"`, `"or whatever it is"`, `"or whatever"`, `"and stuff"`.
+    - **Regional Slang & Colloquial Particles**: Added filters for `"bhai"`, `"accha"`, `"matlab"`, `"na re"`, `"arrey"`, `"arre"`, `"yaar"`, `"toh"`.
+    - **Hesitation Syllables & Combined Tokens**: Added `"huh"`, `"heh"`, `"ooh"`, `"um aa"`, `"aa um"`, `"um uh"`, `"uh um"`, `"er um"`, `"um er"`, `"aa nu"`, `"nu aa"`.
+  - **Card 2: 3-Word Phrase Stutter Deduplication**:
+    - Enhanced `remove_repeated_phrases` in native Rust and React simulator to deduplicate 3-word phrase stutters (e.g. `"I want to I want to build"` $\rightarrow$ `"I want to build"`, `"we can do we can do"` $\rightarrow$ `"we can do"`), in addition to 2-word stutters (`"we can we can"` $\rightarrow$ `"we can"`) and single-word stutters with pause comma stripping.
+  - **Card 5: Silence Auto-Stop & Clause Protection Controls**:
+    - Verified all pause wait duration options: `2.0s`, `2.5s` (Recommended), `3.0s`, `3.5s`, `4.0s`, and `Manual Only (No Auto-Stop)`.
+  - **Card 6: Custom Filler Words & Suggestions**:
+    - Expanded quick suggestion chips with `+ like`, `+ literally`, `+ yaar`, `+ arre`, `+ toh`, `+ I mean`, `+ basically`, `+ actually`, `+ bhai`, `+ accha`.
+    - Rendered default built-in filter chips (`um`, `uh`, `nu`, `na`, `erm`, `you know`, `basically`) with uppercase `AUTO` badges matching Image 1 layout.
+  - **Full Automated Test Coverage (70/70 Automated Tests Passing)**:
+    - Added comprehensive unit test `test_speech_cleanser_image1_features_and_custom_fillers` covering all 4 cards, custom fillers, 3-word stutters, and independent toggle states.
+    - Added frontend settings persistence unit test in `src/test/dictation.test.ts`.
+    - Passed 53/53 Rust tests (`cargo test`), 17/17 Vitest frontend tests (`npm test`), and 0-error production build (`npm run build`).
 
 ### [1.0.22] — 2026-11-24
 - **VAD Energy Floor Clamping & Developer Vocabulary Expansion (BUG-053)**:

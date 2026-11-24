@@ -1001,6 +1001,57 @@ fn test_tech_acronyms_step_numbering_and_negative_contractions() {
     assert!(!t4.ends_with('.'));
 }
 
+#[test]
+fn test_speech_cleanser_image1_features_and_custom_fillers() {
+    use amiyo_flow_lib::ai::{heuristic_cleanup, heuristic_cleanup_full};
+
+    // 1. Card 1: Remove Filler Words & Irritation Phrases (standard + regional slang)
+    let raw_fillers = "what I mean to say, give me a sec, um hello nu we can start arre yaar bhai and things like that";
+    let cleaned_fillers = heuristic_cleanup(raw_fillers);
+    assert_eq!(cleaned_fillers, "Hello we can start.");
+
+    // 2. Card 2: Remove Stutters (1-word, 2-word, and 3-word phrase repeats)
+    let raw_stutters = "we can we can deploy and I want to I want to build";
+    let cleaned_stutters = heuristic_cleanup(raw_stutters);
+    assert_eq!(cleaned_stutters, "We can deploy and I want to build.");
+
+    // 3. Card 3: Self-Corrections (detects backtrack phrases like "no wait", keeping true speech)
+    let raw_corrections = "Friday no wait Monday";
+    let cleaned_corrections = heuristic_cleanup(raw_corrections);
+    assert_eq!(cleaned_corrections, "Monday.");
+
+    // 4. Card 4: Clean Sentences (capitalizes sentences, pronoun 'I', repairs contractions)
+    let raw_sentences = "we arrived. it works. dont worry";
+    let cleaned_sentences = heuristic_cleanup(raw_sentences);
+    assert_eq!(cleaned_sentences, "We arrived. It works. Don't worry.");
+
+    // 5. Custom Filler Words & Regional Slang custom filter support
+    let custom = vec!["superfluous".to_string(), "anyhow".to_string()];
+    let raw_custom = "this is superfluous code anyhow that we cleaned";
+    let cleaned_custom = heuristic_cleanup_full(raw_custom, true, true, true, true, &custom);
+    assert_eq!(cleaned_custom, "This is code that we cleaned.");
+
+    // 6. Modular toggle controls (independent toggles for all 4 cards)
+    let raw_mixed = "um we can we can deploy Friday no wait Monday";
+
+    // Disabling remove_fillers retains "um"
+    let no_fillers = heuristic_cleanup_full(raw_mixed, false, true, true, true, &[]);
+    assert!(no_fillers.to_lowercase().contains("um"));
+
+    // Disabling remove_repeats retains "we can we can"
+    let no_repeats = heuristic_cleanup_full(raw_mixed, true, false, true, true, &[]);
+    assert!(no_repeats.to_lowercase().contains("we can we can"));
+
+    // Disabling remove_corrections retains "friday no wait"
+    let no_corrections = heuristic_cleanup_full(raw_mixed, true, true, false, true, &[]);
+    assert!(no_corrections.to_lowercase().contains("friday"));
+
+    // Disabling clean_sentences retains lowercase inner sentence and uncontracted 'dont'
+    let no_sentence_clean = heuristic_cleanup_full("we arrived. it works. dont worry", true, true, true, false, &[]);
+    assert!(no_sentence_clean.contains("it works"));
+    assert!(no_sentence_clean.contains("dont worry"));
+}
+
 
 
 

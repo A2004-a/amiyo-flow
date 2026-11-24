@@ -432,16 +432,26 @@ function simulateCleanup(
 
   // 2. Filler words
   if (removeFillers) {
+    // Search-for-words, phrasing & hesitation queries
     text = text.replace(/\b(?:what\s+else\s+is\s+there\s*,\s*like\s+what|what\s+else\s+is\s+there|like\s+what\s+is\s+there)\b,?/gi, '');
-    text = text.replace(/\b(?:how\s+do\s+you\s+say|how\s+can\s+I\s+say|how\s+to\s+say|what\s+do\s+you\s+call\s+it|what\s+is\s+it\s+called|what's\s+it\s+called|what\s+was\s+it)\b,?/gi, '');
+    text = text.replace(/\b(?:what\s+I\s+mean\s+to\s+say|what\s+I'm\s+saying\s+is|what\s+I\s+meant\s+to\s+say|what\s+I\s+wanted\s+to\s+say|I\s+was\s+gonna\s+say)\b,?/gi, '');
+    text = text.replace(/\b(?:how\s+do\s+you\s+say|how\s+can\s+I\s+say|how\s+to\s+say|how\s+should\s+I\s+put\s+it|what\s+do\s+you\s+call\s+it|what\s+is\s+it\s+called|what's\s+it\s+called|what\s+was\s+it\s+called|what\s+was\s+it)\b,?/gi, '');
+    text = text.replace(/\b(?:if\s+you\s+get\s+what\s+I\s+mean|if\s+you\s+know\s+what\s+I\s+mean)\b,?/gi, '');
+    // Pause & thinking hesitations
     text = text.replace(/\b(?:let's\s+see|let\s+me\s+see|let\s+me\s+think|lemme\s+see)\b,?/gi, '');
+    text = text.replace(/\b(?:give\s+me\s+a\s+second|give\s+me\s+a\s+sec|give\s+me\s+a\s+minute|give\s+me\s+a\s+moment|just\s+a\s+second|just\s+a\s+moment|just\s+a\s+sec|one\s+second|one\s+sec|one\s+moment)\b,?/gi, '');
     text = text.replace(/\b(?:wait\s+a\s+minute|wait\s+a\s+second|wait\s+a\s+sec|wait\s+wait\s+wait|wait\s+wait|hold\s+on\s+a\s+second|hold\s+on\s+a\s+sec|hold\s+on)\b,?/gi, '');
-    text = text.replace(/\b(?:and\s+stuff\s+like\s+that|and\s+all\s+that\s+stuff|and\s+all\s+that|or\s+something\s+like\s+that|or\s+something)\b,?/gi, '');
+    // Vagueness tails & trailing fillers
+    text = text.replace(/\b(?:and\s+things\s+like\s+that|and\s+that\s+sort\s+of\s+thing|and\s+so\s+on\s+and\s+so\s+forth|and\s+so\s+on|and\s+stuff\s+like\s+that|and\s+all\s+that\s+stuff|and\s+all\s+of\s+that|and\s+all\s+that|or\s+something\s+like\s+that|or\s+something|or\s+whatever\s+it\s+is|or\s+whatever)\b,?/gi, '');
     text = text.replace(/\bload\s*,?\s*plug\s*,?\s*closely\b,?/gi, '');
     text = text.replace(/\b(?:no no wait|no no no|no no)\b,?/gi, '');
+    // Regional slang particles
+    text = text.replace(/\b(?:bhai|accha|matlab|na\s+re|arrey|arre|yaar|toh)\b,?/gi, '');
+    // Hesitation syllables & combined stutter tokens
     text = text.replace(/\b(?:um\s+aa|aa\s+um|um\s+uh|uh\s+um|er\s+um|um\s+er|aa\s+nu|nu\s+aa)\b,?/gi, '');
-    text = text.replace(/\b(um+|uh+|erm+|ah+|aa+|aah+|ahh+|nu+|na+|umm+|uhh+|er+|hmm+|uhm+|em+|ohh+)\b,?/gi, '');
-    text = text.replace(/\b(you know what I mean|you know what I'm saying|you know|basically|actually|literally|sort of|kind of|so yeah|like I mean)\b,?/gi, '');
+    text = text.replace(/\b(um+|uh+|erm+|ah+|aa+|aah+|ahh+|nu+|na+|umm+|uhh+|er+|hmm+|uhm+|em+|ohh+|ooh+|huh+|heh+)\b,?/gi, '');
+    // Common conversational fillers
+    text = text.replace(/\b(you know what I mean|you know what I'm saying|you know|basically|actually|literally|sort of|kind of|so yeah|like I mean|to be honest|honestly speaking)\b,?/gi, '');
     for (const cf of customFillers) {
       const trimmed = cf.trim();
       if (trimmed) {
@@ -453,6 +463,8 @@ function simulateCleanup(
 
   // 3. Repeated stutters
   if (removeRepeats) {
+    // 3-word phrase repeat (strip trailing pause comma)
+    text = text.replace(/\b([a-zA-Z0-9]+)\s+([a-zA-Z0-9]+)\s+([a-zA-Z0-9]+),?\s+\1\s+\2\s+\3\b/gi, '$1 $2 $3');
     // 2-word phrase repeat (strip trailing pause comma)
     text = text.replace(/\b([a-zA-Z0-9]+)\s+([a-zA-Z0-9]+),?\s+\1\s+\2\b/gi, '$1 $2');
     // single word repeat (strip trailing pause comma)
@@ -1080,7 +1092,7 @@ export const WritingStyles: React.FC = () => {
     },
   ];
 
-  const QUICK_SUGGESTIONS = ['like', 'literally', 'yaar', 'arre', 'toh', 'I mean'];
+  const QUICK_SUGGESTIONS = ['like', 'literally', 'yaar', 'arre', 'toh', 'I mean', 'basically', 'actually', 'bhai', 'accha'];
 
   const styles: StyleDefinition[] = [
     {

@@ -7,7 +7,6 @@ import {
   X,
   Check,
   AlertCircle,
-  Sparkles,
   GripVertical,
   RotateCcw,
 } from 'lucide-react';
@@ -131,9 +130,11 @@ export const PillWidget: React.FC = () => {
           </button>
         )}
         {state === 'idle' && (
-          <div className="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center">
-            <Sparkles className="w-3 h-3" />
-          </div>
+          <img
+            src="/logo.svg"
+            alt="AMIYO FLOW"
+            className="w-4 h-4 rounded-full object-contain pointer-events-none"
+          />
         )}
 
         <div className="truncate max-w-[110px]">
